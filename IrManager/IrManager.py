@@ -126,7 +126,7 @@ class IrManager:
         code_done = False
 
         async def send_message(msg: str):
-            self.logger.info(msg)
+            self.logger.debug(msg)
             if _callback is not None:
                 await _callback(msg)
 

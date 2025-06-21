@@ -8,3 +8,4 @@ bluez_peripheral~=0.2.0a3
 zeroconf~=0.147.0
 SQLAlchemy~=2.0.41
 python-multipart~=0.0.20
+httpx~=1.0.0b0

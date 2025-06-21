@@ -1,0 +1,52 @@
+import os
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, UploadFile, HTTPException
+from sqlmodel import select
+from starlette.responses import FileResponse
+
+from Api.models.UserImage import UserImage
+from DbManager.DbManager import SessionDep
+
+router = APIRouter(
+    prefix="/images",
+    tags=["images"],
+    responses={404: {"description": "Not found"}}
+)
+
+@router.get("/", tags=["images"])
+def get_all_images(session: SessionDep):
+    images = session.exec(select(UserImage)).all()
+    return images
+
+@router.get("/images/{image_id}", tags=["images"])
+def get_image(image_id: int, session: SessionDep):
+    image = session.get(UserImage, image_id)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(image.path)
+
+@router.post("/", tags=["images"])
+def upload_image(file: UploadFile, session: SessionDep):
+    try:
+        contents = file.file.read()
+        filename, extension = os.path.splitext(file.filename)
+        path = Path("./config/images/" + str(uuid4()) + extension)
+        Path("./config/images").mkdir(exist_ok=True)
+        image = UserImage()
+        image.filename = file.filename
+        image.path = str(path)
+        with open(path, 'wb') as f:
+            db_image = UserImage.model_validate(image)
+            f.write(contents)
+            session.add(db_image)
+            session.commit()
+            return {"message": f"Successfully uploaded {file.filename}", "id": db_image.id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Something went wrong: {e}')
+    finally:
+        file.file.close()

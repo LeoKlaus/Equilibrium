@@ -1,0 +1,9 @@
+fastapi~=0.115.13
+sqlmodel~=0.0.24
+uvicorn~=0.34.3
+starlette~=0.46.2
+pigpio~=1.78
+nrf24~=2.0.0
+bluez_peripheral~=0.2.0a3
+zeroconf~=0.147.0
+SQLAlchemy~=2.0.41

@@ -7,6 +7,7 @@ from Api.models.Device import Device
 from Api.models.Scene import SceneWithRelationships, ScenePost, Scene, SceneUpdate
 from Api.models.UserImage import UserImage
 from DbManager.DbManager import SessionDep
+from RemoteController.RemoteController import RemoteController
 
 router = APIRouter(
     prefix="/scenes",
@@ -108,24 +109,31 @@ def show_scene(scene_id: int, session: SessionDep) -> Scene:
 
 
 @router.post("/{scene_id}/start", tags=["Scenes"])
-async def start_scene(scene_id: int, session: SessionDep, request: Request):
-    # TODO: Implement starting scenes using RemoteController
-    return
+async def start_scene(scene_id: int, request: Request):
+    controller: RemoteController = request.state.controller
+
+    await controller.start_scene(scene_id)
+
+    return f"Started scene {scene_id}"
 
 
 @router.get("/current", tags=["Scenes"])
-def get_current_scene(session: SessionDep):
-    # TODO: Implement getting current scene using RemoteController
-    return
+def get_current_scene(request: Request):
+    controller: RemoteController = request.state.controller
+
+    return controller.get_current_scene()
 
 
 @router.post("/current", tags=["Scenes"])
-async def set_current_scene(scene_id: int, session: SessionDep, request: Request):
-    # TODO: Implement setting current scene using RemoteController
-    return
+async def set_current_scene(scene_id: int, request: Request):
+    controller: RemoteController = request.state.controller
 
+    await controller.set_current_scene(scene_id)
+    return f"Set scene {scene_id} as current scene."
 
 @router.post("/stop", tags=["Scenes"])
-async def stop_current_scene(session: SessionDep, request: Request):
-    # TODO: Implement current scene using RemoteController
-    return
+async def stop_current_scene(request: Request):
+    controller: RemoteController = request.state.controller
+
+    await controller.stop_current_scene()
+    return "Stopped current scene."

@@ -41,12 +41,9 @@ def show_command(command_id: int, session: SessionDep) -> Command:
     return command
 
 @router.post("/{command_id}/send", tags=["Commands"])
-async def send_command(command_id: int, session: SessionDep, request: Request, press_without_release:bool =False):
-    command_db = session.get(Command, command_id)
-    if not command_db:
-        raise HTTPException(status_code=404, detail="Command not found")
-
-    # TODO: Implement sending commands using RemoteController
+async def send_command(command_id: int, request: Request):
+    controller: RemoteController = request.state.controller
+    controller.send_command(command_id)
 
 
 

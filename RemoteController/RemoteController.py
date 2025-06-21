@@ -223,7 +223,8 @@ class RemoteController:
 
         for command in scene_db.start_commands:
             await self.send_db_command(command)
-            await asyncio.sleep(0.5)
+            # TODO: Check whether using no delay causes issues here
+            #await asyncio.sleep(0.5)
 
         self.active_scene_id = scene_db.id
 
@@ -282,7 +283,8 @@ class RemoteController:
 
         for command in scene_db.stop_commands:
             await self.send_db_command(command)
-            await asyncio.sleep(0.5)
+            # TODO: Check whether using no delay causes issues here
+            #await asyncio.sleep(0.5)
 
         self.active_scene_id = None
 

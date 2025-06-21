@@ -58,6 +58,8 @@ class RemoteController:
 
         self.load_key_map()
 
+        self.logger.debug("Remote controller ready")
+
         return self
 
 
@@ -296,8 +298,9 @@ class RemoteController:
             keymap_data = file.read()
             self.keymap = json.loads(keymap_data)
 
-        self.rf_manager.set_callback(self.handle_button_press)
-        self.rf_manager.set_release_callback(self.handle_button_release)
+        if not self.is_dev:
+            self.rf_manager.set_callback(self.handle_button_press)
+            self.rf_manager.set_release_callback(self.handle_button_release)
         self.logger.debug(f"Loaded keymap {keymap_name}")
 
     def handle_button_press(self, button):

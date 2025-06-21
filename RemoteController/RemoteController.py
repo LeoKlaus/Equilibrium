@@ -310,7 +310,7 @@ class RemoteController:
 
         scene_id = self.keymap_scene.get(button)
         if scene_id:
-            self.queue.enqueue_task(self.start_scene())
+            self.queue.enqueue_task(self.start_scene(scene_id))
             return
 
         command_id = self.keymap.get(button)

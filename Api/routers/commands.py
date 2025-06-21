@@ -8,11 +8,11 @@ from DbManager.DbManager import SessionDep
 
 router = APIRouter(
     prefix="/commands",
-    tags=["commands"],
+    tags=["Commands"],
     responses={404: {"description": "Not found"}}
 )
 
-@router.post("/", tags=["commands"], response_model=Command)
+@router.post("/", tags=["Commands"], response_model=Command)
 def create_command(command: CommandBase, session: SessionDep) -> Command:
     db_command = Command.model_validate(command)
     if db_command.type == CommandType.IR and not db_command.ir_action:
@@ -28,19 +28,19 @@ def create_command(command: CommandBase, session: SessionDep) -> Command:
     session.refresh(db_command)
     return db_command
 
-@router.get("/", tags=["commands"], response_model=list[Command])
+@router.get("/", tags=["Commands"], response_model=list[Command])
 def list_commands(session: SessionDep) -> list[Command]:
     commands = session.exec(select(Command)).all()
     return commands
 
-@router.get("/{command_id}", tags=["commands"], response_model=Command)
+@router.get("/{command_id}", tags=["Commands"], response_model=Command)
 def show_command(command_id: int, session: SessionDep) -> Command:
     command = session.get(Command, command_id)
     if not command:
         raise HTTPException(status_code=404, detail="Command not found")
     return command
 
-@router.post("/{command_id}/send", tags=["commands"])
+@router.post("/{command_id}/send", tags=["Commands"])
 async def send_command(command_id: int, session: SessionDep, request: Request, press_without_release:bool =False):
     command_db = session.get(Command, command_id)
     if not command_db:
@@ -50,7 +50,7 @@ async def send_command(command_id: int, session: SessionDep, request: Request, p
 
 
 
-@router.delete("/{command_id}", tags=["commands"])
+@router.delete("/{command_id}", tags=["Commands"])
 def delete_command(command_id: int, session: SessionDep):
     command = session.get(Command, command_id)
     if not command:

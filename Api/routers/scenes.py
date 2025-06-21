@@ -10,11 +10,11 @@ from DbManager.DbManager import SessionDep
 
 router = APIRouter(
     prefix="/scenes",
-    tags=["scenes"],
+    tags=["Scenes"],
     responses={404: {"description": "Not found"}}
 )
 
-@router.post("/", tags=["scenes"], response_model=SceneWithRelationships)
+@router.post("/", tags=["Scenes"], response_model=SceneWithRelationships)
 def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
     db_scene = Scene.model_validate(scene)
     image_id = scene.image_id
@@ -50,13 +50,13 @@ def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
     return db_scene
 
 
-@router.get("/", tags=["scenes"], response_model=list[SceneWithRelationships])
+@router.get("/", tags=["Scenes"], response_model=list[SceneWithRelationships])
 def list_scenes(session: SessionDep) -> list[Scene]:
     scenes = session.exec(select(Scene)).all()
     return scenes
 
 
-@router.patch("/{scene_id}", tags=["scenes"])
+@router.patch("/{scene_id}", tags=["Scenes"])
 def update_scene(scene_id: int, scene: SceneUpdate, session: SessionDep):
     scene_db = session.get(Scene, scene_id)
     if not scene_db:
@@ -87,7 +87,7 @@ def update_scene(scene_id: int, scene: SceneUpdate, session: SessionDep):
     return scene_db
 
 
-@router.delete("/{scene_id}", tags=["scenes"])
+@router.delete("/{scene_id}", tags=["Scenes"])
 def delete_scene(scene_id: int, session: SessionDep):
     scene = session.get(Scene, scene_id)
     if not scene:
@@ -99,7 +99,7 @@ def delete_scene(scene_id: int, session: SessionDep):
     return {"message": f"Successfully deleted {scene.name}"}
 
 
-@router.get("/{scene_id}", tags=["scenes"], response_model=SceneWithRelationships)
+@router.get("/{scene_id}", tags=["Scenes"], response_model=SceneWithRelationships)
 def show_scene(scene_id: int, session: SessionDep) -> Scene:
     scene = session.get(Scene, scene_id)
     if not scene:
@@ -107,25 +107,25 @@ def show_scene(scene_id: int, session: SessionDep) -> Scene:
     return scene
 
 
-@router.post("/{scene_id}/start", tags=["scenes"])
+@router.post("/{scene_id}/start", tags=["Scenes"])
 async def start_scene(scene_id: int, session: SessionDep, request: Request):
     # TODO: Implement starting scenes using RemoteController
     return
 
 
-@router.get("/current", tags=["scenes"])
+@router.get("/current", tags=["Scenes"])
 def get_current_scene(session: SessionDep):
     # TODO: Implement getting current scene using RemoteController
     return
 
 
-@router.post("/current", tags=["scenes"])
+@router.post("/current", tags=["Scenes"])
 async def set_current_scene(scene_id: int, session: SessionDep, request: Request):
     # TODO: Implement setting current scene using RemoteController
     return
 
 
-@router.post("/stop", tags=["scenes"])
+@router.post("/stop", tags=["Scenes"])
 async def stop_current_scene(session: SessionDep, request: Request):
     # TODO: Implement current scene using RemoteController
     return

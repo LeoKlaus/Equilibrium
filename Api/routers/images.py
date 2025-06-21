@@ -11,23 +11,23 @@ from DbManager.DbManager import SessionDep
 
 router = APIRouter(
     prefix="/images",
-    tags=["images"],
+    tags=["Images"],
     responses={404: {"description": "Not found"}}
 )
 
-@router.get("/", tags=["images"])
+@router.get("/", tags=["Images"])
 def get_all_images(session: SessionDep):
     images = session.exec(select(UserImage)).all()
     return images
 
-@router.get("/images/{image_id}", tags=["images"])
+@router.get("/{image_id}", tags=["Images"])
 def get_image(image_id: int, session: SessionDep):
     image = session.get(UserImage, image_id)
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(image.path)
 
-@router.post("/", tags=["images"])
+@router.post("/", tags=["Images"])
 def upload_image(file: UploadFile, session: SessionDep):
     try:
         contents = file.file.read()
@@ -51,7 +51,7 @@ def upload_image(file: UploadFile, session: SessionDep):
     finally:
         file.file.close()
 
-@router.delete("/images/{image_id}", tags=["images"])
+@router.delete("/{image_id}", tags=["Images"])
 def delete_image(image_id: int, session: SessionDep):
     image = session.get(UserImage, image_id)
     if not image:

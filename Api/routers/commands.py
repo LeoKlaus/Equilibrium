@@ -43,7 +43,7 @@ def show_command(command_id: int, session: SessionDep) -> Command:
 @router.post("/{command_id}/send", tags=["Commands"])
 async def send_command(command_id: int, request: Request):
     controller: RemoteController = request.state.controller
-    await controller.send_command(command_id)
+    return await controller.send_command(command_id)
 
 
 @router.delete("/{command_id}", tags=["Commands"])

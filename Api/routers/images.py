@@ -50,3 +50,16 @@ def upload_image(file: UploadFile, session: SessionDep):
         raise HTTPException(status_code=500, detail=f'Something went wrong: {e}')
     finally:
         file.file.close()
+
+@router.delete("/images/{image_id}", tags=["images"])
+def delete_image(image_id: int, session: SessionDep):
+    image = session.get(UserImage, image_id)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    path = Path(image.path)
+    session.delete(image)
+    session.commit()
+    if path.is_file():
+        path.unlink()
+    return {"message": f"Successfully deleted {image.filename}"}
+

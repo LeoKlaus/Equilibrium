@@ -9,11 +9,6 @@ from IrManager.IrManager import IrManager
 from RfManager.RfManager import RfManager
 
 
-from sqlmodel import select
-
-from Api.models.UserImage import UserImage
-
-
 class RemoteController:
 
     logger: logging

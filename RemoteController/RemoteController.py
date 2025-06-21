@@ -77,6 +77,7 @@ class RemoteController:
 
     async def send_command(self, command_id: int, press_without_release = False):
         command_db = self.db_session.get(Command, command_id)
+
         if not command_db:
             raise HTTPException(status_code=404, detail="Command not found")
 
@@ -89,9 +90,11 @@ class RemoteController:
                 return await self.send_network_command(command_db)
             case CommandType.SCRIPT:
                 return await self.send_script_command(command_db)
+        raise HTTPException(status_code=400, detail=f"Command {command_db.name} found, but type {command_db.type} is invalid.")
 
     async def send_ir_command(self, command: Command, press_without_release = False):
         ir_command = command.ir_action
+
         if ir_command:
             if press_without_release:
                 await self.ir_manager.send_and_repeat(ir_command)

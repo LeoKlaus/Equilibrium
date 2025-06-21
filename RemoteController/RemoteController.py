@@ -49,7 +49,6 @@ class RemoteController:
             self.rf_manager.stop_listener()
             await self.ble_keyboard.disconnect()
 
-    def get_images(self):
-        images = self.db_session.exec(select(UserImage)).all()
-        return images
+
+
 

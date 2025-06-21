@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy import Boolean
 from sqlmodel import Session
 
@@ -14,6 +16,7 @@ from Api.models.UserImage import UserImage
 
 class RemoteController:
 
+    logger: logging
     is_dev: Boolean
     ble_keyboard: BleKeyboard
     rf_manager: RfManager
@@ -23,6 +26,8 @@ class RemoteController:
     @classmethod
     async def create(cls, dev: bool = False):
         self = cls()
+
+        self.logger = logging.getLogger(__package__)
 
         self.is_dev = dev
 

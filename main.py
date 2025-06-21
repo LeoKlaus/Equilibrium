@@ -6,6 +6,7 @@ from Api.app import app_generator
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Equilibrium")
+
     parser.add_argument(
         "--dev",
         help="Start Equilibrium in dev mode (disables GPIO and Bluetooth access, Bonjour registration).",
@@ -32,7 +33,8 @@ if __name__ == '__main__':
     else:
         logging.basicConfig(level=args.loglevel)
 
-    logging.basicConfig(format="%(asctime)s %(name)s :: %(levelname)-8s :: %(message)s")
+    logging.basicConfig(format="%(asctime)s %(name)-20s - %(levelname)-8s - %(message)s", force=True)
 
     app = app_generator(args.dev)
-    uvicorn.run(app, host='0.0.0.0', port=8000)
+
+    uvicorn.run(app, host='0.0.0.0', port=8000, log_config=None)

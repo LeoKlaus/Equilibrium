@@ -33,7 +33,7 @@ class BleKeyboard:
     """
     Class representing a BLE keyboard.
     """
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger(__package__)
 
     bus = None
     battery_service = None

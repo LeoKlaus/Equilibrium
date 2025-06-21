@@ -10,7 +10,7 @@ from nrf24 import *
 
 class RfManager:
 
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger(__package__)
     listener_thread = None
 
     def __init__(self, callback=None, repeat_callback=None, release_callback=None):

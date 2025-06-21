@@ -9,7 +9,6 @@ class ZeroconfManager:
     info: AsyncServiceInfo|None = None
     zeroconf: AsyncZeroconf|None = None
 
-
     def register_service(self, name: str, description=None):
         if description is None:
             description = {}

@@ -1,4 +1,5 @@
 import logging
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -10,7 +11,8 @@ from ZeroconfManager.ZeroconfManager import ZeroconfManager
 @asynccontextmanager
 async def lifespan(_: FastAPI):
 
-    logger = logging.getLogger('uvicorn')
+    logger = logging.getLogger(__name__)
+
     logger.info("Starting up...")
 
 
@@ -33,7 +35,8 @@ async def lifespan(_: FastAPI):
 @asynccontextmanager
 async def lifespan_dev(_: FastAPI):
 
-    logger = logging.getLogger('uvicorn')
+    logger = logging.getLogger(__name__)
+
     logger.info("Starting up...")
 
 

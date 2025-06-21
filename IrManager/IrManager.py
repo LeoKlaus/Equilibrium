@@ -20,7 +20,7 @@ FREQ = 38
 
 class IrManager:
 
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger(__package__)
     recordingTask: Task|None = None
 
     def __init__(self):

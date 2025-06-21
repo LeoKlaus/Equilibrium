@@ -1,23 +1,32 @@
+import asyncio
+import json
 import logging
 from asyncio import CancelledError
+from typing import Dict
 
 import httpx
 from fastapi import HTTPException
 from sqlalchemy import Boolean
-from sqlalchemy.util import await_only
 from sqlmodel import Session
 
 from Api.models.Command import CommandBase, Command
 from Api.models.CommandGroup import CommandGroup
 from Api.models.CommandType import CommandType
 from Api.models.NetworkRequestType import NetworkRequestType
+from Api.models.Scene import Scene
 from BleKeyboard.BleKeyboard import BleKeyboard
 from DbManager.DbManager import DbManager
 from IrManager.IrManager import IrManager, AsyncCallback
+from RemoteController.AsyncQueueManager import AsyncQueueManager
 from RfManager.RfManager import RfManager
 
 
 class RemoteController:
+
+    active_scene_id: int|None
+
+    keymap: Dict[str, int] = []
+    keymap_scene: Dict[str, int] = []
 
     logger: logging
     is_dev: Boolean
@@ -25,6 +34,7 @@ class RemoteController:
     rf_manager: RfManager
     ir_manager: IrManager
     db_session: Session
+    queue: AsyncQueueManager
 
     @classmethod
     async def create(cls, dev: bool = False):
@@ -43,6 +53,10 @@ class RemoteController:
             self.ir_manager = IrManager()
 
         self.db_session = DbManager().get_session()
+
+        self.queue = AsyncQueueManager()
+
+        self.load_key_map()
 
         return self
 
@@ -74,6 +88,21 @@ class RemoteController:
                 except CancelledError:
                     await callback("Recording cancelled, please try again.")
 
+    async def send_db_command(self, command: Command, press_without_release = False):
+        match command.type:
+            case CommandType.IR:
+                return await self.send_ir_command(command, press_without_release=press_without_release)
+            case CommandType.BLUETOOTH:
+                return await self.send_bt_command(command, press_without_release=press_without_release)
+            case CommandType.NETWORK:
+                return await self.send_network_command(command)
+            case CommandType.SCRIPT:
+                return await self.send_script_command(command)
+
+        raise HTTPException(
+            status_code=400,
+            detail=f"Command {command.name} found, but type {command.type} is invalid."
+        )
 
     async def send_command(self, command_id: int, press_without_release = False):
         command_db = self.db_session.get(Command, command_id)
@@ -81,16 +110,9 @@ class RemoteController:
         if not command_db:
             raise HTTPException(status_code=404, detail="Command not found")
 
-        match command_db.type:
-            case CommandType.IR:
-                return await self.send_ir_command(command_db, press_without_release=press_without_release)
-            case CommandType.BLUETOOTH:
-                return await self.send_bt_command(command_db, press_without_release=press_without_release)
-            case CommandType.NETWORK:
-                return await self.send_network_command(command_db)
-            case CommandType.SCRIPT:
-                return await self.send_script_command(command_db)
-        raise HTTPException(status_code=400, detail=f"Command {command_db.name} found, but type {command_db.type} is invalid.")
+        await self.send_db_command(command_db, press_without_release)
+
+
 
     async def send_ir_command(self, command: Command, press_without_release = False):
         ir_command = command.ir_action
@@ -183,3 +205,117 @@ class RemoteController:
 
     async def send_script_command(self, command: Command):
         raise HTTPException(status_code=400, detail="Script commands are not implemented yet")
+
+    async def start_scene(self, scene_id: int):
+
+        scene_db = self.db_session.get(Scene, scene_id)
+
+        if not scene_db:
+            raise HTTPException(status_code=404, detail="Scene not found")
+
+        bt_address = scene_db.bluetooth_address
+        if bt_address:
+            await self.ble_keyboard.unregister_services()
+            await self.ble_keyboard.connect(bt_address)
+            await self.ble_keyboard.register_services()
+
+        for command in scene_db.start_commands:
+            await self.send_db_command(command)
+            await asyncio.sleep(0.5)
+
+        self.active_scene_id = scene_db.id
+
+        if scene_db.keymap:
+            self.load_key_map(scene_db.keymap)
+
+        self.logger.info(f"Scene {scene_db.name} started!")
+
+    def get_current_scene(self):
+        if not self.active_scene_id:
+            raise HTTPException(status_code=404, detail="No scene active")
+
+        scene_db = self.db_session.get(Scene, self.active_scene_id)
+
+        if not scene_db:
+            raise HTTPException(status_code=404, detail=f"Couldn't find scene with ID {self.active_scene_id}.")
+
+        return scene_db
+
+    # Updates active scene without executing start commands
+    async def set_current_scene(self, scene_id: int):
+
+        scene_db = self.db_session.get(Scene, scene_id)
+
+        if not scene_db:
+            raise HTTPException(status_code=404, detail="Scene not found")
+
+        bt_address = scene_db.bluetooth_address
+        if bt_address:
+            await self.ble_keyboard.unregister_services()
+            await self.ble_keyboard.connect(bt_address)
+            await self.ble_keyboard.register_services()
+
+        self.active_scene_id = scene_db.id
+
+        if scene_db.keymap:
+            self.load_key_map(scene_db.keymap)
+
+        self.logger.info(f"Set {scene_db.name} as current scene.")
+
+
+    async def stop_current_scene(self):
+        if not self.active_scene_id:
+            raise HTTPException(status_code=404, detail="No scene active")
+
+        scene_db = self.db_session.get(Scene, self.active_scene_id)
+
+        self.load_key_map("default")
+
+        if not scene_db:
+            raise HTTPException(status_code=404, detail=f"Couldn't find scene with ID {self.active_scene_id}.")
+
+        bt_address = scene_db.bluetooth_address
+        if bt_address:
+            await self.ble_keyboard.disconnect(bt_address)
+
+        for command in scene_db.stop_commands:
+            await self.send_db_command(command)
+            await asyncio.sleep(0.5)
+
+        self.active_scene_id = None
+
+        self.logger.info(f"Scene {scene_db.name} stopped!")
+
+    def load_key_map(self, keymap_name: str = "default"):
+
+        with open("config/keymap_scenes.json", "r") as file:
+            keymap_scene_data = file.read()
+            self.keymap_scene = json.loads(keymap_scene_data)
+
+        with open(f"config/keymap_{keymap_name}.json") as file:
+            keymap_data = file.read()
+            self.keymap = json.loads(keymap_data)
+
+        self.rf_manager.set_callback(self.handle_button_press)
+        self.rf_manager.set_release_callback(self.handle_button_release)
+        self.logger.debug(f"Loaded keymap {keymap_name}")
+
+    def handle_button_press(self, button):
+        if button == "Off":
+            self.queue.enqueue_task(self.stop_current_scene())
+            return
+
+        scene_id = self.keymap_scene.get(button)
+        if scene_id:
+            self.queue.enqueue_task(self.start_scene())
+            return
+
+        command_id = self.keymap.get(button)
+        if command_id:
+            self.queue.enqueue_task(self.send_command(command_id, press_without_release=True))
+
+    def handle_button_release(self, _):
+        self.ble_keyboard.release_keys()
+        self.ble_keyboard.release_media_keys()
+        self.ir_manager.stop_repeating()
+

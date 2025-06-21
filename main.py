@@ -9,8 +9,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--dev",
         help="Start Equilibrium in dev mode (disables GPIO and Bluetooth access, Bonjour registration).",
-        action="store_const", dest="dev_mode", const=True,
-        default=False
+        action="store_true"
     )
 
     parser.add_argument(
@@ -28,10 +27,12 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.dev_mode:
+    if args.dev:
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=args.loglevel)
 
-    app = app_generator(args.dev_mode)
-    uvicorn.run(app)
+    logging.basicConfig(format="%(asctime)s %(name)s :: %(levelname)-8s :: %(message)s")
+
+    app = app_generator(args.dev)
+    uvicorn.run(app, host='0.0.0.0', port=8000)

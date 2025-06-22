@@ -51,7 +51,7 @@ async def websocket_status(websocket: WebSocket):
 
     await manager.connect(websocket)
 
-    controller.status_callback = manager.broadcast
+    controller.status_callback = manager.broadcast_json
 
     try:
         while True:

@@ -15,10 +15,6 @@ class WebsocketConnectionManager:
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
 
-    async def broadcast(self, message: str):
-        for connection in self.active_connections:
-            await connection.send_text(message)
-
     async def broadcast_json(self, message):
         for connection in self.active_connections:
             await connection.send_json(message)

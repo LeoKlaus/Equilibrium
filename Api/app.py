@@ -17,7 +17,7 @@ def app_generator(dev: bool = False):
     app.include_router(scenes.router)
     app.include_router(websockets.router)
 
-    @app.get("/")
+    @app.get("/", include_in_schema=False)
     def redirect():
         return RedirectResponse("/docs")
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 from starlette.requests import Request
 
+from Api.models import Macro
 from Api.models.Command import Command
 from Api.models.Device import Device
 from Api.models.Scene import SceneWithRelationships, ScenePost, Scene, SceneUpdate, SceneStatusReport
@@ -34,17 +35,15 @@ def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
             raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
         db_scene.devices.append(device_db)
 
-    for command_id in scene.start_command_ids:
-        command_db = session.get(Command, command_id)
-        if not command_db:
-            raise HTTPException(status_code=500, detail=f"Command {command_id} not found")
-        db_scene.start_commands.append(command_db)
+    start_macro = session.get(Macro, scene.start_macro_id)
+    if not start_macro:
+        raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
+    db_scene.start_macro = start_macro
 
-    for command_id in scene.stop_command_ids:
-        command_db = session.get(Command, command_id)
-        if not command_db:
-            raise HTTPException(status_code=500, detail=f"Command {command_id} not found")
-        db_scene.stop_commands.append(command_db)
+    stop_macro = session.get(Macro, scene.stop_macro_id)
+    if not stop_macro:
+        raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
+    db_scene.stop_macro = stop_macro
 
     session.commit()
     session.refresh(db_scene)
@@ -66,21 +65,17 @@ def update_scene(scene_id: int, scene: SceneUpdate, session: SessionDep):
     if scene.bluetooth_address:
         scene_db.bluetooth_address = scene.bluetooth_address
 
-    scene_db.start_commands = []
+    if scene.start_macro_id:
+        start_macro = session.get(Macro, scene.start_macro_id)
+        if not start_macro:
+            raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
+        scene_db.start_macro = start_macro
 
-    for command_id in scene.start_command_ids:
-        command_db = session.get(Command, command_id)
-        if not command_db:
-            raise HTTPException(status_code=500, detail=f"Command {command_id} not found")
-        scene_db.start_commands.append(command_db)
-
-    scene_db.stop_commands = []
-
-    for command_id in scene.stop_commands_ids:
-        command_db = session.get(Command, command_id)
-        if not command_db:
-            raise HTTPException(status_code=500, detail=f"Command {command_id} not found")
-        scene_db.stop_commands.append(command_db)
+    if scene.stop_macro_id:
+        stop_macro = session.get(Macro, scene.stop_macro_id)
+        if not stop_macro:
+            raise HTTPException(status_code=400, detail=f"Macro {scene.stop_macro_id} not found")
+        scene_db.stop_macro = stop_macro
 
     scene_data = scene.model_dump(exclude_unset=True)
     scene_db.sqlmodel_update(scene_data)

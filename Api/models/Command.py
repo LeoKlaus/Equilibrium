@@ -1,15 +1,17 @@
 from typing import List, TYPE_CHECKING
 
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, table
 from sqlmodel import SQLModel, Field, Relationship
 
 from Api.models.CommandGroup import CommandGroup
 from Api.models.CommandType import CommandType
+from Api.models.Macro import CommandMacroLink
 from Api.models.NetworkRequestType import NetworkRequestType
 from Api.models.RemoteButton import RemoteButton
 from Api.models.Scene import SceneStartCommandLink, SceneStopCommandLink, Scene
 
 if TYPE_CHECKING:
+    from Api.models.Macro import Macro
     from Api.models.Scene import Scene
 
 class CommandBase(SQLModel):
@@ -35,6 +37,7 @@ class Command(CommandBase, table=True):
     body: str | None = Field(default=None)
     scenes_start: List["Scene"] = Relationship(back_populates="start_commands", link_model=SceneStartCommandLink)
     scenes_stop: List["Scene"] = Relationship(back_populates="stop_commands", link_model=SceneStopCommandLink)
+    macros: list["Macro"] = Relationship(back_populates="commands", link_model=CommandMacroLink)
 
     # Needed for Column(JSON)
     class Config:

@@ -220,7 +220,7 @@ class RemoteController:
         self.active_scene_status = SceneStatusReport(id=scene_id, status=SceneStatus.STARTING)
 
         if self.status_callback is not None:
-            self.status_callback(self.active_scene_status)
+            await self.status_callback(self.active_scene_status)
 
         bt_address = scene_db.bluetooth_address
         if bt_address:
@@ -239,7 +239,7 @@ class RemoteController:
         self.active_scene_status = SceneStatusReport(id=scene_id, status=SceneStatus.ACTIVE)
 
         if self.status_callback is not None:
-            self.status_callback(self.active_scene_status)
+            await self.status_callback(self.active_scene_status)
 
         self.logger.info(f"Scene {scene_db.name} started!")
 
@@ -263,7 +263,7 @@ class RemoteController:
         self.active_scene_status = SceneStatusReport(id=scene_id, status=SceneStatus.ACTIVE)
 
         if self.status_callback is not None:
-            self.status_callback(self.active_scene_status)
+            await self.status_callback(self.active_scene_status)
 
         if scene_db.keymap:
             self.load_key_map(scene_db.keymap)
@@ -294,7 +294,7 @@ class RemoteController:
         self.active_scene_status = SceneStatusReport(id=None, status=None)
 
         if self.status_callback is not None:
-            self.status_callback(self.active_scene_status)
+            await self.status_callback(self.active_scene_status)
 
         self.logger.info(f"Scene {scene_db.name} stopped!")
 

@@ -11,12 +11,21 @@ class CommandMacroLink(SQLModel, table=True):
     command_id: int | None = Field(default=None, foreign_key="macro.id", primary_key=True)
     macro_id: int | None = Field(default=None, foreign_key="command.id", primary_key=True)
 
+class SceneMacroLink(SQLModel, table=True):
+    scene_id: int | None = Field(default=None, foreign_key="macro.id", primary_key=True)
+    macro_id: int | None = Field(default=None, foreign_key="scene.id", primary_key=True)
+
+class DeviceMacroLink(SQLModel, table=True):
+    device_id: int | None = Field(default=None, foreign_key="macro.id", primary_key=True)
+    macro_id: int | None = Field(default=None, foreign_key="device.id", primary_key=True)
+
 class MacroBase(SQLModel):
     name: str | None = Field(default=None)
 
 class MacroPost(MacroBase):
     command_ids: list[int] = Field(default=[])
     delays: list[int] = Field(default=[])
+    scene_ids: list[int] = Field(default=[])
 
 class Macro(MacroBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -30,6 +39,8 @@ class Macro(MacroBase, table=True):
         back_populates="stop_macro",
         sa_relationship_kwargs={"foreign_keys": "Scene.stop_macro_id"}
     )
+    scenes: list["Scene"] = Relationship(back_populates="macros", link_model=SceneMacroLink)
+
     # Needed for Column(JSON)
     class Config:
         arbitrary_types_allowed = True
@@ -38,3 +49,4 @@ class MacroWithRelationships(MacroBase):
     id: int | None
     commands: list["Command"] = []
     delays: list[int] = []
+    scenes: list["Scene"] = []

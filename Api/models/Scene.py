@@ -5,7 +5,7 @@ from sqlmodel import SQLModel, Field, Relationship
 from Api.models.SceneStatus import SceneStatus
 from Api.models.UserImage import UserImage
 
-from Api.models.Macro import Macro, MacroWithRelationships
+from Api.models.Macro import Macro, MacroWithRelationships, SceneMacroLink
 
 if TYPE_CHECKING:
     from Api.models.Device import Device
@@ -51,6 +51,7 @@ class Scene(SceneBase, table=True):
         back_populates="scenes_stop",
         sa_relationship_kwargs={"foreign_keys": "Scene.stop_macro_id"}
     )
+    macros: list[Macro] = Relationship(back_populates="scenes", link_model=SceneMacroLink)
     bluetooth_address: str | None = Field(default=None)
     keymap: str | None = Field(default=None)
 
@@ -70,6 +71,7 @@ class SceneWithRelationships(SceneBase):
     image: UserImage | None = None
     start_macro: Optional[MacroWithRelationships] = None
     stop_macro: Optional[MacroWithRelationships] = None
+    macros: list[Macro] = []
     bluetooth_address: str | None = None
     keymap: str | None = None
 

@@ -1,6 +1,5 @@
 from typing import List, TYPE_CHECKING
 
-from pydantic import BaseModel
 from sqlmodel import SQLModel, Field, Relationship
 
 from Api.models.SceneStatus import SceneStatus
@@ -62,11 +61,6 @@ class SceneWithRelationships(SceneBase):
     bluetooth_address: str | None = None
     keymap: str | None = None
 
-class SceneStatusReport(BaseModel):
+class SceneStatusReport(SQLModel):
     id: int | None
     status: SceneStatus | None
-
-    #def __init__(self, current_scene_id: int|None, status: SceneStatus|None):
-    #    super().__init__()
-    #    self.current_scene_id = current_scene_id
-    #    self.status = status

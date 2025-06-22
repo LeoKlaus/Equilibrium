@@ -217,10 +217,7 @@ class RemoteController:
         if not scene_db:
             raise HTTPException(status_code=404, detail="Scene not found")
 
-        self.active_scene_status = SceneStatusReport(id=scene_id, status=SceneStatus.STARTING)
-
-        if self.status_callback is not None:
-            await self.status_callback(self.active_scene_status)
+        await self._update_current_scene(SceneStatusReport(id=scene_id, status=SceneStatus.STARTING))
 
         bt_address = scene_db.bluetooth_address
         if bt_address:
@@ -236,10 +233,7 @@ class RemoteController:
         if scene_db.keymap:
             self.load_key_map(scene_db.keymap)
 
-        self.active_scene_status = SceneStatusReport(id=scene_id, status=SceneStatus.ACTIVE)
-
-        if self.status_callback is not None:
-            await self.status_callback(self.active_scene_status)
+        await self._update_current_scene(SceneStatusReport(id=scene_id, status=SceneStatus.ACTIVE))
 
         self.logger.info(f"Scene {scene_db.name} started!")
 
@@ -260,10 +254,7 @@ class RemoteController:
             await self.ble_keyboard.connect(bt_address)
             await self.ble_keyboard.register_services()
 
-        self.active_scene_status = SceneStatusReport(id=scene_id, status=SceneStatus.ACTIVE)
-
-        if self.status_callback is not None:
-            await self.status_callback(self.active_scene_status)
+        await self._update_current_scene(SceneStatusReport(id=scene_id, status=SceneStatus.ACTIVE))
 
         if scene_db.keymap:
             self.load_key_map(scene_db.keymap)
@@ -282,6 +273,8 @@ class RemoteController:
         if not scene_db:
             raise HTTPException(status_code=404, detail=f"Couldn't find scene with ID {self.active_scene_status.id}.")
 
+        await self._update_current_scene(SceneStatusReport(id=self.active_scene_status.id, status=SceneStatus.STOPPING))
+
         bt_address = scene_db.bluetooth_address
         if bt_address:
             await self.ble_keyboard.disconnect(bt_address)
@@ -291,10 +284,7 @@ class RemoteController:
             # TODO: Check whether using no delay causes issues here
             #await asyncio.sleep(0.5)
 
-        self.active_scene_status = SceneStatusReport(id=None, status=None)
-
-        if self.status_callback is not None:
-            await self.status_callback(self.active_scene_status)
+        await self._update_current_scene(SceneStatusReport(id=None, status=None))
 
         self.logger.info(f"Scene {scene_db.name} stopped!")
 
@@ -332,3 +322,8 @@ class RemoteController:
         self.ble_keyboard.release_media_keys()
         self.ir_manager.stop_repeating()
 
+    async def _update_current_scene(self, new_scene: SceneStatusReport):
+        self.active_scene_status = new_scene
+
+        if self.status_callback is not None:
+            await self.status_callback(self.active_scene_status)

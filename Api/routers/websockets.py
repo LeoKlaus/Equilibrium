@@ -53,6 +53,8 @@ async def websocket_status(websocket: WebSocket):
 
     controller.status_callback = manager.broadcast_json
 
+    await websocket.send_json(controller.active_scene_status.model_dump_json())
+
     try:
         while True:
             await websocket.receive_text()

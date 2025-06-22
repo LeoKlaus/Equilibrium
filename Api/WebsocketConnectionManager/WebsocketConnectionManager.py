@@ -1,5 +1,6 @@
 from typing import Callable, Awaitable
 
+from sqlmodel import SQLModel
 from starlette.websockets import WebSocket
 
 AsyncJsonCallback = Callable[[any], Awaitable[None]]
@@ -15,6 +16,6 @@ class WebsocketConnectionManager:
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
 
-    async def broadcast_json(self, message):
+    async def broadcast_json(self, message: SQLModel):
         for connection in self.active_connections:
-            await connection.send_json(message)
+            await connection.send_json(message.model_dump_json())

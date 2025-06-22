@@ -102,7 +102,7 @@ def delete_scene(scene_id: int, session: SessionDep):
     return {"message": f"Successfully deleted {scene.name}"}
 
 
-@router.get("/current", tags=["Scenes"])
+@router.get("/current", tags=["Scenes"], response_model=SceneStatusReport)
 def get_current_scene(request: Request) -> SceneStatusReport:
     controller: RemoteController = request.state.controller
 

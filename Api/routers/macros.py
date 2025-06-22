@@ -26,7 +26,8 @@ def get_macro(macro_id: int, session: SessionDep) -> MacroWithRelationships:
 @router.post("/", tags=["Macros"], response_model=MacroWithRelationships)
 def create_macro(macro: MacroPost, session: SessionDep) -> MacroWithRelationships:
     db_macro = Macro.model_validate(macro)
-    if len(macro.command_ids) != (len(macro.delays) + 1):
+
+    if (len(macro.command_ids) != (len(macro.delays) + 1)) and len(macro.command_ids) > 0:
         raise HTTPException(status_code=400, detail="You have to include one delay for all but the last command (len(command_ids) == len(delays)+1).")
 
     session.add(db_macro)
@@ -53,6 +54,48 @@ def create_macro(macro: MacroPost, session: SessionDep) -> MacroWithRelationship
     session.commit()
     session.refresh(db_macro)
     return db_macro
+
+@router.patch("/{macro_id}", tags=["Macros"], response_model=MacroWithRelationships)
+def update_macro(macro_id: int, macro: MacroPost, session: SessionDep) -> MacroWithRelationships:
+    macro_db = session.get(Macro, macro_id)
+    if not macro_db:
+        raise HTTPException(status_code=404, detail="Macro not found")
+
+    if (len(macro.command_ids) != (len(macro.delays) + 1)) and len(macro.command_ids) > 0:
+        raise HTTPException(status_code=400, detail="You have to include one delay for all but the last command (len(command_ids) == len(delays)+1).")
+
+    macro_db.commands = []
+
+    for command_id in macro.command_ids:
+        command_db = session.get(Command, command_id)
+        if not command_db:
+            raise HTTPException(status_code=404, detail=f"Command {command_id} not found")
+        macro_db.commands.append(command_db)
+
+    macro_db.scenes = []
+
+    for scene_id in macro.scene_ids:
+        scene_db = session.get(Scene, scene_id)
+        if not scene_db:
+            raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
+        macro_db.scenes.append(scene_db)
+
+    macro_db.devices = []
+
+    for device_id in macro.device_ids:
+        device_db = session.get(Device, device_id)
+        if not device_db:
+            raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+        macro_db.devices.append(device_db)
+
+    macro_db.delays = macro.delays
+
+    macro_data = macro.model_dump(exclude_unset=True)
+    macro_db.sqlmodel_update(macro_data)
+    session.add(macro_db)
+    session.commit()
+    session.refresh(macro_db)
+    return macro_db
 
 @router.delete("/{macro_id}", tags=["Macros"])
 def delete_macros(macro_id: int, session: SessionDep):

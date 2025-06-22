@@ -4,6 +4,7 @@ from sqlalchemy import Column, JSON
 from sqlmodel import SQLModel, Field, Relationship
 
 if TYPE_CHECKING:
+    from Api.models.Device import Device
     from Api.models.Scene import Scene
     from Api.models.Command import Command
 
@@ -26,6 +27,7 @@ class MacroPost(MacroBase):
     command_ids: list[int] = Field(default=[])
     delays: list[int] = Field(default=[])
     scene_ids: list[int] = Field(default=[])
+    device_ids: list[int] = Field(default=[])
 
 class Macro(MacroBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -40,6 +42,7 @@ class Macro(MacroBase, table=True):
         sa_relationship_kwargs={"foreign_keys": "Scene.stop_macro_id"}
     )
     scenes: list["Scene"] = Relationship(back_populates="macros", link_model=SceneMacroLink)
+    devices: list["Device"] = Relationship(back_populates="macros", link_model=DeviceMacroLink)
 
     # Needed for Column(JSON)
     class Config:
@@ -50,3 +53,4 @@ class MacroWithRelationships(MacroBase):
     commands: list["Command"] = []
     delays: list[int] = []
     scenes: list["Scene"] = []
+    devices: list["Device"] = []

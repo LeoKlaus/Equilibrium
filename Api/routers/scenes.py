@@ -35,15 +35,17 @@ def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
             raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
         db_scene.devices.append(device_db)
 
-    start_macro = session.get(Macro, scene.start_macro_id)
-    if not start_macro:
-        raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
-    db_scene.start_macro = start_macro
+    if scene.start_macro_id:
+        start_macro = session.get(Macro, scene.start_macro_id)
+        if not start_macro:
+            raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
+        db_scene.start_macro = start_macro
 
-    stop_macro = session.get(Macro, scene.stop_macro_id)
-    if not stop_macro:
-        raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
-    db_scene.stop_macro = stop_macro
+    if scene.stop_macro_id:
+        stop_macro = session.get(Macro, scene.stop_macro_id)
+        if not stop_macro:
+            raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
+        db_scene.stop_macro = stop_macro
 
     session.commit()
     session.refresh(db_scene)
@@ -65,16 +67,16 @@ def update_scene(scene_id: int, scene: SceneUpdate, session: SessionDep):
     if scene.bluetooth_address:
         scene_db.bluetooth_address = scene.bluetooth_address
 
-    if scene.start_macro_id:
+    if scene.start_macro_id and scene.start_macro_id != "None":
         start_macro = session.get(Macro, scene.start_macro_id)
         if not start_macro:
-            raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
+            raise HTTPException(status_code=400, detail=f"Start macro {scene.start_macro_id} not found")
         scene_db.start_macro = start_macro
 
-    if scene.stop_macro_id:
+    if scene.stop_macro_id and scene.start_macro_id != "None":
         stop_macro = session.get(Macro, scene.stop_macro_id)
         if not stop_macro:
-            raise HTTPException(status_code=400, detail=f"Macro {scene.stop_macro_id} not found")
+            raise HTTPException(status_code=400, detail=f"Stop macro {scene.stop_macro_id} not found")
         scene_db.stop_macro = stop_macro
 
     scene_data = scene.model_dump(exclude_unset=True)

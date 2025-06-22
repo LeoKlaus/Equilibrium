@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
-from Api.models import Command, Scene
+from Api.models import Command, Scene, Device
 from Api.models.Macro import Macro, MacroPost, MacroWithRelationships
 from DbManager.DbManager import SessionDep
 
@@ -42,6 +42,12 @@ def create_macro(macro: MacroPost, session: SessionDep) -> MacroWithRelationship
         if not scene_db:
             raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
         db_macro.scenes.append(scene_db)
+
+    for device_id in macro.device_ids:
+        device_db = session.get(Device, device_id)
+        if not device_db:
+            raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+        db_macro.devices.append(device_db)
 
     db_macro.delays = macro.delays
     session.commit()

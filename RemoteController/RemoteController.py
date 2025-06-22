@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 from asyncio import CancelledError

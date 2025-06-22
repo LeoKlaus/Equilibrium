@@ -16,7 +16,7 @@ router = APIRouter(
 def create_command(command: CommandBase, session: SessionDep) -> Command:
     db_command = Command.model_validate(command)
     if db_command.type == CommandType.IR and not db_command.ir_action:
-        raise HTTPException(status_code=500, detail="IR commands can only be created via WebSocket. Please use the /ws endpoint.")
+        raise HTTPException(status_code=500, detail="IR commands can only be created via WebSocket. Please use the /ws/commands endpoint.")
     elif db_command.type == CommandType.NETWORK and not db_command.host:
         raise HTTPException(status_code=500, detail="Network commands require a host to be set.")
     elif db_command.type == CommandType.NETWORK and not db_command.method:

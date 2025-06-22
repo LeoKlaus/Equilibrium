@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketState, WebSocketDisconnect
 
 from Api import logger
+from Api.WebsocketConnectionManager.WebsocketConnectionManager import WebsocketConnectionManager
 from RemoteController.RemoteController import RemoteController
 
 router = APIRouter(
@@ -9,6 +10,8 @@ router = APIRouter(
     tags=["websockets"],
     responses={404: {"description": "Not found"}}
 )
+
+manager = WebsocketConnectionManager()
 
 @router.websocket("/bt_pairing")
 async def websocket_bt_pairing(websocket: WebSocket):
@@ -43,13 +46,17 @@ async def websocket_commands(websocket: WebSocket):
 
 @router.websocket("/status")
 async def websocket_status(websocket: WebSocket):
-    # TODO: Implement sending status updates via websocket
 
-    await websocket.accept()
+    controller: RemoteController = websocket.state.controller
+
+    await manager.connect(websocket)
+
+    controller.status_callback = manager.broadcast
+
     try:
-        while websocket.client_state == WebSocketState.CONNECTED:
-            data = await websocket.receive_json()
-            logger.debug(f"received: {data}")
-
+        while True:
+            await websocket.receive_text()
+            await websocket.send_text("This endpoint should only be used to receive status updates!")
     except WebSocketDisconnect:
-        logger.debug("Websocket disconnected.")
+        manager.disconnect(websocket)
+        logger.debug("Client disconnected from status websocket")

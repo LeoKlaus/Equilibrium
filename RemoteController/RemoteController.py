@@ -8,21 +8,22 @@ from fastapi import HTTPException
 from sqlalchemy import Boolean
 from sqlmodel import Session
 
+from Api.WebsocketConnectionManager.WebsocketConnectionManager import AsyncJsonCallback
 from Api.models.Command import CommandBase, Command
 from Api.models.CommandGroup import CommandGroup
 from Api.models.CommandType import CommandType
 from Api.models.NetworkRequestType import NetworkRequestType
-from Api.models.Scene import Scene
+from Api.models.Scene import Scene, SceneStatusReport
+from Api.models.SceneStatus import SceneStatus
 from BleKeyboard.BleKeyboard import BleKeyboard
 from DbManager.DbManager import DbManager
 from IrManager.IrManager import IrManager, AsyncCallback
 from RemoteController.AsyncQueueManager import AsyncQueueManager
 from RfManager.RfManager import RfManager
 
-
 class RemoteController:
 
-    active_scene_id: int|None = None
+    active_scene_status: SceneStatusReport = SceneStatusReport(id=None, status=None)
 
     keymap: Dict[str, int] = []
     keymap_scene: Dict[str, int] = []
@@ -34,6 +35,8 @@ class RemoteController:
     ir_manager: IrManager
     db_session: Session
     queue: AsyncQueueManager
+
+    status_callback: AsyncJsonCallback|None = None
 
     @classmethod
     async def create(cls, dev: bool = False):
@@ -214,6 +217,11 @@ class RemoteController:
         if not scene_db:
             raise HTTPException(status_code=404, detail="Scene not found")
 
+        self.active_scene_status = SceneStatusReport(id=scene_id, status=SceneStatus.STARTING)
+
+        if self.status_callback is not None:
+            self.status_callback(self.active_scene_status)
+
         bt_address = scene_db.bluetooth_address
         if bt_address:
             await self.ble_keyboard.unregister_services()
@@ -225,23 +233,18 @@ class RemoteController:
             # TODO: Check whether using no delay causes issues here
             #await asyncio.sleep(0.5)
 
-        self.active_scene_id = scene_db.id
-
         if scene_db.keymap:
             self.load_key_map(scene_db.keymap)
+
+        self.active_scene_status = SceneStatusReport(id=scene_id, status=SceneStatus.ACTIVE)
+
+        if self.status_callback is not None:
+            self.status_callback(self.active_scene_status)
 
         self.logger.info(f"Scene {scene_db.name} started!")
 
     def get_current_scene(self):
-        if not self.active_scene_id:
-            raise HTTPException(status_code=404, detail="No scene active")
-
-        scene_db = self.db_session.get(Scene, self.active_scene_id)
-
-        if not scene_db:
-            raise HTTPException(status_code=404, detail=f"Couldn't find scene with ID {self.active_scene_id}.")
-
-        return scene_db
+        return self.active_scene_status
 
     # Updates active scene without executing start commands
     async def set_current_scene(self, scene_id: int):
@@ -257,7 +260,10 @@ class RemoteController:
             await self.ble_keyboard.connect(bt_address)
             await self.ble_keyboard.register_services()
 
-        self.active_scene_id = scene_db.id
+        self.active_scene_status = SceneStatusReport(id=scene_id, status=SceneStatus.ACTIVE)
+
+        if self.status_callback is not None:
+            self.status_callback(self.active_scene_status)
 
         if scene_db.keymap:
             self.load_key_map(scene_db.keymap)
@@ -266,15 +272,15 @@ class RemoteController:
 
 
     async def stop_current_scene(self):
-        if not self.active_scene_id:
+        if not self.active_scene_status.id:
             raise HTTPException(status_code=404, detail="No scene active")
 
-        scene_db = self.db_session.get(Scene, self.active_scene_id)
+        scene_db = self.db_session.get(Scene, self.active_scene_status.id)
 
         self.load_key_map("default")
 
         if not scene_db:
-            raise HTTPException(status_code=404, detail=f"Couldn't find scene with ID {self.active_scene_id}.")
+            raise HTTPException(status_code=404, detail=f"Couldn't find scene with ID {self.active_scene_status.id}.")
 
         bt_address = scene_db.bluetooth_address
         if bt_address:
@@ -285,7 +291,10 @@ class RemoteController:
             # TODO: Check whether using no delay causes issues here
             #await asyncio.sleep(0.5)
 
-        self.active_scene_id = None
+        self.active_scene_status = SceneStatusReport(id=None, status=None)
+
+        if self.status_callback is not None:
+            self.status_callback(self.active_scene_status)
 
         self.logger.info(f"Scene {scene_db.name} stopped!")
 

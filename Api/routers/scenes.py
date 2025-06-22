@@ -66,14 +66,16 @@ def update_scene(scene_id: int, scene: SceneUpdate, session: SessionDep):
     if scene.bluetooth_address:
         scene_db.bluetooth_address = scene.bluetooth_address
 
-    #TODO: This will only append commands, not remove them
+    scene_db.start_commands = []
+
     for command_id in scene.start_command_ids:
         command_db = session.get(Command, command_id)
         if not command_db:
             raise HTTPException(status_code=500, detail=f"Command {command_id} not found")
         scene_db.start_commands.append(command_db)
 
-    # TODO: This will only append commands, not remove them
+    scene_db.stop_commands = []
+
     for command_id in scene.stop_commands_ids:
         command_db = session.get(Command, command_id)
         if not command_db:

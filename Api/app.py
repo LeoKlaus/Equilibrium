@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from starlette.responses import RedirectResponse
 
 from Api.lifespan import lifespan, lifespan_dev
 from Api.routers import commands, devices, images, scenes, websockets
@@ -15,5 +16,9 @@ def app_generator(dev: bool = False):
     app.include_router(images.router)
     app.include_router(scenes.router)
     app.include_router(websockets.router)
+
+    @app.get("/")
+    def redirect():
+        return RedirectResponse("/docs")
 
     return app

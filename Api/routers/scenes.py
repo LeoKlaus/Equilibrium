@@ -100,6 +100,13 @@ def delete_scene(scene_id: int, session: SessionDep):
     return {"message": f"Successfully deleted {scene.name}"}
 
 
+@router.get("/current", tags=["Scenes"])
+def get_current_scene(request: Request):
+    controller: RemoteController = request.state.controller
+
+    return controller.get_current_scene()
+
+
 @router.get("/{scene_id}", tags=["Scenes"], response_model=SceneWithRelationships)
 def show_scene(scene_id: int, session: SessionDep) -> Scene:
     scene = session.get(Scene, scene_id)
@@ -115,13 +122,6 @@ async def start_scene(scene_id: int, request: Request):
     await controller.start_scene(scene_id)
 
     return f"Started scene {scene_id}"
-
-
-@router.get("/current", tags=["Scenes"])
-def get_current_scene(request: Request):
-    controller: RemoteController = request.state.controller
-
-    return controller.get_current_scene()
 
 
 @router.post("/current", tags=["Scenes"])

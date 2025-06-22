@@ -23,7 +23,7 @@ from RfManager.RfManager import RfManager
 
 class RemoteController:
 
-    active_scene_id: int|None
+    active_scene_id: int|None = None
 
     keymap: Dict[str, int] = []
     keymap_scene: Dict[str, int] = []

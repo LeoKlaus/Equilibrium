@@ -38,9 +38,15 @@ async def lifespan_dev(_: FastAPI):
     controller = await RemoteController.create(dev=True)
     logger.info("Controller initialized")
 
+    zeroconf = ZeroconfManager()
+    await zeroconf.register_service("Test-Instance-Dev")
+    logger.info("Registered bonjour service")
+
     yield {
         "controller": controller
     }
 
     logger.info("Shutting down...")
+    await zeroconf.unregister_service()
+    logger.info("Unregistered Zeroconf/Bonjour service")
     await controller.shutdown()

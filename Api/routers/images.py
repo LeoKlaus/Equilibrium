@@ -1,4 +1,5 @@
 import os
+from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
@@ -8,6 +9,8 @@ from starlette.responses import FileResponse
 
 from Api.models.UserImage import UserImage
 from DbManager.DbManager import SessionDep
+
+from PIL import Image
 
 router = APIRouter(
     prefix="/images",
@@ -28,21 +31,21 @@ def get_image(image_id: int, session: SessionDep):
     return FileResponse(image.path)
 
 @router.post("/", tags=["Images"])
-def upload_image(file: UploadFile, session: SessionDep):
+async def upload_image(file: UploadFile, session: SessionDep):
     try:
-        contents = file.file.read()
-        filename, extension = os.path.splitext(file.filename)
-        path = Path("./config/images/" + str(uuid4()) + extension)
+        contents = await file.read()
+        pil_img = Image.open(BytesIO(contents))
+        pil_img.thumbnail((512,512))
+        path = Path("./config/images/" + str(uuid4()) + ".png")
         Path("./config/images").mkdir(exist_ok=True)
         image = UserImage()
         image.filename = file.filename
         image.path = str(path)
-        with open(path, 'wb') as f:
-            db_image = UserImage.model_validate(image)
-            f.write(contents)
-            session.add(db_image)
-            session.commit()
-            return {"message": f"Successfully uploaded {file.filename}", "id": db_image.id}
+        pil_img.save(path, "PNG")
+        db_image = UserImage.model_validate(image)
+        session.add(db_image)
+        session.commit()
+        return {"message": f"Successfully uploaded {file.filename}", "id": db_image.id}
 
     except HTTPException:
         raise

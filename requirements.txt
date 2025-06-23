@@ -9,3 +9,5 @@ zeroconf~=0.147.0
 SQLAlchemy~=2.0.41
 python-multipart~=0.0.20
 httpx~=1.0.0b0
+pydantic~=2.11.7
+pillow~=11.2.1

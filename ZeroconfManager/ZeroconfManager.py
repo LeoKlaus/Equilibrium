@@ -9,7 +9,7 @@ class ZeroconfManager:
     info: AsyncServiceInfo|None = None
     zeroconf: AsyncZeroconf|None = None
 
-    def register_service(self, name: str, description=None):
+    async def register_service(self, name: str, description=None):
         if description is None:
             description = {}
 
@@ -27,6 +27,7 @@ class ZeroconfManager:
         )
 
         self.zeroconf = AsyncZeroconf(ip_version=IPVersion.All)
+        await self.zeroconf.async_register_service(info=self.info)
 
     async def unregister_service(self):
         await self.zeroconf.async_unregister_service(self.info)

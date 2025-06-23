@@ -17,7 +17,7 @@ async def lifespan(_: FastAPI):
     logger.info("Controller initialized")
 
     zeroconf = ZeroconfManager()
-    zeroconf.register_service("Test-Instance")
+    await zeroconf.register_service("Test-Instance")
     logger.info("Registered bonjour service")
 
     yield {

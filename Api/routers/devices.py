@@ -1,10 +1,13 @@
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
+from starlette.requests import Request
 
 from Api.models.CommandGroup import CommandGroup, CommandGroupBase
 from Api.models.Device import DeviceWithCommandGroup, DevicePost, Device, DeviceBase
 from Api.models.UserImage import UserImage
+from Api.models.WebsocketResponses import BleDevice
 from DbManager.DbManager import SessionDep
+from RemoteController.RemoteController import RemoteController
 
 router = APIRouter(
     prefix="/devices",
@@ -74,8 +77,8 @@ def create_command_group(command_group: CommandGroupBase, device_id: int, sessio
     session.refresh(db_command_group)
     return db_command_group
 
-@router.delete("/{device_id}/command_groups/{command_group_id}", tags=["Devices"])
-def delete_command_group(device_id: int, command_group_id, session: SessionDep):
+@router.delete("/command_groups/{command_group_id}", tags=["Devices"])
+def delete_command_group(command_group_id, session: SessionDep):
     command_group = session.get(CommandGroup, command_group_id)
     if not command_group:
         raise HTTPException(status_code=404, detail="Command group not found")
@@ -83,3 +86,7 @@ def delete_command_group(device_id: int, command_group_id, session: SessionDep):
     session.commit()
     return {"ok": True}
 
+@router.get("/ble_devices", tags=["Devices"], response_model=list[BleDevice])
+async def get_connected_ble_devices(request: Request):
+    controller: RemoteController = request.state.controller
+    return await controller.get_ble_devices()

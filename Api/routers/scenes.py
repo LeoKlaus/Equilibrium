@@ -3,7 +3,6 @@ from sqlmodel import select
 from starlette.requests import Request
 
 from Api.models import Macro
-from Api.models.Command import Command
 from Api.models.Device import Device
 from Api.models.Scene import SceneWithRelationships, ScenePost, Scene, SceneUpdate, SceneStatusReport
 from Api.models.UserImage import UserImage

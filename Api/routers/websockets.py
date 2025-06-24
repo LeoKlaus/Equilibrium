@@ -62,7 +62,7 @@ async def websocket_commands(websocket: WebSocket):
         while websocket.client_state == WebSocketState.CONNECTED:
             data = await websocket.receive_json()
             logger.debug(f"received: {data}")
-            await  controller.record_ir_command(data, websocket.send_text)
+            await  controller.record_ir_command(data, websocket.send_json)
 
     except WebSocketDisconnect:
         logger.debug("Websocket disconnected.")

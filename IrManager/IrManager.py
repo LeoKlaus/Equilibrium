@@ -6,6 +6,8 @@ from typing import Callable, Awaitable
 
 import pigpio
 
+from Api.models.WebsocketResponses import WebsocketIrResponse
+
 AsyncCallback = Callable[[str], Awaitable[None]]
 
 PRE = 20
@@ -158,7 +160,7 @@ class IrManager:
                 code_done = True
             else:
                 code = []
-                asyncio.run(send_message("Short code, probably a repeat, try again"))
+                asyncio.run(send_message(WebsocketIrResponse.SHORT_CODE))
                 # send_websocket_message("Short code, probably a repeat. Please try again.")
 
         def cbf(_, level, tick):
@@ -207,7 +209,7 @@ class IrManager:
         code = []
         code_done = False
 
-        await send_message("Press key for '{}'".format(name))
+        await send_message(WebsocketIrResponse.PRESS_KEY)
 
         while not code_done:
             await asyncio.sleep(0.1)
@@ -220,10 +222,10 @@ class IrManager:
             code = []
             code_done = False
             if tries > 4:
-                await send_message("Too many retries, cancelling...")
+                await send_message(WebsocketIrResponse.TOO_MANY_RETRIES)
                 return None
 
-            await send_message("Press key for '{}' to confirm".format(name))
+            await send_message(WebsocketIrResponse.REPEAT_KEY)
 
             while not code_done:
                 await asyncio.sleep(0.1)

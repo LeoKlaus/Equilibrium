@@ -74,7 +74,7 @@ def create_command_group(command_group: CommandGroupBase, device_id: int, sessio
     session.refresh(db_command_group)
     return db_command_group
 
-@router.delete("/command_groups/{command_group_id}", tags=["Devices"])
+@router.delete("/{device_id}/command_groups/{command_group_id}", tags=["Devices"])
 def delete_command_group(device_id: int, command_group_id, session: SessionDep):
     command_group = session.get(CommandGroup, command_group_id)
     if not command_group:

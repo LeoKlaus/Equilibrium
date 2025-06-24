@@ -15,6 +15,7 @@ from Api.models.CommandType import CommandType
 from Api.models.NetworkRequestType import NetworkRequestType
 from Api.models.Scene import Scene, SceneStatusReport
 from Api.models.SceneStatus import SceneStatus
+from Api.models.WebsocketResponses import BleDevice, WebsocketIrResponse
 from BleKeyboard.BleKeyboard import BleKeyboard
 from DbManager.DbManager import DbManager
 from IrManager.IrManager import IrManager, AsyncCallback
@@ -88,9 +89,9 @@ class RemoteController:
                         self.db_session.add(db_command)
                         self.db_session.commit()
                         self.db_session.refresh(db_command)
-                        await callback(f"Command {db_command.id} created")
+                        await callback(WebsocketIrResponse.DONE)
                 except CancelledError:
-                    await callback("Recording cancelled, please try again.")
+                    await callback(WebsocketIrResponse.CANCELLED)
 
     async def send_db_command(self, command: Command, press_without_release = False):
         match command.type:
@@ -327,3 +328,24 @@ class RemoteController:
 
         if self.status_callback is not None:
             await self.status_callback(self.active_scene_status)
+
+    async def start_ble_advertisement(self):
+        await self.ble_keyboard.advertise()
+
+    async def get_ble_devices(self) -> [BleDevice]:
+        devices = await self.ble_keyboard.devices
+
+        ble_devices = []
+
+        for device in devices:
+            ble_devices += BleDevice(
+                name=device.get("alias"),
+                address=device.get("address"),
+                connected = device.get("connected"),
+                paired = device.get("paired")
+            )
+
+        return ble_devices
+
+    async def ble_connect(self, address: str):
+        await self.ble_keyboard.connect(address)

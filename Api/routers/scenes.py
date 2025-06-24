@@ -123,7 +123,7 @@ async def start_scene(scene_id: int, request: Request):
     return f"Started scene {scene_id}"
 
 
-@router.post("/current", tags=["Scenes"])
+@router.post("/{scene_id}/set_current", tags=["Scenes"], description="Sets the given scene as current scene **without** executing its start macro.")
 async def set_current_scene(scene_id: int, request: Request):
     controller: RemoteController = request.state.controller
 

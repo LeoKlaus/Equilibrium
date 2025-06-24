@@ -36,6 +36,10 @@ def delete_device(device_id: int, session: SessionDep):
     session.commit()
     return {"ok": True}
 
+@router.get("/ble_devices", tags=["Devices"], response_model=list[BleDevice])
+async def get_connected_ble_devices(request: Request):
+    controller: RemoteController = request.state.controller
+    return await controller.get_ble_devices()
 
 @router.patch("/{device_id}", tags=["Devices"])
 def update_device(device_id: int, device: DeviceBase, session: SessionDep):
@@ -85,8 +89,3 @@ def delete_command_group(command_group_id, session: SessionDep):
     session.delete(command_group)
     session.commit()
     return {"ok": True}
-
-@router.get("/ble_devices", tags=["Devices"], response_model=list[BleDevice])
-async def get_connected_ble_devices(request: Request):
-    controller: RemoteController = request.state.controller
-    return await controller.get_ble_devices()

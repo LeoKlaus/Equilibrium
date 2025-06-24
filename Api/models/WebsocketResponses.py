@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel
+from sqlmodel import SQLModel
 
 
 class WebsocketBleCommand(str, Enum):
@@ -8,16 +8,16 @@ class WebsocketBleCommand(str, Enum):
     CONNECT = "connect"
     DEVICES = "devices"
 
-class WebsocketBleAdvertisementResponse(BaseModel):
+class WebsocketBleAdvertisementResponse(SQLModel):
     success: bool = True
 
-class BleDevice(BaseModel):
+class BleDevice(SQLModel):
     name: str = ""
     address: str = ""
     connected: bool = False
     paired: bool = False
 
-class WebsocketBleDeviceResponse(BaseModel):
+class WebsocketBleDeviceResponse(SQLModel):
     devices: list[BleDevice]
 
 class WebsocketIrResponse(str, Enum):

@@ -335,15 +335,16 @@ class RemoteController:
     async def get_ble_devices(self) -> [BleDevice]:
         devices = await self.ble_keyboard.devices
 
-        ble_devices = []
+        ble_devices: list[BleDevice] = []
 
         for device in devices:
-            ble_devices += BleDevice(
-                name=device.get("alias"),
-                address=device.get("address"),
-                connected = device.get("connected"),
-                paired = device.get("paired")
+            ble_device = BleDevice(
+                name = device.get("alias"),
+                address = device.get("address"),
+                connected = True if device.get("connected") else False,
+                paired = True if device.get("paired") else False
             )
+            ble_devices.append(ble_device)
 
         return ble_devices
 

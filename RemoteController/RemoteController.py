@@ -76,22 +76,25 @@ class RemoteController:
     async def record_ir_command(self, data, callback: AsyncCallback):
         new_command = CommandBase.model_validate(data)
         if new_command:
-            db_command_group = self.db_session.get(CommandGroup, new_command.command_group_id)
-            if db_command_group:
-                db_command = Command.model_validate(data)
+            db_command = Command.model_validate(data)
+
+            if new_command.command_group_id:
+                db_command_group = self.db_session.get(CommandGroup, new_command.command_group_id)
                 db_command.command_group_id = new_command.command_group_id
-                try:
-                    code = await self.ir_manager.record_command(new_command.name, callback)
+                db_command.command_group = db_command_group
 
-                    if code:
-                        db_command.ir_action = code
+            try:
+                code = await self.ir_manager.record_command(new_command.name, callback)
 
-                        self.db_session.add(db_command)
-                        self.db_session.commit()
-                        self.db_session.refresh(db_command)
-                        await callback(WebsocketIrResponse.DONE)
-                except CancelledError:
-                    await callback(WebsocketIrResponse.CANCELLED)
+                if code:
+                    db_command.ir_action = code
+
+                    self.db_session.add(db_command)
+                    self.db_session.commit()
+                    self.db_session.refresh(db_command)
+                    await callback(WebsocketIrResponse.DONE)
+            except CancelledError:
+                await callback(WebsocketIrResponse.CANCELLED)
 
     async def send_db_command(self, command: Command, press_without_release = False):
         match command.type:

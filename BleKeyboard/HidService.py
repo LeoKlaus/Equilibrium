@@ -115,3 +115,4 @@ class HidService(Service):
     @characteristic("2A4E", CharFlags.READ | CharFlags.WRITE_WITHOUT_RESPONSE)
     def protocol_mode(self, options):
         return bytes([0x01])
+

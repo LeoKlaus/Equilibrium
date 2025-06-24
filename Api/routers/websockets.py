@@ -3,7 +3,7 @@ from starlette.websockets import WebSocket, WebSocketState, WebSocketDisconnect
 
 from Api import logger
 from Api.WebsocketConnectionManager.WebsocketConnectionManager import WebsocketConnectionManager
-from Api.models.WebsocketResponses import WebsocketBleCommand, WebsocketBleAdvertisementResponse, BleDevice, \
+from Api.models.WebsocketResponses import WebsocketBleCommand, WebsocketBleSuccessResponse, BleDevice, \
     WebsocketBleDeviceResponse
 from RemoteController.RemoteController import RemoteController
 
@@ -26,13 +26,17 @@ async def websocket_bt_pairing(websocket: WebSocket):
         command = await websocket.receive_text()
         if command == WebsocketBleCommand.ADVERTISE:
             await controller.start_ble_advertisement()
-            await websocket.send_json(WebsocketBleAdvertisementResponse().model_dump_json())
+            await websocket.send_json(WebsocketBleSuccessResponse().model_dump_json())
 
         if command == WebsocketBleCommand.CONNECT:
             devices = await controller.get_ble_devices()
             await  websocket.send_json(WebsocketBleDeviceResponse(devices=devices).model_dump_json())
             addr = await websocket.receive_text()
             await controller.ble_connect(addr)
+
+        if command == WebsocketBleCommand.DISCONNECT:
+            await controller.ble_disconnect()
+            await websocket.send_json(WebsocketBleSuccessResponse().model_dump_json())
 
         if command == WebsocketBleCommand.DEVICES:
             devices = await controller.get_ble_devices()

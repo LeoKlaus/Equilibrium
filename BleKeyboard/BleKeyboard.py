@@ -50,16 +50,6 @@ class BleKeyboard:
         await self.register_services()
         return self
 
-    #def __init__(self):
-    #    pass
-
-    #async def create(self):
-    #    """
-    #    Registers the required services. This must be called before using the keyboard.
-    #    """
-    #    self.bus = await get_message_bus()
-    #    await self.register_services()
-
     async def register_services(self):
         self.battery_service = BatteryService()
         self.device_info_service = DeviceInformationService()
@@ -81,7 +71,7 @@ class BleKeyboard:
     async def advertise(self):
         """
         Starts advertisement for the keyboard service. Call this to make the keyboard discoverable.
-        Warning: Starting the advertisement might lead to previously connected devices to reconnect.
+        Warning: Starting the advertisement might lead to previously connected devices reconnecting.
         """
 
         agent = NoIoAgent()

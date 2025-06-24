@@ -6,9 +6,10 @@ from sqlmodel import SQLModel
 class WebsocketBleCommand(str, Enum):
     ADVERTISE = "advertise"
     CONNECT = "connect"
+    DISCONNECT = "disconnect"
     DEVICES = "devices"
 
-class WebsocketBleAdvertisementResponse(SQLModel):
+class WebsocketBleSuccessResponse(SQLModel):
     success: bool = True
 
 class BleDevice(SQLModel):

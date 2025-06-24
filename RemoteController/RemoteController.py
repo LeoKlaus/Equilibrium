@@ -350,3 +350,6 @@ class RemoteController:
 
     async def ble_connect(self, address: str):
         await self.ble_keyboard.connect(address)
+
+    async def ble_disconnect(self):
+        await self.ble_keyboard.disconnect()

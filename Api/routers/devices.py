@@ -31,6 +31,12 @@ async def start_ble_discovery(request: Request):
     await controller.start_ble_advertisement()
     return {"success": True}
 
+@router.post("/connect/{mac_address}", tags=["Devices"])
+async def disconnect_ble_devices(mac_address: str, request: Request):
+    controller: RemoteController = request.state.controller
+    await controller.ble_connect(mac_address)
+    return {"success": True}
+
 @router.post("/disconnect_ble_devices", tags=["Devices"])
 async def disconnect_ble_devices(request: Request):
     controller: RemoteController = request.state.controller

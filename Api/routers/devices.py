@@ -25,6 +25,12 @@ async def get_connected_ble_devices(request: Request) -> list[BleDevice]:
     controller: RemoteController = request.state.controller
     return await controller.get_ble_devices()
 
+@router.get("/devices/disconnect_ble_devices", tags=["Devices"])
+async def get_connected_ble_devices(request: Request):
+    controller: RemoteController = request.state.controller
+    await controller.ble_disconnect()
+    return {"success": True}
+
 @router.get("/{device_id}", tags=["Devices"], response_model=DeviceWithCommandGroup)
 def read_device(device_id: int, session: SessionDep) -> Device:
     device = session.get(Device, device_id)

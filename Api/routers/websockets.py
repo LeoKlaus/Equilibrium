@@ -15,6 +15,15 @@ router = APIRouter(
 
 manager = WebsocketConnectionManager()
 
+
+# This is a bit finicky with some devices. On my ATV 4K, the pairing prompt only appears if it is manually triggered
+# within a short time after connecting for the first time. I have built this into the `devices` property of the
+# BleKeyboard class for now, which isn't super elegant but works.
+# Pairing flow for the ATV 4K is thus:
+# 1. Start advertisement
+# 2. Select Equilibrium Virtual Keyboard in Apple TVs bluetooth settings
+# 3. Send a devices query via websocket to trigger pairing (this should return connected: True, paired: False)
+# 4. Confirm pairing on Apple TV
 @router.websocket("/bt_pairing")
 async def websocket_bt_pairing(websocket: WebSocket):
 

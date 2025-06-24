@@ -30,7 +30,7 @@ def get_image(image_id: int, session: SessionDep):
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(image.path)
 
-@router.post("/", tags=["Images"])
+@router.post("/", tags=["Images"], response_model=UserImage)
 async def upload_image(file: UploadFile, session: SessionDep):
     try:
         contents = await file.read()
@@ -45,7 +45,8 @@ async def upload_image(file: UploadFile, session: SessionDep):
         db_image = UserImage.model_validate(image)
         session.add(db_image)
         session.commit()
-        return {"message": f"Successfully uploaded {file.filename}", "id": db_image.id}
+        session.refresh(db_image)
+        return db_image
 
     except HTTPException:
         raise

@@ -25,8 +25,14 @@ async def get_connected_ble_devices(request: Request) -> list[BleDevice]:
     controller: RemoteController = request.state.controller
     return await controller.get_ble_devices()
 
-@router.get("/devices/disconnect_ble_devices", tags=["Devices"])
-async def get_connected_ble_devices(request: Request):
+@router.post("/devices/start_ble_advertisement", tags=["Devices"])
+async def start_ble_discovery(request: Request):
+    controller: RemoteController = request.state.controller
+    await controller.start_ble_advertisement()
+    return {"success": True}
+
+@router.post("/devices/disconnect_ble_devices", tags=["Devices"])
+async def disconnect_ble_devices(request: Request):
     controller: RemoteController = request.state.controller
     await controller.ble_disconnect()
     return {"success": True}

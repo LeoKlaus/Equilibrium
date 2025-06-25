@@ -31,6 +31,12 @@ async def start_ble_discovery(request: Request):
     await controller.start_ble_advertisement()
     return {"success": True}
 
+@router.post("/start_ble_pairing", tags=["Devices"], description="Will initiate pairing with all connected bluetooth devices that are not currently paired. This is may be necessary for some devices (notably Apple TVs).")
+async def start_ble_pairing(request: Request):
+    controller: RemoteController = request.state.controller
+    await controller.start_ble_pairing()
+    return {"success": True}
+
 @router.post("/connect_ble/{mac_address}", tags=["Devices"])
 async def connect_ble_device(mac_address: str, request: Request):
     controller: RemoteController = request.state.controller

@@ -172,6 +172,27 @@ class BleKeyboard:
         proxy_object = self.bus.get_proxy_object("org.bluez", path, introspection)
         return proxy_object.get_interface("org.bluez.Device1")
 
+    async def initiate_pairing(self):
+        """
+        Will initiate pairing with all connected devices that are not currently paired. This is necessary for my Apple TV.
+        """
+        introspection = await self.bus.introspect("org.bluez", "/")
+        proxy_object = self.bus.get_proxy_object("org.bluez", "/", introspection)
+        interface = proxy_object.get_interface('org.freedesktop.DBus.ObjectManager')
+        managed_objects = await interface.call_get_managed_objects()
+
+        for path in managed_objects:
+            device = managed_objects[path].get("org.bluez.Device1", {})
+            address = device.get("Address")
+            paired = device.get("Paired", False)
+            connected = device.get("Connected", False)
+
+            if address and paired and connected:
+                if not paired.value and connected.value:
+                    self.logger.info(f"Trying to pair with {address.value}")
+                    interface = await self._get_device_interface(path)
+                    self.logger.info("Trying to pair, confirm pairing on your device...")
+                    await interface.call_pair()
 
     @property
     async def devices(self):
@@ -210,6 +231,7 @@ class BleKeyboard:
                     "connected": None if not connected else connected.value
                 })
         return connected_devices
+
 
 
     @property

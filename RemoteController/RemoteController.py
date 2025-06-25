@@ -335,6 +335,9 @@ class RemoteController:
     async def start_ble_advertisement(self):
         await self.ble_keyboard.advertise()
 
+    async def start_ble_pairing(self):
+        await self.ble_keyboard.initiate_pairing()
+
     async def get_ble_devices(self) -> [BleDevice]:
         devices = await self.ble_keyboard.devices
 

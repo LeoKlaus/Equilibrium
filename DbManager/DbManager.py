@@ -27,6 +27,7 @@ class DbManager:
 
         connect_args = {"check_same_thread": False}
         self.engine = create_engine(sqlite_url, connect_args=connect_args)
+
         SQLModel.metadata.create_all(self.engine)
 
     def get_session(self):

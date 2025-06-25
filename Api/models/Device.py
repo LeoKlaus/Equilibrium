@@ -13,9 +13,10 @@ if TYPE_CHECKING:
 
 class DeviceBase(SQLModel):
     name: str = Field(index=True)
-    manufacturer: str | None
-    model: str | None
-    type: DeviceType
+    manufacturer: str | None = Field(default=None)
+    model: str | None = Field(default=None)
+    type: DeviceType = Field(default=DeviceType.OTHER)
+    bluetooth_address: str | None = Field(default=None)
 
 class DevicePost(DeviceBase):
     image_id: int | None = Field(default=None)

@@ -30,6 +30,8 @@ class RemoteButton(str, Enum):
     NEXT_TRACK = "next_track"
     PREVIOUS_TRACK = "previous_track"
     RECORD = "record"
+    CHANNEL_UP = "channel_up"
+    CHANNEL_DOWN = "channel_down"
     # Colored buttons
     GREEN = "green"
     RED = "red"
@@ -46,8 +48,6 @@ class RemoteButton(str, Enum):
     NUMBER_SEVEN = "number_seven"
     NUMBER_EIGHT = "number_eight"
     NUMBER_NINE = "number_nine"
-    CHANNEL_UP = "channel_up"
-    CHANNEL_DOWN = "channel_down"
     # Integration
     BRIGHTNESS_UP = "brightness_up"
     BRIGHTNESS_DOWN = "brightness_down"

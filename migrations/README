@@ -1,1 +1,11 @@
 Generic single-database configuration.
+
+# Create revision
+``` bash
+alembic revision --autogenerate -m "My Message"
+```
+
+# Apply revision
+``` bash
+alembic upgrade head
+```

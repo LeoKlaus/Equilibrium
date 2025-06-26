@@ -3,6 +3,7 @@ from sqlmodel import select
 from starlette.requests import Request
 
 from Api.models.Command import Command, CommandBase
+from Api.models.Device import Device
 from Api.models.CommandType import CommandType
 from DbManager.DbManager import SessionDep
 
@@ -23,6 +24,13 @@ def create_command(command: CommandBase, session: SessionDep) -> Command:
         raise HTTPException(status_code=400, detail="Network commands require a method to be set.")
     elif db_command.type == CommandType.BLUETOOTH and not db_command.bt_action and not db_command.bt_media_action:
         raise HTTPException(status_code=400, detail="Bluetooth commands require either an action or a media action.")
+
+    if command.device_id is not None:
+        db_device = session.get(Device, command.device_id)
+        if not db_device:
+            raise HTTPException(status_code=400, detail=f"There is no device with id {command.device_id}.")
+        db_command.device = db_device
+
     session.add(db_command)
     session.commit()
     session.refresh(db_command)

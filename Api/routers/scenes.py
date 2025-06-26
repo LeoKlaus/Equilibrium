@@ -23,7 +23,7 @@ def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
 
     db_scene.bluetooth_address = scene.bluetooth_address
 
-    if image_id:
+    if image_id is not None:
         image_db = session.get(UserImage, image_id)
         if not image_db:
             raise HTTPException(status_code=404, detail=f"Image {image_id} not found")
@@ -34,13 +34,13 @@ def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
             raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
         db_scene.devices.append(device_db)
 
-    if scene.start_macro_id:
+    if scene.start_macro_id is not None:
         start_macro = session.get(Macro, scene.start_macro_id)
         if not start_macro:
             raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
         db_scene.start_macro = start_macro
 
-    if scene.stop_macro_id:
+    if scene.stop_macro_id is not None:
         stop_macro = session.get(Macro, scene.stop_macro_id)
         if not stop_macro:
             raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
@@ -66,13 +66,13 @@ def update_scene(scene_id: int, scene: SceneUpdate, session: SessionDep):
     if scene.bluetooth_address:
         scene_db.bluetooth_address = scene.bluetooth_address
 
-    if scene.start_macro_id and scene.start_macro_id != "None":
+    if scene.start_macro_id is not None:
         start_macro = session.get(Macro, scene.start_macro_id)
         if not start_macro:
             raise HTTPException(status_code=400, detail=f"Start macro {scene.start_macro_id} not found")
         scene_db.start_macro = start_macro
 
-    if scene.stop_macro_id and scene.start_macro_id != "None":
+    if scene.stop_macro_id is not None:
         stop_macro = session.get(Macro, scene.stop_macro_id)
         if not stop_macro:
             raise HTTPException(status_code=400, detail=f"Stop macro {scene.stop_macro_id} not found")

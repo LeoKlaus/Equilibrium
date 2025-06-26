@@ -9,19 +9,10 @@ from Api.models.Macro import Macro, MacroWithRelationships, SceneMacroLink
 
 if TYPE_CHECKING:
     from Api.models.Device import Device
-    from Api.models.Command import Command
 
 class SceneDeviceLink(SQLModel, table=True):
     scene_id: int | None = Field(default=None, foreign_key="device.id", primary_key=True)
     device_id: int | None = Field(default=None, foreign_key="scene.id", primary_key=True)
-
-class SceneStartCommandLink(SQLModel, table=True):
-    scene_id: int | None = Field(default=None, foreign_key="command.id", primary_key=True)
-    command_id: int | None = Field(default=None, foreign_key="scene.id", primary_key=True)
-
-class SceneStopCommandLink(SQLModel, table=True):
-    scene_id: int | None = Field(default=None, foreign_key="command.id", primary_key=True)
-    command_id: int | None = Field(default=None, foreign_key="scene.id", primary_key=True)
 
 class SceneBase(SQLModel):
     name: str | None = Field(index=True)
@@ -39,8 +30,6 @@ class Scene(SceneBase, table=True):
     devices: list["Device"] = Relationship(back_populates="scenes", link_model=SceneDeviceLink)
     image_id: int | None = Field(default=None, foreign_key="userimage.id", ondelete="SET NULL")
     image: "UserImage" = Relationship(back_populates="scenes")
-    start_commands: list["Command"] = Relationship(back_populates="scenes_start", link_model=SceneStartCommandLink)
-    stop_commands: list["Command"] = Relationship(back_populates="scenes_stop", link_model=SceneStopCommandLink)
     start_macro_id: int | None = Field(default=None, foreign_key="macro.id")
     start_macro: Optional[Macro] = Relationship(
         back_populates="scenes_start",

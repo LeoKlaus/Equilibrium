@@ -24,7 +24,7 @@ def get_macro(macro_id: int, session: SessionDep) -> MacroWithRelationships:
     return macro
 
 @router.post("/", tags=["Macros"], response_model=MacroWithRelationships)
-def create_macro(macro: MacroPost, session: SessionDep) -> MacroWithRelationships:
+def create_macro(macro: MacroPost, session: SessionDep):
     db_macro = Macro.model_validate(macro)
 
     if (len(macro.command_ids) != (len(macro.delays) + 1)) and len(macro.command_ids) > 0:

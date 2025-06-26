@@ -1,13 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
-from starlette.requests import Request
-
-from Api.models.CommandGroup import CommandGroup, CommandGroupBase
-from Api.models.Device import DeviceWithCommandGroup, DevicePost, Device, DeviceBase
+from Api.models.Device import DeviceWithRelationships, DevicePost, Device, DeviceBase
 from Api.models.UserImage import UserImage
-from Api.models.WebsocketResponses import BleDevice
 from DbManager.DbManager import SessionDep
-from RemoteController.RemoteController import RemoteController
 
 router = APIRouter(
     prefix="/devices",
@@ -15,41 +10,13 @@ router = APIRouter(
     responses={404: {"description": "Not found"}}
 )
 
-@router.get("/", tags=["Devices"], response_model=list[DeviceWithCommandGroup])
+@router.get("/", tags=["Devices"], response_model=list[DeviceWithRelationships])
 def list_devices(session: SessionDep) -> list[Device]:
     devices = session.exec(select(Device)).all()
     return devices
 
-@router.get("/ble_devices", tags=["Devices"], response_model=list[BleDevice])
-async def get_connected_ble_devices(request: Request) -> list[BleDevice]:
-    controller: RemoteController = request.state.controller
-    return await controller.get_ble_devices()
 
-@router.post("/start_ble_advertisement", tags=["Devices"])
-async def start_ble_discovery(request: Request):
-    controller: RemoteController = request.state.controller
-    await controller.start_ble_advertisement()
-    return {"success": True}
-
-@router.post("/start_ble_pairing", tags=["Devices"], description="Will initiate pairing with all connected bluetooth devices that are not currently paired. This is may be necessary for some devices (notably Apple TVs).")
-async def start_ble_pairing(request: Request):
-    controller: RemoteController = request.state.controller
-    await controller.start_ble_pairing()
-    return {"success": True}
-
-@router.post("/connect_ble/{mac_address}", tags=["Devices"])
-async def connect_ble_device(mac_address: str, request: Request):
-    controller: RemoteController = request.state.controller
-    await controller.ble_connect(mac_address)
-    return {"success": True}
-
-@router.post("/disconnect_ble_devices", tags=["Devices"])
-async def disconnect_ble_devices(request: Request):
-    controller: RemoteController = request.state.controller
-    await controller.ble_disconnect()
-    return {"success": True}
-
-@router.get("/{device_id}", tags=["Devices"], response_model=DeviceWithCommandGroup)
+@router.get("/{device_id}", tags=["Devices"], response_model=DeviceWithRelationships)
 def read_device(device_id: int, session: SessionDep) -> Device:
     device = session.get(Device, device_id)
     if not device:
@@ -77,7 +44,7 @@ def update_device(device_id: int, device: DeviceBase, session: SessionDep):
     session.refresh(device_db)
     return device_db
 
-@router.post("/", tags=["Devices"], response_model=DeviceWithCommandGroup)
+@router.post("/", tags=["Devices"], response_model=DeviceWithRelationships)
 def create_device(device: DevicePost, session: SessionDep) -> Device:
     db_device = Device.model_validate(device)
     image_id = device.image_id
@@ -90,26 +57,3 @@ def create_device(device: DevicePost, session: SessionDep) -> Device:
     session.commit()
     session.refresh(db_device)
     return db_device
-
-
-@router.post("/{device_id}/command_groups", tags=["Devices"], response_model=CommandGroup)
-def create_command_group(command_group: CommandGroupBase, device_id: int, session: SessionDep) -> CommandGroup:
-    device_db = session.get(Device, device_id)
-    if not device_db:
-        raise HTTPException(status_code=404, detail="Device not found")
-    db_command_group = CommandGroup.model_validate(command_group)
-
-    db_command_group.device_id = device_id
-    session.add(db_command_group)
-    session.commit()
-    session.refresh(db_command_group)
-    return db_command_group
-
-@router.delete("/command_groups/{command_group_id}", tags=["Devices"])
-def delete_command_group(command_group_id, session: SessionDep):
-    command_group = session.get(CommandGroup, command_group_id)
-    if not command_group:
-        raise HTTPException(status_code=404, detail="Command group not found")
-    session.delete(command_group)
-    session.commit()
-    return {"ok": True}

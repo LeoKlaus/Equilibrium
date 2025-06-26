@@ -9,8 +9,8 @@ from sqlalchemy import Boolean
 from sqlmodel import Session
 
 from Api.WebsocketConnectionManager.WebsocketConnectionManager import AsyncJsonCallback
+from Api.models import Device
 from Api.models.Command import CommandBase, Command
-from Api.models.CommandGroup import CommandGroup
 from Api.models.CommandType import CommandType
 from Api.models.NetworkRequestType import NetworkRequestType
 from Api.models.Scene import Scene, SceneStatusReport
@@ -78,10 +78,11 @@ class RemoteController:
         if new_command:
             db_command = Command.model_validate(data)
 
-            if new_command.command_group_id:
-                db_command_group = self.db_session.get(CommandGroup, new_command.command_group_id)
-                db_command.command_group_id = new_command.command_group_id
-                db_command.command_group = db_command_group
+            if new_command.device_id:
+                db_device = self.db_session.get(Device, new_command.device_id)
+                db_command.device_id = new_command.device_id
+                db_command.device = db_device
+            db_command.command_type = new_command.command_type
 
             try:
                 code = await self.ir_manager.record_command(new_command.name, callback)

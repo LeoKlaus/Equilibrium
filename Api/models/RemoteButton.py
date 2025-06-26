@@ -19,6 +19,7 @@ class RemoteButton(str, Enum):
     GUIDE = "guide"
     BACK = "back"
     MENU = "menu"
+    HOME = "home"
     EXIT = "exit"
     # Transport
     PLAY = "play"

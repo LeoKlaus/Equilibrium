@@ -3,14 +3,13 @@
 # of imports and rebuilds needed for the API to function. Removing any
 # of these will cause very weird and hard to diagnose errors to pop up
 
-from .Command import Command, CommandPublic
-from .CommandGroup import CommandGroupWithCommands
-from .Device import Device, DeviceWithCommandGroup
+from .Command import Command
+from .Device import Device, DeviceWithRelationships
 from .Macro import Macro, MacroWithRelationships
 from .Scene import SceneUpdate, SceneWithRelationships, ScenePost, Scene
 
 Command.model_rebuild()
-DeviceWithCommandGroup.model_rebuild()
+DeviceWithRelationships.model_rebuild()
 SceneUpdate.model_rebuild()
 SceneWithRelationships.model_rebuild()
 MacroWithRelationships.model_rebuild()

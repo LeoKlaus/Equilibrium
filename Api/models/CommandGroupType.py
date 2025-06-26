@@ -9,4 +9,5 @@ class CommandGroupType(str, Enum):
     CHANNEL = "channel"
     POWER = "power"
     NUMERIC = "numeric"
+    INPUT = "input"
     OTHER = "other"

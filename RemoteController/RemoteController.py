@@ -7,6 +7,7 @@ import httpx
 from fastapi import HTTPException
 from sqlalchemy import Boolean
 from sqlmodel import Session
+from starlette.websockets import WebSocket, WebSocketState, WebSocketDisconnect
 
 from Api.WebsocketConnectionManager.WebsocketConnectionManager import AsyncJsonCallback
 from Api.models import Device
@@ -73,7 +74,8 @@ class RemoteController:
             await self.ble_keyboard.disconnect()
 
 
-    async def record_ir_command(self, data, callback: AsyncCallback):
+    async def record_ir_command(self, data, websocket: WebSocket):
+        self.ir_manager.cancel_recording()
         new_command = CommandBase.model_validate(data)
         if new_command:
             db_command = Command.model_validate(data)
@@ -86,7 +88,7 @@ class RemoteController:
             db_command.type = new_command.type
 
             try:
-                code = await self.ir_manager.record_command(new_command.name, callback)
+                code = await self.ir_manager.record_command(new_command.name, websocket)
 
                 if code:
                     db_command.ir_action = code
@@ -94,9 +96,15 @@ class RemoteController:
                     self.db_session.add(db_command)
                     self.db_session.commit()
                     self.db_session.refresh(db_command)
-                    await callback(WebsocketIrResponse.DONE)
+                    await websocket.send_json(WebsocketIrResponse.DONE)
+
+            except WebSocketDisconnect:
+                self.logger.debug("Client disconnected from commands websocket")
+
             except CancelledError:
-                await callback(WebsocketIrResponse.CANCELLED)
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    #await websocket.send_json(WebsocketIrResponse.CANCELLED)
+                    await websocket.close()
 
     async def send_db_command(self, command: Command, press_without_release = False):
         match command.type:

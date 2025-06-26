@@ -58,14 +58,15 @@ async def websocket_commands(websocket: WebSocket):
 
     await websocket.accept()
 
+    # TODO: This can break when cancelling/disconnecting during the recording process, fix this
     try:
         while websocket.client_state == WebSocketState.CONNECTED:
             data = await websocket.receive_json()
             logger.debug(f"received: {data}")
-            await  controller.record_ir_command(data, websocket.send_json)
+            await  controller.record_ir_command(data, websocket)
 
     except WebSocketDisconnect:
-        logger.debug("Websocket disconnected.")
+        logger.debug("Client disconnected from commands websocket")
 
 @router.websocket("/status")
 async def websocket_status(websocket: WebSocket):

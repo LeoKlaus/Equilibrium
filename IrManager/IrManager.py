@@ -5,6 +5,7 @@ from asyncio import Task
 from typing import Callable, Awaitable
 
 import pigpio
+from starlette.websockets import WebSocketDisconnect, WebSocket, WebSocketState
 
 from Api.models.WebsocketResponses import WebsocketIrResponse
 
@@ -115,12 +116,12 @@ class IrManager:
         self.logger.debug("Sent IR command")
 
 
-    async def record_command(self, name: str, _callback: AsyncCallback = None) -> [int]:
-        self.cancel_recording()
-        self.recordingTask = asyncio.create_task(self._record_command(name, _callback))
+    async def record_command(self, name: str, websocket: WebSocket = None) -> [int]:
+        #self.cancel_recording()
+        self.recordingTask = asyncio.create_task(self._record_command(name, websocket))
         return await self.recordingTask
 
-    async def _record_command(self, name: str, _callback: AsyncCallback = None) -> [int]:
+    async def _record_command(self, name: str, websocket: WebSocket = None) -> [int]:
 
         last_tick = None
         in_code = False
@@ -129,8 +130,11 @@ class IrManager:
 
         async def send_message(msg: str):
             self.logger.debug(msg)
-            if _callback is not None:
-                await _callback(msg)
+            if websocket is not None and websocket.client_state == WebSocketState.CONNECTED:
+                try:
+                    await websocket.send_json(msg)
+                except  WebSocketDisconnect:
+                    self.cancel_recording()
 
         def normalise(c):
             entries = len(c)
@@ -241,6 +245,7 @@ class IrManager:
         return press_1
 
     def cancel_recording(self):
-        if self.recordingTask is not None:
+        if self.recordingTask is not None and not self.recordingTask.cancelled():
             self.recordingTask.cancel()
-        self.logger.info("Cancelled Task")
+            self.logger.info("Cancelled IR recording task")
+            self.recordingTask = None

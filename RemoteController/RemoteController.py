@@ -82,7 +82,8 @@ class RemoteController:
                 db_device = self.db_session.get(Device, new_command.device_id)
                 db_command.device_id = new_command.device_id
                 db_command.device = db_device
-            db_command.command_type = new_command.command_type
+
+            db_command.type = new_command.type
 
             try:
                 code = await self.ir_manager.record_command(new_command.name, callback)

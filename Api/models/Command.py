@@ -1,9 +1,8 @@
-from typing import List, TYPE_CHECKING
+from typing import List, TYPE_CHECKING, Optional
 
 from sqlalchemy import Column, JSON
 from sqlmodel import SQLModel, Field, Relationship
 
-from Api.models import Device
 from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
 from Api.models.Macro import CommandMacroLink
@@ -11,6 +10,7 @@ from Api.models.NetworkRequestType import NetworkRequestType
 from Api.models.RemoteButton import RemoteButton
 
 if TYPE_CHECKING:
+    from Api.models.Device import Device
     from Api.models.Macro import Macro
 
 class CommandBase(SQLModel):
@@ -40,3 +40,8 @@ class Command(CommandBase, table=True):
     # Needed for Column(JSON)
     class Config:
         arbitrary_types_allowed = True
+
+class CommandWithRelationships(CommandBase):
+    id: int | None
+    device: Optional["Device"] = None
+    macros: list["Macro"] = []

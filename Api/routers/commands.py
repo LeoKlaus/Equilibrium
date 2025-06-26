@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 from starlette.requests import Request
 
-from Api.models.Command import Command, CommandBase
+from Api.models.Command import Command, CommandBase, CommandWithRelationships
 from Api.models.Device import Device
 from Api.models.CommandType import CommandType
 from DbManager.DbManager import SessionDep
@@ -13,8 +13,8 @@ router = APIRouter(
     responses={404: {"description": "Not found"}}
 )
 
-@router.post("/", tags=["Commands"], response_model=Command)
-def create_command(command: CommandBase, session: SessionDep) -> Command:
+@router.post("/", tags=["Commands"], response_model=CommandWithRelationships)
+def create_command(command: CommandBase, session: SessionDep) -> CommandWithRelationships:
     db_command = Command.model_validate(command)
     if db_command.type == CommandType.IR and not db_command.ir_action:
         raise HTTPException(status_code=400, detail="IR commands can only be created via WebSocket. Please use the /ws/commands endpoint.")
@@ -36,13 +36,13 @@ def create_command(command: CommandBase, session: SessionDep) -> Command:
     session.refresh(db_command)
     return db_command
 
-@router.get("/", tags=["Commands"], response_model=list[Command])
-def list_commands(session: SessionDep) -> list[Command]:
+@router.get("/", tags=["Commands"], response_model=list[CommandWithRelationships])
+def list_commands(session: SessionDep) -> list[CommandWithRelationships]:
     commands = session.exec(select(Command)).all()
     return commands
 
-@router.get("/{command_id}", tags=["Commands"], response_model=Command)
-def show_command(command_id: int, session: SessionDep) -> Command:
+@router.get("/{command_id}", tags=["Commands"], response_model=CommandWithRelationships)
+def show_command(command_id: int, session: SessionDep) -> CommandWithRelationships:
     command = session.get(Command, command_id)
     if not command:
         raise HTTPException(status_code=404, detail="Command not found")

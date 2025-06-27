@@ -134,7 +134,7 @@ class RemoteController:
                 await self.send_script_command(command)
 
         if command.device_id is not None and command.command_group == CommandGroupType.INPUT:
-            await self.update_device_status(device_id=command.device_id, new_input=command.id)
+            await self.update_device_status(device_id=command.device_id, new_power_state=True, new_input=command.id)
 
         await self.set_state_for_command(command)
 

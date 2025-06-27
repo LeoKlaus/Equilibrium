@@ -254,7 +254,7 @@ class RemoteController:
         if not scene_db:
             raise HTTPException(status_code=404, detail="Scene not found")
 
-        await self._update_current_scene(new_scene_id=scene_id, new_scene_state=SceneStatus.STARTING)
+        await self._update_current_scene(new_scene=scene_db, new_scene_state=SceneStatus.STARTING)
 
         bt_address = scene_db.bluetooth_address
         if bt_address:
@@ -266,12 +266,13 @@ class RemoteController:
             for index, command in enumerate(scene_db.start_macro.commands):
                 await self.send_db_command(command, from_start=True)
                 # TODO: Check whether using no delay causes issues here
-                await asyncio.sleep(scene_db.start_macro.delays[index])
+                if index < len(scene_db.start_macro.commands)-1:
+                    await asyncio.sleep(scene_db.start_macro.delays[index])
 
         if scene_db.keymap:
             self.load_key_map(scene_db.keymap)
 
-        await self._update_current_scene(new_scene_id=scene_id, new_scene_state=SceneStatus.ACTIVE)
+        await self._update_current_scene(new_scene=scene_db, new_scene_state=SceneStatus.ACTIVE)
 
         self.logger.info(f"Scene {scene_db.name} started!")
 
@@ -294,7 +295,7 @@ class RemoteController:
 
         # TODO: Apply device status changes here!
 
-        await self._update_current_scene(new_scene_id=scene_id, new_scene_state=SceneStatus.ACTIVE)
+        await self._update_current_scene(new_scene=scene_db, new_scene_state=SceneStatus.ACTIVE)
 
         if scene_db.keymap:
             self.load_key_map(scene_db.keymap)
@@ -303,17 +304,17 @@ class RemoteController:
 
 
     async def stop_current_scene(self):
-        if not self.status.id:
+        if not self.status.current_scene.id:
             raise HTTPException(status_code=404, detail="No scene active")
 
-        scene_db = self.db_session.get(Scene, self.status.id)
+        scene_db = self.db_session.get(Scene, self.status.current_scene.id)
 
         self.load_key_map("default")
 
         if not scene_db:
-            raise HTTPException(status_code=404, detail=f"Couldn't find scene with ID {self.status.id}.")
+            raise HTTPException(status_code=404, detail=f"Couldn't find scene with ID {self.status.current_scene.id}.")
 
-        await self._update_current_scene(new_scene_id=self.status.id, new_scene_state=SceneStatus.STOPPING)
+        await self._update_current_scene_status(new_scene_state=SceneStatus.STOPPING)
 
         bt_address = scene_db.bluetooth_address
         if bt_address:
@@ -323,9 +324,10 @@ class RemoteController:
             for index, command in enumerate(scene_db.stop_macro.commands):
                 await self.send_db_command(command, from_stop=True)
                 # TODO: Check whether using no delay causes issues here
-                await asyncio.sleep(scene_db.stop_macro.delays[index])
+                if index < len(scene_db.stop_macro.commands)-1:
+                    await asyncio.sleep(scene_db.stop_macro.delays[index])
 
-        await self._update_current_scene(new_scene_id=None, new_scene_state=None)
+        await self._update_current_scene(new_scene=None, new_scene_state=None)
 
         self.logger.info(f"Scene {scene_db.name} stopped!")
 
@@ -373,8 +375,14 @@ class RemoteController:
         if self.status_callback is not None:
             await self.status_callback(self.status)
 
-    async def _update_current_scene(self, new_scene_id: int | None, new_scene_state: SceneStatus | None):
-        self.status.current_scene_id = new_scene_id
+    async def _update_current_scene_status(self, new_scene_state: SceneStatus | None):
+        self.status.scene_status = new_scene_state
+
+        if self.status_callback is not None:
+            await self.status_callback(self.status)
+
+    async def _update_current_scene(self, new_scene: Scene | None, new_scene_state: SceneStatus | None):
+        self.status.current_scene = new_scene
         self.status.scene_status = new_scene_state
 
         if self.status_callback is not None:

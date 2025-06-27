@@ -1,12 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
-from starlette.requests import Request
 
 from Api.models.Device import DeviceWithRelationships, DevicePost, Device, DeviceBase
 from Api.models.UserImage import UserImage
 from DbManager.DbManager import SessionDep
-from Api.models.DeviceState import DeviceStates
-from RemoteController.RemoteController import RemoteController
 
 router = APIRouter(
     prefix="/devices",
@@ -18,13 +15,6 @@ router = APIRouter(
 def list_devices(session: SessionDep) -> list[Device]:
     devices = session.exec(select(Device)).all()
     return devices
-
-
-@router.get("/status", tags=["Devices"], response_model=DeviceStates)
-def get_current_device_statuses(request: Request) -> DeviceStates:
-    controller: RemoteController = request.state.controller
-
-    return controller.get_current_device_statuses()
 
 
 @router.get("/{device_id}", tags=["Devices"], response_model=DeviceWithRelationships)

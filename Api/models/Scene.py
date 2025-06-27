@@ -2,7 +2,6 @@ from typing import List, TYPE_CHECKING, Optional
 
 from sqlmodel import SQLModel, Field, Relationship
 
-from Api.models.SceneStatus import SceneStatus
 from Api.models.UserImage import UserImage
 
 from Api.models.Macro import Macro, MacroWithRelationships, SceneMacroLink
@@ -63,7 +62,3 @@ class SceneWithRelationships(SceneBase):
     macros: list[Macro] = []
     bluetooth_address: str | None = None
     keymap: str | None = None
-
-class SceneStatusReport(SQLModel):
-    id: int | None
-    status: SceneStatus | None

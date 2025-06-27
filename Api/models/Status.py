@@ -1,5 +1,6 @@
 from sqlmodel import SQLModel, Field
 
+from Api.models.SceneStatus import SceneStatus
 
 class DeviceState(SQLModel):
     powered: bool = False
@@ -28,3 +29,8 @@ class DeviceStates(SQLModel):
             current_state.input = None
 
         self.states[device_id] = current_state
+
+class StatusReport(SQLModel):
+    current_scene_id: int | None = Field(default=None)
+    scene_status: SceneStatus | None = Field(default=None)
+    devices: DeviceStates = Field(default=DeviceStates())

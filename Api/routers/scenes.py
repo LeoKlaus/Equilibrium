@@ -4,7 +4,7 @@ from starlette.requests import Request
 
 from Api.models import Macro
 from Api.models.Device import Device
-from Api.models.Scene import SceneWithRelationships, ScenePost, Scene, SceneUpdate, SceneStatusReport
+from Api.models.Scene import SceneWithRelationships, ScenePost, Scene, SceneUpdate
 from Api.models.UserImage import UserImage
 from DbManager.DbManager import SessionDep
 from RemoteController.RemoteController import RemoteController
@@ -96,13 +96,6 @@ def delete_scene(scene_id: int, session: SessionDep):
     session.commit()
 
     return {"message": f"Successfully deleted {scene.name}"}
-
-
-@router.get("/current", tags=["Scenes"], response_model=SceneStatusReport)
-def get_current_scene(request: Request) -> SceneStatusReport:
-    controller: RemoteController = request.state.controller
-
-    return controller.get_current_scene()
 
 
 @router.get("/{scene_id}", tags=["Scenes"], response_model=SceneWithRelationships)

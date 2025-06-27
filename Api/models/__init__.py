@@ -6,12 +6,11 @@
 from .Command import Command, CommandWithRelationships
 from .Device import Device, DeviceWithRelationships
 from .Macro import Macro, MacroWithRelationships
-from .Scene import SceneUpdate, SceneWithRelationships, ScenePost, Scene
+from .Scene import SceneWithRelationships, ScenePost, Scene
 
 Command.model_rebuild()
 CommandWithRelationships.model_rebuild()
 DeviceWithRelationships.model_rebuild()
-SceneUpdate.model_rebuild()
 SceneWithRelationships.model_rebuild()
 MacroWithRelationships.model_rebuild()
 ScenePost.model_rebuild()

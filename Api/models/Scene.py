@@ -17,12 +17,12 @@ class SceneBase(SQLModel):
     name: str | None = Field(index=True)
 
 class ScenePost(SceneBase):
-    device_ids: List[int] = Field(default=[])
     image_id: int | None = Field(default=None)
     start_macro_id: int | None = Field(default=None)
     stop_macro_id: int | None = Field(default=None)
     bluetooth_address: str | None = Field(default=None)
     keymap: str | None = Field(default=None)
+
 
 class Scene(SceneBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -40,15 +40,6 @@ class Scene(SceneBase, table=True):
         sa_relationship_kwargs={"foreign_keys": "Scene.stop_macro_id"}
     )
     macros: list[Macro] = Relationship(back_populates="scenes", link_model=SceneMacroLink)
-    bluetooth_address: str | None = Field(default=None)
-    keymap: str | None = Field(default=None)
-
-
-class SceneUpdate(SceneBase):
-    devices: list["Device"] = Field(default=[])
-    image_id: int | None = Field(default=None)
-    start_macro_id: int | None = Field(default=None)
-    stop_macro_id: int | None = Field(default=None)
     bluetooth_address: str | None = Field(default=None)
     keymap: str | None = Field(default=None)
 

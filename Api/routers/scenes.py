@@ -4,7 +4,7 @@ from starlette.requests import Request
 
 from Api.models import Macro
 from Api.models.Device import Device
-from Api.models.Scene import SceneWithRelationships, ScenePost, Scene, SceneUpdate
+from Api.models.Scene import SceneWithRelationships, ScenePost, Scene
 from Api.models.UserImage import UserImage
 from DbManager.DbManager import SessionDep
 from RemoteController.RemoteController import RemoteController
@@ -28,23 +28,31 @@ def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
         if not image_db:
             raise HTTPException(status_code=404, detail=f"Image {image_id} not found")
         db_scene.image = image_db
-    for device_id in scene.device_ids:
-        device_db = session.get(Device, device_id)
-        if not device_db:
-            raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
-        db_scene.devices.append(device_db)
+
+    device_ids: [int] = []
 
     if scene.start_macro_id is not None:
         start_macro = session.get(Macro, scene.start_macro_id)
         if not start_macro:
             raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
         db_scene.start_macro = start_macro
+        device_ids += list(map(lambda x: x.id, start_macro.devices))
 
     if scene.stop_macro_id is not None:
         stop_macro = session.get(Macro, scene.stop_macro_id)
         if not stop_macro:
             raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
         db_scene.stop_macro = stop_macro
+        device_ids += list(map(lambda x: x.id, stop_macro.devices))
+
+    device_id_set = set(device_ids)
+
+    for device_id in device_id_set:
+        device_db = session.get(Device, device_id)
+        if not device_db:
+            raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+        db_scene.devices.append(device_db)
+
 
     session.commit()
     session.refresh(db_scene)
@@ -58,7 +66,7 @@ def list_scenes(session: SessionDep) -> list[Scene]:
 
 
 @router.patch("/{scene_id}", tags=["Scenes"])
-def update_scene(scene_id: int, scene: SceneUpdate, session: SessionDep):
+def update_scene(scene_id: int, scene: ScenePost, session: SessionDep):
     scene_db = session.get(Scene, scene_id)
     if not scene_db:
         raise HTTPException(status_code=404, detail="Scene not found")
@@ -66,17 +74,31 @@ def update_scene(scene_id: int, scene: SceneUpdate, session: SessionDep):
     if scene.bluetooth_address:
         scene_db.bluetooth_address = scene.bluetooth_address
 
+    device_ids: [int] = []
+
     if scene.start_macro_id is not None:
         start_macro = session.get(Macro, scene.start_macro_id)
         if not start_macro:
             raise HTTPException(status_code=400, detail=f"Start macro {scene.start_macro_id} not found")
         scene_db.start_macro = start_macro
+        device_ids += list(map(lambda x: x.id, start_macro.devices))
 
     if scene.stop_macro_id is not None:
         stop_macro = session.get(Macro, scene.stop_macro_id)
         if not stop_macro:
             raise HTTPException(status_code=400, detail=f"Stop macro {scene.stop_macro_id} not found")
         scene_db.stop_macro = stop_macro
+        device_ids += list(map(lambda x: x.id, stop_macro.devices))
+
+    device_id_set = set(device_ids)
+
+    scene_db.devices = []
+
+    for device_id in device_id_set:
+        device_db = session.get(Device, device_id)
+        if not device_db:
+            raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+        scene_db.devices.append(device_db)
 
     scene_data = scene.model_dump(exclude_unset=True)
     scene_db.sqlmodel_update(scene_data)

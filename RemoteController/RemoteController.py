@@ -244,7 +244,14 @@ class RemoteController:
         if not scene_db:
             raise HTTPException(status_code=404, detail="Scene not found")
 
-        # TODO: Implement switching scenes
+        previous_scene = self.status.current_scene
+        if previous_scene is not None and scene_db.start_macro is not None:
+            skip_power_down_for = set()
+            for command in scene_db.start_macro.commands:
+                if command.device_id is not None and (command.button == RemoteButton.POWER_TOGGLE or command.button == RemoteButton.POWER_ON):
+                    skip_power_down_for.add(command.device_id)
+
+            await self.stop_current_scene(skip_power_down_for=skip_power_down_for)
 
         await self._update_current_scene(new_scene=scene_db, new_scene_state=SceneStatus.STARTING)
 
@@ -318,7 +325,7 @@ class RemoteController:
         for command in commands:
             await self.set_state_for_command(command)
 
-    async def stop_current_scene(self):
+    async def stop_current_scene(self, skip_power_down_for: set[int] | None = None):
         if not self.status.current_scene.id:
             raise HTTPException(status_code=404, detail="No scene active")
 
@@ -337,9 +344,10 @@ class RemoteController:
 
         if scene_db.stop_macro is not None:
             for index, command in enumerate(scene_db.stop_macro.commands):
-                await self.send_db_command(command, from_stop=True)
-                if index < len(scene_db.stop_macro.commands)-1:
-                    await asyncio.sleep(scene_db.stop_macro.delays[index]/1000)
+                if command.device_id is None or command.device_id not in skip_power_down_for:
+                    await self.send_db_command(command, from_stop=True)
+                    if index < len(scene_db.stop_macro.commands)-1:
+                        await asyncio.sleep(scene_db.stop_macro.delays[index]/1000)
 
         await self._update_current_scene(new_scene=None, new_scene_state=None)
 

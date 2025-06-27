@@ -133,6 +133,9 @@ class RemoteController:
             case CommandType.SCRIPT:
                 await self.send_script_command(command)
 
+        if command.device_id is not None and command.command_group == CommandGroupType.INPUT:
+            await self.update_device_status(device_id=command.device_id, new_input=command.id)
+
         await self.set_state_for_command(command)
 
 
@@ -325,7 +328,10 @@ class RemoteController:
         for command in commands:
             await self.set_state_for_command(command)
 
-    async def stop_current_scene(self, skip_power_down_for: set[int] | None = None):
+    async def stop_current_scene(self, skip_power_down_for=None):
+        if skip_power_down_for is None:
+            skip_power_down_for = set()
+
         if not self.status.current_scene.id:
             raise HTTPException(status_code=404, detail="No scene active")
 

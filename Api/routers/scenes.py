@@ -97,6 +97,13 @@ def update_scene(scene_id: int, scene: ScenePost, session: SessionDep):
         scene_db.stop_macro = stop_macro
         device_ids += list(map(lambda x: x.id, stop_macro.devices))
 
+    if scene.bluetooth_address is not None:
+        statement = select(Device).where(Device.bluetooth_address == scene.bluetooth_address)
+        results = session.exec(statement)
+        bt_device = results.first()
+        if bt_device is not None:
+            device_ids.append(bt_device.id)
+
     device_id_set = set(device_ids)
 
     scene_db.devices = []

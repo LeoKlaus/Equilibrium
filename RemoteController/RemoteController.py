@@ -254,6 +254,8 @@ class RemoteController:
         if not scene_db:
             raise HTTPException(status_code=404, detail="Scene not found")
 
+        # TODO: Implement switching scenes
+
         await self._update_current_scene(new_scene=scene_db, new_scene_state=SceneStatus.STARTING)
 
         bt_address = scene_db.bluetooth_address
@@ -265,7 +267,7 @@ class RemoteController:
         if scene_db.start_macro is not None:
             for index, command in enumerate(scene_db.start_macro.commands):
                 await self.send_db_command(command, from_start=True)
-                # TODO: Check whether using no delay causes issues here
+
                 if index < len(scene_db.start_macro.commands)-1:
                     await asyncio.sleep(scene_db.start_macro.delays[index])
 
@@ -323,7 +325,6 @@ class RemoteController:
         if scene_db.stop_macro is not None:
             for index, command in enumerate(scene_db.stop_macro.commands):
                 await self.send_db_command(command, from_stop=True)
-                # TODO: Check whether using no delay causes issues here
                 if index < len(scene_db.stop_macro.commands)-1:
                     await asyncio.sleep(scene_db.stop_macro.delays[index])
 

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from asyncio import CancelledError
@@ -12,8 +13,10 @@ from starlette.websockets import WebSocket, WebSocketState
 from Api.WebsocketConnectionManager.WebsocketConnectionManager import AsyncJsonCallback
 from Api.models import Device
 from Api.models.Command import CommandBase, Command
+from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
 from Api.models.NetworkRequestType import NetworkRequestType
+from Api.models.RemoteButton import RemoteButton
 from Api.models.Scene import Scene, SceneStatusReport
 from Api.models.SceneStatus import SceneStatus
 from Api.models.WebsocketResponses import BleDevice, WebsocketIrResponse
@@ -21,11 +24,13 @@ from BleKeyboard.BleKeyboard import BleKeyboard
 from DbManager.DbManager import DbManager
 from IrManager.IrManager import IrManager
 from RemoteController.AsyncQueueManager import AsyncQueueManager
+from Api.models.DeviceState import DeviceStates
 from RfManager.RfManager import RfManager
 
 class RemoteController:
 
     active_scene_status: SceneStatusReport = SceneStatusReport(id=None, status=None)
+    device_statuses: DeviceStates = DeviceStates()
 
     keymap: Dict[str, int] = []
     keymap_scene: Dict[str, int] = []
@@ -102,21 +107,45 @@ class RemoteController:
                     await websocket.send_json(WebsocketIrResponse.CANCELLED)
                     await websocket.close()
 
-    async def send_db_command(self, command: Command, press_without_release = False):
+    async def send_db_command(self, command: Command, press_without_release = False, from_start: bool = False, from_stop: bool = False):
+
+        if from_start and command.device_id is not None:
+            current_status = self.device_statuses.state(for_device_id=command.device_id)
+            # Device is already powered on
+            if (command.button == RemoteButton.POWER_ON or command.button == RemoteButton.POWER_TOGGLE) and current_status.powered:
+                return
+            # Device is already on correct input
+            if command.command_group == CommandGroupType.INPUT and current_status.input == command.id:
+                return
+
+        if from_stop and command.device_id is not None:
+            current_status = self.device_statuses.state(for_device_id=command.device_id)
+            # Device is already powered off
+            if (command.button == RemoteButton.POWER_OFF or command.button == RemoteButton.POWER_TOGGLE) and not current_status.powered:
+                return
+
         match command.type:
             case CommandType.IR:
-                return await self.send_ir_command(command, press_without_release=press_without_release)
+                await self.send_ir_command(command, press_without_release=press_without_release)
             case CommandType.BLUETOOTH:
-                return await self.send_bt_command(command, press_without_release=press_without_release)
+                await self.send_bt_command(command, press_without_release=press_without_release)
             case CommandType.NETWORK:
-                return await self.send_network_command(command)
+                await self.send_network_command(command)
             case CommandType.SCRIPT:
-                return await self.send_script_command(command)
+                await self.send_script_command(command)
 
-        raise HTTPException(
-            status_code=400,
-            detail=f"Command {command.name} found, but type {command.type} is invalid."
-        )
+        if command.device_id is not None:
+            if command.command_group == CommandGroupType.INPUT:
+                await self.update_device_status(command.device_id, new_input=command.id)
+            match command.button:
+                case RemoteButton.POWER_ON:
+                    await self.update_device_status(command.device_id, new_power_state=True)
+                case RemoteButton.POWER_OFF:
+                    await self.update_device_status(command.device_id, new_power_state=False)
+                case RemoteButton.POWER_TOGGLE:
+                    await self.update_device_status(command.device_id, toggle_power=True)
+
+
 
     async def send_command(self, command_id: int, press_without_release = False):
         command_db = self.db_session.get(Command, command_id)
@@ -127,6 +156,12 @@ class RemoteController:
         await self.send_db_command(command_db, press_without_release)
 
 
+    async def update_device_status(self, device_id: int, new_power_state: bool | None = None, new_input: int | None = None, toggle_power: bool | None = None):
+
+        self.device_statuses.set_state(device_id, new_power_state=new_power_state, new_input=new_input, toggle_power=toggle_power)
+
+        if self.status_callback is not None:
+            await self.status_callback(self.device_statuses)
 
     async def send_ir_command(self, command: Command, press_without_release = False):
         ir_command = command.ir_action
@@ -235,10 +270,11 @@ class RemoteController:
             await self.ble_keyboard.connect(bt_address)
             await self.ble_keyboard.register_services()
 
-        for command in scene_db.start_commands:
-            await self.send_db_command(command)
-            # TODO: Check whether using no delay causes issues here
-            #await asyncio.sleep(0.5)
+        if scene_db.start_macro is not None:
+            for index, command in enumerate(scene_db.start_macro.commands):
+                await self.send_db_command(command, from_start=True)
+                # TODO: Check whether using no delay causes issues here
+                await asyncio.sleep(scene_db.start_macro.delays[index])
 
         if scene_db.keymap:
             self.load_key_map(scene_db.keymap)
@@ -247,7 +283,10 @@ class RemoteController:
 
         self.logger.info(f"Scene {scene_db.name} started!")
 
-    def get_current_scene(self):
+    def get_current_device_statuses(self) -> DeviceStates:
+        return self.device_statuses
+
+    def get_current_scene(self) -> SceneStatusReport:
         return self.active_scene_status
 
     # Updates active scene without executing start commands
@@ -263,6 +302,8 @@ class RemoteController:
             await self.ble_keyboard.unregister_services()
             await self.ble_keyboard.connect(bt_address)
             await self.ble_keyboard.register_services()
+
+        # TODO: Apply device status changes here!
 
         await self._update_current_scene(SceneStatusReport(id=scene_id, status=SceneStatus.ACTIVE))
 
@@ -289,10 +330,11 @@ class RemoteController:
         if bt_address:
             await self.ble_keyboard.disconnect(bt_address)
 
-        for command in scene_db.stop_commands:
-            await self.send_db_command(command)
-            # TODO: Check whether using no delay causes issues here
-            #await asyncio.sleep(0.5)
+        if scene_db.stop_macro is not None:
+            for index, command in enumerate(scene_db.stop_macro.commands):
+                await self.send_db_command(command, from_stop=True)
+                # TODO: Check whether using no delay causes issues here
+                await asyncio.sleep(scene_db.stop_macro.delays[index])
 
         await self._update_current_scene(SceneStatusReport(id=None, status=None))
 
@@ -312,6 +354,9 @@ class RemoteController:
             self.rf_manager.set_callback(self.handle_button_press)
             self.rf_manager.set_release_callback(self.handle_button_release)
         self.logger.debug(f"Loaded keymap {keymap_name}")
+
+    def suggest_keymap(self):
+        pass
 
     def handle_button_press(self, button):
         if button == "Off":

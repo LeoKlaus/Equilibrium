@@ -27,7 +27,6 @@ class MacroPost(MacroBase):
     command_ids: list[int] = Field(default=[])
     delays: list[int] = Field(default=[])
     scene_ids: list[int] = Field(default=[])
-    device_ids: list[int] = Field(default=[])
 
 class Macro(MacroBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -47,6 +46,11 @@ class Macro(MacroBase, table=True):
     # Needed for Column(JSON)
     class Config:
         arbitrary_types_allowed = True
+
+class MacroWithCommands(MacroBase):
+    id: int | None
+    commands: list["Command"] = []
+    delays: list[int] = []
 
 class MacroWithRelationships(MacroBase):
     id: int | None

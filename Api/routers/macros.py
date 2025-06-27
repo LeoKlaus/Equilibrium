@@ -27,16 +27,22 @@ def get_macro(macro_id: int, session: SessionDep) -> MacroWithRelationships:
 def create_macro(macro: MacroPost, session: SessionDep):
     db_macro = Macro.model_validate(macro)
 
+    if len(macro.command_ids) == 0:
+        raise HTTPException(status_code=400, detail="You have to include at least one command.")
+
     if (len(macro.command_ids) != (len(macro.delays) + 1)) and len(macro.command_ids) > 0:
         raise HTTPException(status_code=400, detail="You have to include one delay for all but the last command (len(command_ids) == len(delays)+1).")
 
     session.add(db_macro)
+
+    device_ids: [int] = []
 
     for command_id in macro.command_ids:
         command_db = session.get(Command, command_id)
         if not command_db:
             raise HTTPException(status_code=404, detail=f"Command {command_id} not found")
         db_macro.commands.append(command_db)
+        device_ids.append(command_db.device_id)
 
     for scene_id in macro.scene_ids:
         scene_db = session.get(Scene, scene_id)
@@ -44,7 +50,9 @@ def create_macro(macro: MacroPost, session: SessionDep):
             raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
         db_macro.scenes.append(scene_db)
 
-    for device_id in macro.device_ids:
+    device_id_set = set(device_ids)
+
+    for device_id in device_id_set:
         device_db = session.get(Device, device_id)
         if not device_db:
             raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
@@ -61,16 +69,22 @@ def update_macro(macro_id: int, macro: MacroPost, session: SessionDep) -> MacroW
     if not macro_db:
         raise HTTPException(status_code=404, detail="Macro not found")
 
+    if len(macro.command_ids) == 0:
+        raise HTTPException(status_code=400, detail="You have to include at least one command.")
+
     if (len(macro.command_ids) != (len(macro.delays) + 1)) and len(macro.command_ids) > 0:
         raise HTTPException(status_code=400, detail="You have to include one delay for all but the last command (len(command_ids) == len(delays)+1).")
 
     macro_db.commands = []
+
+    device_ids: [int] = []
 
     for command_id in macro.command_ids:
         command_db = session.get(Command, command_id)
         if not command_db:
             raise HTTPException(status_code=404, detail=f"Command {command_id} not found")
         macro_db.commands.append(command_db)
+        device_ids.append(command_db.device_id)
 
     macro_db.scenes = []
 
@@ -81,8 +95,9 @@ def update_macro(macro_id: int, macro: MacroPost, session: SessionDep) -> MacroW
         macro_db.scenes.append(scene_db)
 
     macro_db.devices = []
+    device_id_set = set(device_ids)
 
-    for device_id in macro.device_ids:
+    for device_id in device_id_set:
         device_db = session.get(Device, device_id)
         if not device_db:
             raise HTTPException(status_code=404, detail=f"Device {device_id} not found")

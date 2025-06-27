@@ -1,10 +1,10 @@
-from typing import List, TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlmodel import SQLModel, Field, Relationship
 
 from Api.models.UserImage import UserImage
 
-from Api.models.Macro import Macro, MacroWithRelationships, SceneMacroLink
+from Api.models.Macro import Macro, SceneMacroLink, MacroWithCommands
 
 if TYPE_CHECKING:
     from Api.models.Device import Device
@@ -48,8 +48,8 @@ class SceneWithRelationships(SceneBase):
     id: int | None
     devices: list["Device"] = []
     image: UserImage | None = None
-    start_macro: Optional[MacroWithRelationships] = None
-    stop_macro: Optional[MacroWithRelationships] = None
-    macros: list[Macro] = []
+    start_macro: Optional[MacroWithCommands] = None
+    stop_macro: Optional[MacroWithCommands] = None
+    macros: list[MacroWithCommands] = []
     bluetooth_address: str | None = None
     keymap: str | None = None

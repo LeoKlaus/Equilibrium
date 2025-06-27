@@ -269,7 +269,7 @@ class RemoteController:
                 await self.send_db_command(command, from_start=True)
 
                 if index < len(scene_db.start_macro.commands)-1:
-                    await asyncio.sleep(scene_db.start_macro.delays[index])
+                    await asyncio.sleep(scene_db.start_macro.delays[index]/1000)
 
         if scene_db.keymap:
             self.load_key_map(scene_db.keymap)
@@ -326,7 +326,7 @@ class RemoteController:
             for index, command in enumerate(scene_db.stop_macro.commands):
                 await self.send_db_command(command, from_stop=True)
                 if index < len(scene_db.stop_macro.commands)-1:
-                    await asyncio.sleep(scene_db.stop_macro.delays[index])
+                    await asyncio.sleep(scene_db.stop_macro.delays[index]/1000)
 
         await self._update_current_scene(new_scene=None, new_scene_state=None)
 

@@ -344,7 +344,8 @@ class RemoteController:
 
         if scene_db.stop_macro is not None:
             for index, command in enumerate(scene_db.stop_macro.commands):
-                if command.device_id is None or command.device_id not in skip_power_down_for:
+                if ((command.device_id is None or command.device_id not in skip_power_down_for)
+                        and (command.button == RemoteButton.POWER_TOGGLE or command.button == RemoteButton.POWER_OFF)):
                     await self.send_db_command(command, from_stop=True)
                     if index < len(scene_db.stop_macro.commands)-1:
                         await asyncio.sleep(scene_db.stop_macro.delays[index]/1000)

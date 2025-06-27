@@ -133,17 +133,7 @@ class RemoteController:
             case CommandType.SCRIPT:
                 await self.send_script_command(command)
 
-        if command.device_id is not None:
-            if command.command_group == CommandGroupType.INPUT:
-                await self.update_device_status(command.device_id, new_input=command.id)
-            match command.button:
-                case RemoteButton.POWER_ON:
-                    await self.update_device_status(command.device_id, new_power_state=True)
-                case RemoteButton.POWER_OFF:
-                    await self.update_device_status(command.device_id, new_power_state=False)
-                case RemoteButton.POWER_TOGGLE:
-                    await self.update_device_status(command.device_id, toggle_power=True)
-
+        await self.set_state_for_command(command)
 
 
     async def send_command(self, command_id: int, press_without_release = False):
@@ -295,7 +285,15 @@ class RemoteController:
             await self.ble_keyboard.connect(bt_address)
             await self.ble_keyboard.register_services()
 
-        # TODO: Apply device status changes here!
+        previous_scene = self.status.current_scene
+        if previous_scene is not None and previous_scene.stop_macro is not None:
+            previous_scene_stop_commands = previous_scene.stop_macro.commands
+            if previous_scene_stop_commands:
+                await self.set_states_for_commands(previous_scene_stop_commands)
+
+        new_scene_commands = scene_db.start_macro.commands
+        if new_scene_commands:
+            await self.set_states_for_commands(new_scene_commands)
 
         await self._update_current_scene(new_scene=scene_db, new_scene_state=SceneStatus.ACTIVE)
 
@@ -304,6 +302,21 @@ class RemoteController:
 
         self.logger.info(f"Set {scene_db.name} as current scene.")
 
+    async def set_state_for_command(self, command: Command):
+        if command.device_id is not None:
+            if command.command_group == CommandGroupType.INPUT:
+                await self.update_device_status(command.device_id, new_input=command.id)
+            match command.button:
+                case RemoteButton.POWER_ON:
+                    await self.update_device_status(command.device_id, new_power_state=True)
+                case RemoteButton.POWER_OFF:
+                    await self.update_device_status(command.device_id, new_power_state=False)
+                case RemoteButton.POWER_TOGGLE:
+                    await self.update_device_status(command.device_id, toggle_power=True)
+
+    async def set_states_for_commands(self, commands: list[Command]):
+        for command in commands:
+            await self.set_state_for_command(command)
 
     async def stop_current_scene(self):
         if not self.status.current_scene.id:
@@ -331,6 +344,7 @@ class RemoteController:
         await self._update_current_scene(new_scene=None, new_scene_state=None)
 
         self.logger.info(f"Scene {scene_db.name} stopped!")
+
 
     def load_key_map(self, keymap_name: str = "default"):
 

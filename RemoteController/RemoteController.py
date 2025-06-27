@@ -133,9 +133,6 @@ class RemoteController:
             case CommandType.SCRIPT:
                 await self.send_script_command(command)
 
-        if command.device_id is not None and command.command_group == CommandGroupType.INPUT:
-            await self.update_device_status(device_id=command.device_id, new_power_state=True, new_input=command.id)
-
         await self.set_state_for_command(command)
 
 
@@ -315,7 +312,7 @@ class RemoteController:
     async def set_state_for_command(self, command: Command):
         if command.device_id is not None:
             if command.command_group == CommandGroupType.INPUT:
-                await self.update_device_status(command.device_id, new_input=command.id)
+                await self.update_device_status(command.device_id, new_power_state=True, new_input=command.id)
             match command.button:
                 case RemoteButton.POWER_ON:
                     await self.update_device_status(command.device_id, new_power_state=True)

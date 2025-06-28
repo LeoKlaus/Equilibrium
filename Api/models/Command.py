@@ -1,4 +1,4 @@
-from typing import List, TYPE_CHECKING, Optional
+from typing import List, TYPE_CHECKING, Optional, Annotated
 
 from sqlalchemy import Column, JSON
 from sqlmodel import SQLModel, Field, Relationship
@@ -29,7 +29,7 @@ class Command(CommandBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     device_id: int | None = Field(default=None, foreign_key="device.id")
     device: "Device" = Relationship(back_populates="commands")
-    ir_action: List[int] = Field(default=[], sa_column=Column(JSON))
+    ir_action:  Annotated[list[int], Field(default=[], sa_column=Column(JSON), exclude=True)]
     bt_action: str | None = Field(default=None)
     bt_media_action: str | None = Field(default=None)
     host: str | None = Field(default=None)

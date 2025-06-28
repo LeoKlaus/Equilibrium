@@ -405,14 +405,15 @@ class RemoteController:
 
         except FileNotFoundError:
             self.logger.warning("\"config/remote_keymap.json\" could not be opened. Can't generate suggested keymap.")
-            return
+            return {}
 
         available_buttons = {}
+        keymap_suggestion = {}
 
         for key, value in keymap_json.items():
             available_buttons[value["button"]] = key
+            keymap_suggestion[key] = None
 
-        keymap_suggestion = {}
 
         def assign_key_if_exists(device: Device, button: RemoteButton):
             matching_remote_button = available_buttons.get(button)

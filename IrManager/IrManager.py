@@ -24,7 +24,8 @@ FREQ = 38
 class IrManager:
 
     logger = logging.getLogger(__package__)
-    recordingTask: Task|None = None
+    recording_task: Task|None = None
+    sending_task: Task|None = None
 
     def __init__(self):
         self.logger.info("Connecting...")
@@ -40,13 +41,23 @@ class IrManager:
         self.pi.stop()
 
     async def send_and_repeat(self, code: [int]):
-        self.repeating = True
-        while self.repeating:
+        self.cancel_sending()
+        self.sending_task = asyncio.create_task(self._send_and_repeat(code))
+
+    def cancel_sending(self):
+        if self.sending_task is not None and not self.sending_task.cancelled():
+            self.sending_task.cancel()
+            self.logger.info("Cancelled IR sending task")
+            self.sending_task = None
+
+    async def _send_and_repeat(self, code: [int]):
+        while True:
             await self.send_command(code)
             await asyncio.sleep(0.25)
 
     def stop_repeating(self):
-        self.repeating = False
+        self.cancel_sending()
+
 
     async def send_command(self, code: [int]):
         def carrier(gpio, frequency, micros, dutycycle=0.5):
@@ -118,8 +129,8 @@ class IrManager:
 
     async def record_command(self, name: str, websocket: WebSocket = None) -> [int]:
         #self.cancel_recording()
-        self.recordingTask = asyncio.create_task(self._record_command(name, websocket))
-        return await self.recordingTask
+        self.recording_task = asyncio.create_task(self._record_command(name, websocket))
+        return await self.recording_task
 
     async def _record_command(self, name: str, websocket: WebSocket = None) -> [int]:
 
@@ -245,7 +256,7 @@ class IrManager:
         return press_1
 
     def cancel_recording(self):
-        if self.recordingTask is not None and not self.recordingTask.cancelled():
-            self.recordingTask.cancel()
+        if self.recording_task is not None and not self.recording_task.cancelled():
+            self.recording_task.cancel()
             self.logger.info("Cancelled IR recording task")
-            self.recordingTask = None
+            self.recording_task = None

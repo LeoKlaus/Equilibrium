@@ -53,9 +53,10 @@ class RfManager:
         self.logger.debug("Started rf listener")
 
     def stop_listener(self):
-        self.listener_thread.do_run = False
-        self.nrf.power_down()
-        self.logger.debug("Stopped rf listener")
+        if self.listener_thread is not None:
+            self.listener_thread.do_run = False
+            self.nrf.power_down()
+            self.logger.debug("Stopped rf listener")
 
     def _start_listening(self, addresses, debug):
         self.logger.debug("Setting addresses")

@@ -150,7 +150,8 @@ class RemoteController:
             case CommandType.SCRIPT:
                 await self.send_script_command(command)
 
-        await self.set_state_for_command(command)
+        if from_start or from_stop:
+            await self.set_state_for_command(command)
 
 
     async def send_command(self, command_id: int, press_without_release = False):

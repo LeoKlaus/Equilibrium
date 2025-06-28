@@ -47,7 +47,6 @@ class IrManager:
     def cancel_sending(self):
         if self.sending_task is not None and not self.sending_task.cancelled():
             self.sending_task.cancel()
-            self.logger.info("Cancelled IR sending task")
             self.sending_task = None
 
     async def _send_and_repeat(self, code: [int]):

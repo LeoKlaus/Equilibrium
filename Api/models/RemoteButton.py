@@ -17,6 +17,7 @@ class RemoteButton(str, Enum):
     DIRECTION_RIGHT = "direction_right"
     SELECT = "select"
     GUIDE = "guide"
+    INFO = "info"
     BACK = "back"
     MENU = "menu"
     HOME = "home"

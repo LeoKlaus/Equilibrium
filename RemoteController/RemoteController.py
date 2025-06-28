@@ -390,7 +390,8 @@ class RemoteController:
             self.rf_manager.set_release_callback(self.handle_button_release)
         self.logger.debug(f"Loaded keymap {keymap_name}")
 
-    def suggest_keymap(self):
+    def suggest_keymap(self, for_scene: Scene):
+        # TODO: For this to work, the layout of the remote (including button functions) has to be known
         pass
 
     def handle_button_press(self, button):

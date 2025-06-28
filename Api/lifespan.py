@@ -6,14 +6,25 @@ from Api import logger
 from RemoteController.RemoteController import RemoteController
 from ZeroconfManager.ZeroconfManager import ZeroconfManager
 
+import json
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
 
     logger.info("Starting up...")
 
+    addresses = []
 
-    controller = await RemoteController.create()
+    try:
+        with open("../config/rf_addresses.json", "r") as file:
+            address_data = file.read()
+
+        address_strings = json.loads(address_data)
+        addresses = list(map(lambda x: bytes.fromhex(x), address_strings))
+    except FileNotFoundError:
+        logger.warning("File \"rf_addresses.json\" was not found in config folder. Starting without RF addresses...")
+
+    controller = await RemoteController.create(rf_addresses=addresses)
     logger.info("Controller initialized")
 
     zeroconf = ZeroconfManager()
@@ -35,7 +46,7 @@ async def lifespan_dev(_: FastAPI):
     logger.info("Starting up...")
 
 
-    controller = await RemoteController.create(dev=True)
+    controller = await RemoteController.create_dev()
     logger.info("Controller initialized")
 
     zeroconf = ZeroconfManager()

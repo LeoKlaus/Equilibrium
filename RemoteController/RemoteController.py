@@ -45,20 +45,37 @@ class RemoteController:
     status_callback: AsyncJsonCallback|None = None
 
     @classmethod
-    async def create(cls, dev: bool = False):
+    async def create(cls, rf_addresses: [bytes]):
         self = cls()
 
         self.logger = logging.getLogger(__package__)
 
-        self.is_dev = dev
+        self.is_dev = False
 
-        if not dev:
-            self.ble_keyboard = await BleKeyboard.create()
+        self.ble_keyboard = await BleKeyboard.create()
 
-            self.rf_manager = RfManager()
-            self.rf_manager.start_listener()
+        self.rf_manager = RfManager()
+        self.rf_manager.start_listener(addresses=rf_addresses)
 
-            self.ir_manager = IrManager()
+        self.ir_manager = IrManager()
+
+        self.db_session = DbManager().get_session()
+
+        self.queue = AsyncQueueManager()
+
+        self.load_key_map()
+
+        self.logger.debug("Remote controller ready")
+
+        return self
+
+    @classmethod
+    async def create_dev(cls, ):
+        self = cls()
+
+        self.logger = logging.getLogger(__package__)
+
+        self.is_dev = True
 
         self.db_session = DbManager().get_session()
 

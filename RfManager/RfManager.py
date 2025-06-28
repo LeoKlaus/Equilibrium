@@ -40,10 +40,12 @@ class RfManager:
         self.logger.info("Disconnecting from GPIO...")
         self.pi.stop()
 
-    def start_listener(self, addresses=None, debug = False):
+    def start_listener(self, addresses: [bytes], debug = False):
         # TODO: Implement helper to determine address
-        if addresses is None:
-            addresses = [b'\x08\x52\x92\x58\xCB', b'\x00\x52\x92\x58\xCB']
+
+        if len(addresses) == 0:
+            self.logger.warning("No RF addresses specified, skipping listener startup")
+            return
 
         self.nrf.power_up_rx()
         self.listener_thread = threading.Thread(name='listener_thread', target=self._start_listening, args=(addresses, debug))

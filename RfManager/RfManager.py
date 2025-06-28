@@ -29,10 +29,15 @@ class RfManager:
         self.repeat_callback = repeat_callback
         self.release_callback = release_callback
 
-        with open("config/known_commands.json", "r") as file:
-            command_data = file.read()
+        with open("config/remote_keymap.json", "r") as file:
+            keymap_data = file.read()
 
-        self.known_commands = json.loads(command_data)
+        keymap_json = json.loads(keymap_data)
+
+        self.known_commands = {}
+
+        for key, value in keymap_json.items():
+            self.known_commands[int(value["rf_command"], 16)] = key
 
         atexit.register(self.cleanup)
 
@@ -90,47 +95,59 @@ class RfManager:
                     pipe = self.nrf.data_pipe()
                     payload = self.nrf.get_payload()
 
-                    received_hex = ':'.join(f'{i:02x}' for i in payload)
+                    if len(payload) >= 5:
+                        command = 0
+                        for i in range(1, 4):
+                            command <<= 8
+                            command += payload[i]
 
-                    if len(payload) == 5:
-                        if received_hex == "00:40:00:28:98":
-                            #self.logger.debug(f"Repeat of {last_key}")
-                            if self.repeat_callback is not None:
-                                self.repeat_callback(last_key)
-                        elif received_hex == "00:40:04:4c:70":
-                            #print("Remote idle")
-                            pass
-                        else:
-                            self.logger.debug("Unexpected payload:")
-                            self.logger.debug(f"pipe: {pipe}, len: {len(payload)}, bytes: {received_hex}, count: {count}")
-                    elif len(payload) == 10:
-
-                        recognized_command = self.known_commands.get(received_hex)
+                        recognized_command = self.known_commands.get(command)
 
                         if recognized_command:
                             self.logger.debug(f"Button {recognized_command} pressed!")
                             if self.callback is not None:
                                 self.callback(recognized_command)
                             last_key = recognized_command
-                        elif received_hex == "00:4f:03:00:00:00:00:00:00:ae":
+
+                        elif command == 0x40044c:
+                            # Remote Idle
+                            pass
+
+                        elif command == 0x4f0300:
+                            # Remote Going to Sleep
                             self.logger.debug("Remote going to sleep")
-                        elif received_hex == "00:c3:00:00:00:00:00:00:00:3d" or received_hex == "00:4f:00:04:4c:00:00:00:00:61":
-                            self.logger.debug("Button released")
+
+                        elif command == 0x4f0700:
+                            # Remote Woke Up
+                            self.logger.debug("Remote woke up")
+
+                        elif command == 0x400028:
+                            # Repeat
+                            # print(f"Repeat of {last_key}")
+                            if self.repeat_callback is not None:
+                                self.repeat_callback(last_key)
+                            pass
+
+                        elif command == 0x4f0004:
+                            # All Buttons Released
+                            self.logger.debug(f"{last_key} released")
                             if self.release_callback is not None:
                                 self.release_callback(last_key)
-                        elif received_hex == "08:4f:07:00:00:00:00:00:00:a2":
-                            self.logger.debug("Remote woke up")
-                        elif received_hex == "00:c1:00:00:00:00:00:00:00:3f":
-                            #self.logger.info("Button confirm (?)")
+
+                        elif command == 0xc10000 or command == 0xc30000:
+                            # Released Button
+                            # always followed by 0x4f0004, if released button was only pressed button
+                            # if multiple buttons are pressed at the same time, this could be used to
+                            # differentiate them (somewhat)
                             pass
+
                         else:
-                            self.logger.warning("Unrecognized command:")
-                            self.logger.warning(f"{now:%Y-%m-%d %H:%M:%S.%f}: pipe: {pipe}, len: {len(payload)}, bytes: {received_hex}, count: {count}")
-                            #cmd = input("Which button was that?")
-                            #self.known_commands.json[hex] = cmd
+                            self.logger.warning("Unexpected payload:")
+                            self.logger.warning(f"pipe: {pipe}, len: {len(payload)}, bytes: {':'.join(f'{i:02x}' for i in payload)}, count: {count}")
+
                     else:
-                        self.logger.warning("Very unexpected payload:")
-                        self.logger.warning(f"{now:%Y-%m-%d %H:%M:%S.%f}: pipe: {pipe}, len: {len(payload)}, bytes: {received_hex}, count: {count}")
+                        self.logger.warning(f"Received unexpectedly short payload: {':'.join(f'{i:02x}' for i in payload)}")
+
                 # Sleep 100 ms.
                 time.sleep(0.1)
 

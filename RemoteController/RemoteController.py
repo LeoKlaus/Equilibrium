@@ -414,7 +414,6 @@ class RemoteController:
             available_buttons[value["button"]] = key
             keymap_suggestion[key] = None
 
-
         def assign_key_if_exists(device: Device, button: RemoteButton):
             matching_remote_button = available_buttons.get(button)
             if matching_remote_button is not None:
@@ -432,54 +431,55 @@ class RemoteController:
         player = next((x for x in scene.devices if x.type == DeviceType.PLAYER), None)
         if player is None:
             player = next((x for x in scene.devices if x.type == DeviceType.DISPLAY), None)
-            if player is not None:
-                assign_key_if_exists(player, RemoteButton.RED)
-                assign_key_if_exists(player, RemoteButton.GREEN)
-                assign_key_if_exists(player, RemoteButton.YELLOW)
-                assign_key_if_exists(player, RemoteButton.BLUE)
 
-                assign_key_if_exists(player, RemoteButton.GUIDE)
-                assign_key_if_exists(player, RemoteButton.INFO)
+        if player is not None:
+            assign_key_if_exists(player, RemoteButton.RED)
+            assign_key_if_exists(player, RemoteButton.GREEN)
+            assign_key_if_exists(player, RemoteButton.YELLOW)
+            assign_key_if_exists(player, RemoteButton.BLUE)
 
-                assign_key_if_exists(player, RemoteButton.EXIT)
-                assign_key_if_exists(player, RemoteButton.MENU)
+            assign_key_if_exists(player, RemoteButton.GUIDE)
+            assign_key_if_exists(player, RemoteButton.INFO)
 
-                assign_key_if_exists(player, RemoteButton.DIRECTION_UP)
-                assign_key_if_exists(player, RemoteButton.DIRECTION_DOWN)
-                assign_key_if_exists(player, RemoteButton.DIRECTION_LEFT)
-                assign_key_if_exists(player, RemoteButton.DIRECTION_RIGHT)
-                assign_key_if_exists(player, RemoteButton.SELECT)
-                assign_key_if_exists(player, RemoteButton.BACK)
+            assign_key_if_exists(player, RemoteButton.EXIT)
+            assign_key_if_exists(player, RemoteButton.MENU)
 
-                if keymap_suggestion.get(RemoteButton.VOLUME_UP) is None:
-                    assign_key_if_exists(player, RemoteButton.VOLUME_UP)
-                if keymap_suggestion.get(RemoteButton.VOLUME_DOWN) is None:
-                    assign_key_if_exists(player, RemoteButton.VOLUME_DOWN)
-                if keymap_suggestion.get(RemoteButton.MUTE) is None:
-                    assign_key_if_exists(player, RemoteButton.MUTE)
+            assign_key_if_exists(player, RemoteButton.DIRECTION_UP)
+            assign_key_if_exists(player, RemoteButton.DIRECTION_DOWN)
+            assign_key_if_exists(player, RemoteButton.DIRECTION_LEFT)
+            assign_key_if_exists(player, RemoteButton.DIRECTION_RIGHT)
+            assign_key_if_exists(player, RemoteButton.SELECT)
+            assign_key_if_exists(player, RemoteButton.BACK)
 
-                assign_key_if_exists(player, RemoteButton.CHANNEL_UP)
-                assign_key_if_exists(player, RemoteButton.CHANNEL_DOWN)
+            if keymap_suggestion.get(RemoteButton.VOLUME_UP) is None:
+                assign_key_if_exists(player, RemoteButton.VOLUME_UP)
+            if keymap_suggestion.get(RemoteButton.VOLUME_DOWN) is None:
+                assign_key_if_exists(player, RemoteButton.VOLUME_DOWN)
+            if keymap_suggestion.get(RemoteButton.MUTE) is None:
+                assign_key_if_exists(player, RemoteButton.MUTE)
 
-                assign_key_if_exists(player, RemoteButton.REWIND)
-                assign_key_if_exists(player, RemoteButton.FAST_FORWARD)
-                # TODO: Merge Play, Pause and Playpause here (i.e. put play on playpause and vice versa)?
-                assign_key_if_exists(player, RemoteButton.PLAY)
-                assign_key_if_exists(player, RemoteButton.PAUSE)
-                assign_key_if_exists(player, RemoteButton.PLAYPAUSE)
-                assign_key_if_exists(player, RemoteButton.STOP)
-                assign_key_if_exists(player, RemoteButton.RECORD)
+            assign_key_if_exists(player, RemoteButton.CHANNEL_UP)
+            assign_key_if_exists(player, RemoteButton.CHANNEL_DOWN)
 
-                assign_key_if_exists(player, RemoteButton.NUMBER_ONE)
-                assign_key_if_exists(player, RemoteButton.NUMBER_TWO)
-                assign_key_if_exists(player, RemoteButton.NUMBER_THREE)
-                assign_key_if_exists(player, RemoteButton.NUMBER_FOUR)
-                assign_key_if_exists(player, RemoteButton.NUMBER_FIVE)
-                assign_key_if_exists(player, RemoteButton.NUMBER_SIX)
-                assign_key_if_exists(player, RemoteButton.NUMBER_SEVEN)
-                assign_key_if_exists(player, RemoteButton.NUMBER_EIGHT)
-                assign_key_if_exists(player, RemoteButton.NUMBER_NINE)
-                assign_key_if_exists(player, RemoteButton.NUMBER_ZERO)
+            assign_key_if_exists(player, RemoteButton.REWIND)
+            assign_key_if_exists(player, RemoteButton.FAST_FORWARD)
+            # TODO: Merge Play, Pause and Playpause here (i.e. put play on playpause and vice versa)?
+            assign_key_if_exists(player, RemoteButton.PLAY)
+            assign_key_if_exists(player, RemoteButton.PAUSE)
+            assign_key_if_exists(player, RemoteButton.PLAYPAUSE)
+            assign_key_if_exists(player, RemoteButton.STOP)
+            assign_key_if_exists(player, RemoteButton.RECORD)
+
+            assign_key_if_exists(player, RemoteButton.NUMBER_ONE)
+            assign_key_if_exists(player, RemoteButton.NUMBER_TWO)
+            assign_key_if_exists(player, RemoteButton.NUMBER_THREE)
+            assign_key_if_exists(player, RemoteButton.NUMBER_FOUR)
+            assign_key_if_exists(player, RemoteButton.NUMBER_FIVE)
+            assign_key_if_exists(player, RemoteButton.NUMBER_SIX)
+            assign_key_if_exists(player, RemoteButton.NUMBER_SEVEN)
+            assign_key_if_exists(player, RemoteButton.NUMBER_EIGHT)
+            assign_key_if_exists(player, RemoteButton.NUMBER_NINE)
+            assign_key_if_exists(player, RemoteButton.NUMBER_ZERO)
 
         return keymap_suggestion
 

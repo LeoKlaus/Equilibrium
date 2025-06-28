@@ -21,6 +21,7 @@ class RfManager:
             payload_size=RF24_PAYLOAD.DYNAMIC,
             channel=5,
             data_rate=RF24_DATA_RATE.RATE_2MBPS,
+            crc_bytes=RF24_CRC.BYTES_2,
             pa_level=RF24_PA.MIN
         )
 
@@ -98,7 +99,7 @@ class RfManager:
                             pass
                         else:
                             self.logger.debug("Unexpected payload:")
-                            self.logger.debug(f"{now:%Y-%m-%d %H:%M:%S.%f}: pipe: {pipe}, len: {len(payload)}, bytes: {received_hex}, count: {count}")
+                            self.logger.debug(f"pipe: {pipe}, len: {len(payload)}, bytes: {received_hex}, count: {count}")
                     elif len(payload) == 10:
 
                         recognized_command = self.known_commands.get(received_hex)

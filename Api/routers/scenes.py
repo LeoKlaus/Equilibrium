@@ -158,6 +158,17 @@ async def set_current_scene(scene_id: int, request: Request):
     await controller.set_current_scene(scene_id)
     return f"Set scene {scene_id} as current scene."
 
+@router.get("/{scene_id}/keymap_suggestions", tags=["Scenes"], description="Generates a suggested keymap based on the associated devices and remote.")
+async def suggest_keymap(scene_id: int, session: SessionDep, request: Request):
+    scene = session.get(Scene, scene_id)
+
+    if not scene:
+        raise HTTPException(status_code=404, detail="Scene not found")
+
+    controller: RemoteController = request.state.controller
+
+    return controller.suggest_keymap(scene)
+
 @router.post("/stop", tags=["Scenes"])
 async def stop_current_scene(request: Request):
     controller: RemoteController = request.state.controller

@@ -8,6 +8,7 @@ import logging
 import pigpio
 from nrf24 import *
 
+# This is heavily based on the great work done here: https://github.com/joakimjalden/Harmoino/tree/main
 class RfManager:
 
     logger = logging.getLogger(__package__)
@@ -29,15 +30,19 @@ class RfManager:
         self.repeat_callback = repeat_callback
         self.release_callback = release_callback
 
-        with open("config/remote_keymap.json", "r") as file:
-            keymap_data = file.read()
+        try:
+            with open("config/remote_keymap.json", "r") as file:
+                keymap_data = file.read()
 
-        keymap_json = json.loads(keymap_data)
+            keymap_json = json.loads(keymap_data)
 
-        self.known_commands = {}
+            self.known_commands = {}
 
-        for key, value in keymap_json.items():
-            self.known_commands[int(value["rf_command"], 16)] = key
+            for key, value in keymap_json.items():
+                self.known_commands[int(value["rf_command"], 16)] = key
+
+        except FileNotFoundError:
+            self.logger.warning("\"config/remote_keymap.json\" could not be opened. Listener will not respond to signals.")
 
         atexit.register(self.cleanup)
 

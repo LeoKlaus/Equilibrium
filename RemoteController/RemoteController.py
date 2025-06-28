@@ -7,6 +7,7 @@ from typing import Dict
 import httpx
 from fastapi import HTTPException
 from sqlalchemy import Boolean
+from sqlalchemy.orm import keyfunc_mapping
 from sqlmodel import Session
 from starlette.websockets import WebSocket, WebSocketState
 
@@ -15,6 +16,7 @@ from Api.models import Device
 from Api.models.Command import CommandBase, Command
 from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
+from Api.models.DeviceType import DeviceType
 from Api.models.NetworkRequestType import NetworkRequestType
 from Api.models.RemoteButton import RemoteButton
 from Api.models.Scene import Scene
@@ -150,6 +152,9 @@ class RemoteController:
             case CommandType.SCRIPT:
                 await self.send_script_command(command)
 
+        # TODO: Maybe make this configurable?
+        # In my usage, this was more annoying than helpful as it lead to breakage of scenes when manually
+        # correcting things, like turning on the TV after it missed the initial command
         if from_start or from_stop:
             await self.set_state_for_command(command)
 
@@ -391,9 +396,91 @@ class RemoteController:
             self.rf_manager.set_release_callback(self.handle_button_release)
         self.logger.debug(f"Loaded keymap {keymap_name}")
 
-    def suggest_keymap(self, for_scene: Scene):
-        # TODO: For this to work, the layout of the remote (including button functions) has to be known
-        pass
+    def suggest_keymap(self, scene: Scene):
+        try:
+            with open("config/remote_keymap.json", "r") as file:
+                keymap_data = file.read()
+
+            keymap_json = json.loads(keymap_data)
+
+        except FileNotFoundError:
+            self.logger.warning("\"config/remote_keymap.json\" could not be opened. Can't generate suggested keymap.")
+            return
+
+        available_buttons = {}
+
+        for key, value in keymap_json.items():
+            available_buttons[value["button"]] = key
+
+        keymap_suggestion = {}
+
+        def assign_key_if_exists(device: Device, button: RemoteButton):
+            matching_remote_button = available_buttons.get(button)
+            if matching_remote_button is not None:
+                matching_command = next((x for x in device.commands if x.button == button), None)
+                if matching_command is not None:
+                    keymap_suggestion[matching_remote_button] = matching_command.id
+
+        # Audio controls
+        amplifier = next((x for x in scene.devices if x.type == DeviceType.AMPLIFIER), None)
+        if amplifier is not None:
+            assign_key_if_exists(amplifier, RemoteButton.VOLUME_UP)
+            assign_key_if_exists(amplifier, RemoteButton.VOLUME_DOWN)
+            assign_key_if_exists(amplifier, RemoteButton.MUTE)
+
+        player = next((x for x in scene.devices if x.type == DeviceType.PLAYER), None)
+        if player is None:
+            player = next((x for x in scene.devices if x.type == DeviceType.DISPLAY), None)
+            if player is not None:
+                assign_key_if_exists(player, RemoteButton.RED)
+                assign_key_if_exists(player, RemoteButton.GREEN)
+                assign_key_if_exists(player, RemoteButton.YELLOW)
+                assign_key_if_exists(player, RemoteButton.BLUE)
+
+                assign_key_if_exists(player, RemoteButton.GUIDE)
+                assign_key_if_exists(player, RemoteButton.INFO)
+
+                assign_key_if_exists(player, RemoteButton.EXIT)
+                assign_key_if_exists(player, RemoteButton.MENU)
+
+                assign_key_if_exists(player, RemoteButton.DIRECTION_UP)
+                assign_key_if_exists(player, RemoteButton.DIRECTION_DOWN)
+                assign_key_if_exists(player, RemoteButton.DIRECTION_LEFT)
+                assign_key_if_exists(player, RemoteButton.DIRECTION_RIGHT)
+                assign_key_if_exists(player, RemoteButton.SELECT)
+                assign_key_if_exists(player, RemoteButton.BACK)
+
+                if keymap_suggestion.get(RemoteButton.VOLUME_UP) is None:
+                    assign_key_if_exists(player, RemoteButton.VOLUME_UP)
+                if keymap_suggestion.get(RemoteButton.VOLUME_DOWN) is None:
+                    assign_key_if_exists(player, RemoteButton.VOLUME_DOWN)
+                if keymap_suggestion.get(RemoteButton.MUTE) is None:
+                    assign_key_if_exists(player, RemoteButton.MUTE)
+
+                assign_key_if_exists(player, RemoteButton.CHANNEL_UP)
+                assign_key_if_exists(player, RemoteButton.CHANNEL_DOWN)
+
+                assign_key_if_exists(player, RemoteButton.REWIND)
+                assign_key_if_exists(player, RemoteButton.FAST_FORWARD)
+                # TODO: Merge Play, Pause and Playpause here (i.e. put play on playpause and vice versa)?
+                assign_key_if_exists(player, RemoteButton.PLAY)
+                assign_key_if_exists(player, RemoteButton.PAUSE)
+                assign_key_if_exists(player, RemoteButton.PLAYPAUSE)
+                assign_key_if_exists(player, RemoteButton.STOP)
+                assign_key_if_exists(player, RemoteButton.RECORD)
+
+                assign_key_if_exists(player, RemoteButton.NUMBER_ONE)
+                assign_key_if_exists(player, RemoteButton.NUMBER_TWO)
+                assign_key_if_exists(player, RemoteButton.NUMBER_THREE)
+                assign_key_if_exists(player, RemoteButton.NUMBER_FOUR)
+                assign_key_if_exists(player, RemoteButton.NUMBER_FIVE)
+                assign_key_if_exists(player, RemoteButton.NUMBER_SIX)
+                assign_key_if_exists(player, RemoteButton.NUMBER_SEVEN)
+                assign_key_if_exists(player, RemoteButton.NUMBER_EIGHT)
+                assign_key_if_exists(player, RemoteButton.NUMBER_NINE)
+                assign_key_if_exists(player, RemoteButton.NUMBER_ZERO)
+
+        return keymap_suggestion
 
     def handle_button_press(self, button):
         if button == "Off":

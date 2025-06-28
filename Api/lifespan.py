@@ -16,7 +16,7 @@ async def lifespan(_: FastAPI):
     addresses = []
 
     try:
-        with open("../config/rf_addresses.json", "r") as file:
+        with open("config/rf_addresses.json", "r") as file:
             address_data = file.read()
 
         address_strings = json.loads(address_data)

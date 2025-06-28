@@ -29,7 +29,7 @@ class RfManager:
         self.repeat_callback = repeat_callback
         self.release_callback = release_callback
 
-        with open("../config/known_commands.json", "r") as file:
+        with open("config/known_commands.json", "r") as file:
             command_data = file.read()
 
         self.known_commands = json.loads(command_data)

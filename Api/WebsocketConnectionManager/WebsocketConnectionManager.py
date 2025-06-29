@@ -18,4 +18,4 @@ class WebsocketConnectionManager:
 
     async def broadcast_json(self, message: SQLModel):
         for connection in self.active_connections:
-            await connection.send_json(message.model_dump_json())
+            await connection.send_json(message.model_dump())

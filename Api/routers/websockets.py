@@ -35,21 +35,21 @@ async def websocket_bt_pairing(websocket: WebSocket):
         command = await websocket.receive_text()
         if command == WebsocketBleCommand.ADVERTISE:
             await controller.start_ble_advertisement()
-            await websocket.send_json(WebsocketBleSuccessResponse().model_dump_json())
+            await websocket.send_json(WebsocketBleSuccessResponse().model_dump())
 
         if command == WebsocketBleCommand.CONNECT:
             devices = await controller.get_ble_devices()
-            await  websocket.send_json(WebsocketBleDeviceResponse(devices=devices).model_dump_json())
+            await  websocket.send_json(WebsocketBleDeviceResponse(devices=devices).model_dump())
             addr = await websocket.receive_text()
             await controller.ble_connect(addr)
 
         if command == WebsocketBleCommand.DISCONNECT:
             await controller.ble_disconnect()
-            await websocket.send_json(WebsocketBleSuccessResponse().model_dump_json())
+            await websocket.send_json(WebsocketBleSuccessResponse().model_dump())
 
         if command == WebsocketBleCommand.DEVICES:
             devices = await controller.get_ble_devices()
-            await  websocket.send_json(WebsocketBleDeviceResponse(devices=devices).model_dump_json())
+            await  websocket.send_json(WebsocketBleDeviceResponse(devices=devices).model_dump())
 
 
 @router.websocket("/commands")
@@ -77,7 +77,7 @@ async def websocket_status(websocket: WebSocket):
 
     controller.status_callback = manager.broadcast_json
 
-    await websocket.send_json(controller.status.model_dump_json())
+    await websocket.send_json(controller.status.model_dump())
 
     try:
         while True:

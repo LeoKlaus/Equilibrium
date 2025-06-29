@@ -7,7 +7,6 @@ from typing import Dict
 import httpx
 from fastapi import HTTPException
 from sqlalchemy import Boolean
-from sqlalchemy.orm import keyfunc_mapping
 from sqlmodel import Session
 from starlette.websockets import WebSocket, WebSocketState
 
@@ -24,7 +23,7 @@ from Api.models.SceneStatus import SceneStatus
 from Api.models.Status import StatusReport
 from Api.models.WebsocketResponses import BleDevice, WebsocketIrResponse
 from BleKeyboard.BleKeyboard import BleKeyboard
-from DbManager.DbManager import DbManager
+from DbManager.DbManager import engine
 from IrManager.IrManager import IrManager
 from RemoteController.AsyncQueueManager import AsyncQueueManager
 from RfManager.RfManager import RfManager
@@ -41,7 +40,6 @@ class RemoteController:
     ble_keyboard: BleKeyboard
     rf_manager: RfManager
     ir_manager: IrManager
-    db_session: Session
     queue: AsyncQueueManager
 
     status_callback: AsyncJsonCallback|None = None
@@ -61,8 +59,6 @@ class RemoteController:
 
         self.ir_manager = IrManager()
 
-        self.db_session = DbManager().get_session()
-
         self.queue = AsyncQueueManager()
 
         self.load_key_map()
@@ -78,8 +74,6 @@ class RemoteController:
         self.logger = logging.getLogger(__package__)
 
         self.is_dev = True
-
-        self.db_session = DbManager().get_session()
 
         self.queue = AsyncQueueManager()
 
@@ -98,32 +92,35 @@ class RemoteController:
 
     async def record_ir_command(self, data, websocket: WebSocket):
         self.ir_manager.cancel_recording()
-        new_command = CommandBase.model_validate(data)
-        if new_command:
-            db_command = Command.model_validate(data)
 
-            if new_command.device_id:
-                db_device = self.db_session.get(Device, new_command.device_id)
-                db_command.device_id = new_command.device_id
-                db_command.device = db_device
+        with Session(engine) as session:
 
-            db_command.type = new_command.type
+            new_command = CommandBase.model_validate(data)
+            if new_command:
+                db_command = Command.model_validate(data)
 
-            try:
-                code = await self.ir_manager.record_command(new_command.name, websocket)
+                if new_command.device_id:
+                    db_device = session.get(Device, new_command.device_id)
+                    db_command.device_id = new_command.device_id
+                    db_command.device = db_device
 
-                if code:
-                    db_command.ir_action = code
+                db_command.type = new_command.type
 
-                    self.db_session.add(db_command)
-                    self.db_session.commit()
-                    self.db_session.refresh(db_command)
-                    await websocket.send_json(WebsocketIrResponse.DONE)
+                try:
+                    code = await self.ir_manager.record_command(new_command.name, websocket)
 
-            except CancelledError:
-                if websocket.client_state == WebSocketState.CONNECTED:
-                    await websocket.send_json(WebsocketIrResponse.CANCELLED)
-                    await websocket.close()
+                    if code:
+                        db_command.ir_action = code
+
+                        session.add(db_command)
+                        session.commit()
+                        session.refresh(db_command)
+                        await websocket.send_json(WebsocketIrResponse.DONE)
+
+                except CancelledError:
+                    if websocket.client_state == WebSocketState.CONNECTED:
+                        await websocket.send_json(WebsocketIrResponse.CANCELLED)
+                        await websocket.close()
 
     async def send_db_command(self, command: Command, press_without_release = False, from_start: bool = False, from_stop: bool = False):
 
@@ -160,12 +157,14 @@ class RemoteController:
 
 
     async def send_command(self, command_id: int, press_without_release = False):
-        command_db = self.db_session.get(Command, command_id)
 
-        if not command_db:
-            raise HTTPException(status_code=404, detail="Command not found")
+        with Session(engine) as session:
+            command_db = session.get(Command, command_id)
 
-        await self.send_db_command(command_db, press_without_release)
+            if not command_db:
+                raise HTTPException(status_code=404, detail="Command not found")
+
+            await self.send_db_command(command_db, press_without_release)
 
 
     async def send_ir_command(self, command: Command, press_without_release = False):
@@ -262,41 +261,42 @@ class RemoteController:
 
     async def start_scene(self, scene_id: int):
 
-        scene_db = self.db_session.get(Scene, scene_id)
+        with Session(engine) as session:
+            scene_db = session.get(Scene, scene_id)
 
-        if not scene_db:
-            raise HTTPException(status_code=404, detail="Scene not found")
+            if not scene_db:
+                raise HTTPException(status_code=404, detail="Scene not found")
 
-        previous_scene = self.status.current_scene
-        if previous_scene is not None and scene_db.start_macro is not None:
-            skip_power_down_for = set()
-            for command in scene_db.start_macro.commands:
-                if command.device_id is not None and (command.button == RemoteButton.POWER_TOGGLE or command.button == RemoteButton.POWER_ON):
-                    skip_power_down_for.add(command.device_id)
+            previous_scene = self.status.current_scene
+            if previous_scene is not None and scene_db.start_macro is not None:
+                skip_power_down_for = set()
+                for command in scene_db.start_macro.commands:
+                    if command.device_id is not None and (command.button == RemoteButton.POWER_TOGGLE or command.button == RemoteButton.POWER_ON):
+                        skip_power_down_for.add(command.device_id)
 
-            await self.stop_current_scene(skip_power_down_for=skip_power_down_for)
+                await self.stop_current_scene(skip_power_down_for=skip_power_down_for)
 
-        await self._update_current_scene(new_scene=scene_db, new_scene_state=SceneStatus.STARTING)
+            await self._update_current_scene(new_scene=scene_db, new_scene_state=SceneStatus.STARTING)
 
-        bt_address = scene_db.bluetooth_address
-        if bt_address:
-            await self.ble_keyboard.unregister_services()
-            await self.ble_keyboard.connect(bt_address)
-            await self.ble_keyboard.register_services()
+            bt_address = scene_db.bluetooth_address
+            if bt_address:
+                await self.ble_keyboard.unregister_services()
+                await self.ble_keyboard.connect(bt_address)
+                await self.ble_keyboard.register_services()
 
-        if scene_db.start_macro is not None:
-            for index, command in enumerate(scene_db.start_macro.commands):
-                await self.send_db_command(command, from_start=True)
+            if scene_db.start_macro is not None:
+                for index, command in enumerate(scene_db.start_macro.commands):
+                    await self.send_db_command(command, from_start=True)
 
-                if index < len(scene_db.start_macro.commands)-1:
-                    await asyncio.sleep(scene_db.start_macro.delays[index]/1000)
+                    if index < len(scene_db.start_macro.commands)-1:
+                        await asyncio.sleep(scene_db.start_macro.delays[index]/1000)
 
-        if scene_db.keymap:
-            self.load_key_map(scene_db.keymap)
+            if scene_db.keymap:
+                self.load_key_map(scene_db.keymap)
 
-        await self._update_current_scene(new_scene=scene_db, new_scene_state=SceneStatus.ACTIVE)
+            await self._update_current_scene(new_scene=scene_db, new_scene_state=SceneStatus.ACTIVE)
 
-        self.logger.info(f"Scene {scene_db.name} started!")
+            self.logger.info(f"Scene {scene_db.name} started!")
 
     def get_current_status(self) -> StatusReport:
         return self.status
@@ -304,33 +304,34 @@ class RemoteController:
     # Updates active scene without executing start commands
     async def set_current_scene(self, scene_id: int):
 
-        scene_db = self.db_session.get(Scene, scene_id)
+        with Session(engine) as session:
+            scene_db = session.get(Scene, scene_id)
 
-        if not scene_db:
-            raise HTTPException(status_code=404, detail="Scene not found")
+            if not scene_db:
+                raise HTTPException(status_code=404, detail="Scene not found")
 
-        bt_address = scene_db.bluetooth_address
-        if bt_address:
-            await self.ble_keyboard.unregister_services()
-            await self.ble_keyboard.connect(bt_address)
-            await self.ble_keyboard.register_services()
+            bt_address = scene_db.bluetooth_address
+            if bt_address:
+                await self.ble_keyboard.unregister_services()
+                await self.ble_keyboard.connect(bt_address)
+                await self.ble_keyboard.register_services()
 
-        previous_scene = self.status.current_scene
-        if previous_scene is not None and previous_scene.stop_macro is not None:
-            previous_scene_stop_commands = previous_scene.stop_macro.commands
-            if previous_scene_stop_commands:
-                await self.set_states_for_commands(previous_scene_stop_commands)
+            previous_scene = self.status.current_scene
+            if previous_scene is not None and previous_scene.stop_macro is not None:
+                previous_scene_stop_commands = previous_scene.stop_macro.commands
+                if previous_scene_stop_commands:
+                    await self.set_states_for_commands(previous_scene_stop_commands)
 
-        new_scene_commands = scene_db.start_macro.commands
-        if new_scene_commands:
-            await self.set_states_for_commands(new_scene_commands)
+            new_scene_commands = scene_db.start_macro.commands
+            if new_scene_commands:
+                await self.set_states_for_commands(new_scene_commands)
 
-        await self._update_current_scene(new_scene=scene_db, new_scene_state=SceneStatus.ACTIVE)
+            await self._update_current_scene(new_scene=scene_db, new_scene_state=SceneStatus.ACTIVE)
 
-        if scene_db.keymap:
-            self.load_key_map(scene_db.keymap)
+            if scene_db.keymap:
+                self.load_key_map(scene_db.keymap)
 
-        self.logger.info(f"Set {scene_db.name} as current scene.")
+            self.logger.info(f"Set {scene_db.name} as current scene.")
 
     async def set_state_for_command(self, command: Command):
         if command.device_id is not None:
@@ -355,30 +356,31 @@ class RemoteController:
         if not self.status.current_scene.id:
             raise HTTPException(status_code=404, detail="No scene active")
 
-        scene_db = self.db_session.get(Scene, self.status.current_scene.id)
+        with Session(engine) as session:
+            scene_db = session.get(Scene, self.status.current_scene.id)
 
-        self.load_key_map("default")
+            self.load_key_map("default")
 
-        if not scene_db:
-            raise HTTPException(status_code=404, detail=f"Couldn't find scene with ID {self.status.current_scene.id}.")
+            if not scene_db:
+                raise HTTPException(status_code=404, detail=f"Couldn't find scene with ID {self.status.current_scene.id}.")
 
-        await self._update_current_scene_status(new_scene_state=SceneStatus.STOPPING)
+            await self._update_current_scene_status(new_scene_state=SceneStatus.STOPPING)
 
-        bt_address = scene_db.bluetooth_address
-        if bt_address:
-            await self.ble_keyboard.disconnect(bt_address)
+            bt_address = scene_db.bluetooth_address
+            if bt_address:
+                await self.ble_keyboard.disconnect(bt_address)
 
-        if scene_db.stop_macro is not None:
-            for index, command in enumerate(scene_db.stop_macro.commands):
-                if ((command.device_id is None or command.device_id not in skip_power_down_for)
-                        and (command.button == RemoteButton.POWER_TOGGLE or command.button == RemoteButton.POWER_OFF)):
-                    await self.send_db_command(command, from_stop=True)
-                    if index < len(scene_db.stop_macro.commands)-1:
-                        await asyncio.sleep(scene_db.stop_macro.delays[index]/1000)
+            if scene_db.stop_macro is not None:
+                for index, command in enumerate(scene_db.stop_macro.commands):
+                    if ((command.device_id is None or command.device_id not in skip_power_down_for)
+                            and (command.button == RemoteButton.POWER_TOGGLE or command.button == RemoteButton.POWER_OFF)):
+                        await self.send_db_command(command, from_stop=True)
+                        if index < len(scene_db.stop_macro.commands)-1:
+                            await asyncio.sleep(scene_db.stop_macro.delays[index]/1000)
 
-        await self._update_current_scene(new_scene=None, new_scene_state=None)
+            await self._update_current_scene(new_scene=None, new_scene_state=None)
 
-        self.logger.info(f"Scene {scene_db.name} stopped!")
+            self.logger.info(f"Scene {scene_db.name} stopped!")
 
 
     def load_key_map(self, keymap_name: str = "default"):

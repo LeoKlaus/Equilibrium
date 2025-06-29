@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from Api import logger
+from DbManager.DbManager import create_db_and_tables
 from RemoteController.RemoteController import RemoteController
 from ZeroconfManager.ZeroconfManager import ZeroconfManager
 
@@ -12,6 +13,9 @@ import json
 async def lifespan(_: FastAPI):
 
     logger.info("Starting up...")
+
+    create_db_and_tables()
+    logger.info("Database initialized")
 
     addresses = []
 
@@ -45,6 +49,8 @@ async def lifespan_dev(_: FastAPI):
 
     logger.info("Starting up...")
 
+    create_db_and_tables()
+    logger.info("Database initialized")
 
     controller = await RemoteController.create_dev()
     logger.info("Controller initialized")

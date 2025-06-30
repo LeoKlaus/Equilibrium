@@ -29,7 +29,7 @@ def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
             raise HTTPException(status_code=404, detail=f"Image {image_id} not found")
         db_scene.image = image_db
 
-    device_ids: [int] = []
+    device_ids: [int] = scene.device_ids
 
     if scene.start_macro_id is not None:
         start_macro = session.get(Macro, scene.start_macro_id)
@@ -81,7 +81,7 @@ def update_scene(scene_id: int, scene: ScenePost, session: SessionDep):
     if scene.bluetooth_address:
         scene_db.bluetooth_address = scene.bluetooth_address
 
-    device_ids: [int] = []
+    device_ids: [int] = scene.device_ids
 
     if scene.start_macro_id is not None:
         start_macro = session.get(Macro, scene.start_macro_id)

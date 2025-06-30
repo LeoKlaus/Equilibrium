@@ -22,6 +22,7 @@ class ScenePost(SceneBase):
     start_macro_id: int | None = Field(default=None)
     stop_macro_id: int | None = Field(default=None)
     bluetooth_address: str | None = Field(default=None)
+    device_ids: list[int] = Field(default=[])
     keymap: str | None = Field(default=None)
 
 

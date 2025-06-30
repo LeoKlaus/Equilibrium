@@ -7,6 +7,7 @@ from Api.models.UserImage import UserImage
 from Api.models.Macro import Macro, SceneMacroLink, MacroWithCommands
 
 if TYPE_CHECKING:
+    from Api.models import DeviceWithRelationships
     from Api.models.Device import Device
 
 class SceneDeviceLink(SQLModel, table=True):
@@ -47,6 +48,16 @@ class Scene(SceneBase, table=True):
 class SceneWithRelationships(SceneBase):
     id: int | None
     devices: list["Device"] = []
+    image: UserImage | None = None
+    start_macro: Optional[MacroWithCommands] = None
+    stop_macro: Optional[MacroWithCommands] = None
+    macros: list[MacroWithCommands] = []
+    bluetooth_address: str | None = None
+    keymap: str | None = None
+
+class SceneWithRelationshipsAndFullDevices(SceneBase):
+    id: int | None
+    devices: list["DeviceWithRelationships"] = []
     image: UserImage | None = None
     start_macro: Optional[MacroWithCommands] = None
     stop_macro: Optional[MacroWithCommands] = None

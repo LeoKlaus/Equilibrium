@@ -4,7 +4,7 @@ from starlette.requests import Request
 
 from Api.models import Macro
 from Api.models.Device import Device
-from Api.models.Scene import SceneWithRelationships, ScenePost, Scene
+from Api.models.Scene import SceneWithRelationships, ScenePost, Scene, SceneWithRelationshipsAndFullDevices
 from Api.models.UserImage import UserImage
 from DbManager.DbManager import SessionDep
 from RemoteController.RemoteController import RemoteController
@@ -134,8 +134,8 @@ def delete_scene(scene_id: int, session: SessionDep):
     return {"message": f"Successfully deleted {scene.name}"}
 
 
-@router.get("/{scene_id}", tags=["Scenes"], response_model=SceneWithRelationships)
-def show_scene(scene_id: int, session: SessionDep) -> Scene:
+@router.get("/{scene_id}", tags=["Scenes"], response_model=SceneWithRelationshipsAndFullDevices)
+def get_scene(scene_id: int, session: SessionDep) -> Scene:
     scene = session.get(Scene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")

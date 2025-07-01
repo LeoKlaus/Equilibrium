@@ -23,7 +23,7 @@ class DevicePost(DeviceBase):
 
 class Device(DeviceBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    commands: list["Command"] = Relationship(back_populates="device")
+    commands: list["Command"] = Relationship(back_populates="device", cascade_delete=True)
     scenes: list["Scene"] = Relationship(back_populates="devices", link_model=SceneDeviceLink)
     image_id: int | None = Field(default=None, foreign_key="userimage.id", ondelete="SET NULL")
     image: "UserImage" = Relationship(back_populates="devices")

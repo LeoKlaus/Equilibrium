@@ -11,7 +11,7 @@ from sqlmodel import Session
 from starlette.websockets import WebSocket, WebSocketState
 
 from Api.WebsocketConnectionManager.WebsocketConnectionManager import AsyncJsonCallback
-from Api.models import Device
+from Api.models import Device, Macro
 from Api.models.Command import CommandBase, Command
 from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
@@ -121,6 +121,13 @@ class RemoteController:
                     if websocket.client_state == WebSocketState.CONNECTED:
                         await websocket.send_json(WebsocketIrResponse.CANCELLED)
                         await websocket.close()
+
+    async def execute_macro(self, macro: Macro, from_start: bool = False, from_stop: bool = False):
+        for index, command in enumerate(macro.commands):
+            await self.send_db_command(command, from_start=from_start, from_stop=from_stop)
+
+            if index < len(macro.commands) - 1:
+                await asyncio.sleep(macro.delays[index] / 1000)
 
     async def send_db_command(self, command: Command, press_without_release = False, from_start: bool = False, from_stop: bool = False):
 
@@ -285,11 +292,11 @@ class RemoteController:
                 await self.ble_keyboard.register_services()
 
             if scene_db.start_macro is not None:
-                for index, command in enumerate(scene_db.start_macro.commands):
-                    await self.send_db_command(command, from_start=True)
-
-                    if index < len(scene_db.start_macro.commands)-1:
-                        await asyncio.sleep(scene_db.start_macro.delays[index]/1000)
+                await self.execute_macro(scene_db.start_macro, from_start=True)
+                #for index, command in enumerate(scene_db.start_macro.commands):
+                #    await self.send_db_command(command, from_start=True)
+                #    if index < len(scene_db.start_macro.commands)-1:
+                #        await asyncio.sleep(scene_db.start_macro.delays[index]/1000)
 
             if scene_db.keymap:
                 self.load_key_map(scene_db.keymap)

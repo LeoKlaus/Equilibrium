@@ -40,7 +40,7 @@ def create_macro(macro: MacroPost, session: SessionDep):
 
     device_ids: [int] = []
 
-    for command_id in macro.command_ids:
+    for command_id in set(macro.command_ids):
         command_db = session.get(Command, command_id)
         if command_db is None:
             raise HTTPException(status_code=404, detail=f"Command {command_id} not found")

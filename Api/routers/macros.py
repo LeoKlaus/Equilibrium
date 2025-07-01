@@ -112,7 +112,6 @@ def update_macro(macro_id: int, macro: MacroPost, session: SessionDep) -> MacroW
 
     macro_data = macro.model_dump(exclude_unset=True)
     macro_db.sqlmodel_update(macro_data)
-    session.add(macro_db)
     session.commit()
     session.refresh(macro_db)
     return macro_db

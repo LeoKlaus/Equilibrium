@@ -84,7 +84,7 @@ def update_macro(macro_id: int, macro: MacroPost, session: SessionDep) -> MacroW
 
     device_ids: [int] = []
 
-    for command_id in macro.command_ids:
+    for command_id in set(macro.command_ids):
         command_db = session.get(Command, command_id)
         if not command_db:
             raise HTTPException(status_code=404, detail=f"Command {command_id} not found")

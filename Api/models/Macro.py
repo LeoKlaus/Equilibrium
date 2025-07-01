@@ -31,6 +31,7 @@ class MacroPost(MacroBase):
 class Macro(MacroBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     commands: list["Command"] = Relationship(back_populates="macros", link_model=CommandMacroLink)
+    command_ids: list[int] = Field(default=[], sa_column=Column(JSON))
     delays: list[int] = Field(default=[], sa_column=Column(JSON))
     scenes_start: list["Scene"] = Relationship(
         back_populates="start_macro",
@@ -50,11 +51,13 @@ class Macro(MacroBase, table=True):
 class MacroWithCommands(MacroBase):
     id: int | None
     commands: list["Command"] = []
+    command_ids: list[int] = []
     delays: list[int] = []
 
 class MacroWithRelationships(MacroBase):
     id: int | None
     commands: list["Command"] = []
+    command_ids: list[int] = []
     delays: list[int] = []
     scenes: list["Scene"] = []
     devices: list["Device"] = []

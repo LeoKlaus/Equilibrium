@@ -42,14 +42,15 @@ def create_macro(macro: MacroPost, session: SessionDep):
 
     for command_id in macro.command_ids:
         command_db = session.get(Command, command_id)
-        if not command_db:
+        if command_db is None:
             raise HTTPException(status_code=404, detail=f"Command {command_id} not found")
         db_macro.commands.append(command_db)
-        device_ids.append(command_db.device_id)
+        if command_db.device is not None:
+            device_ids.append(command_db.device_id)
 
     for scene_id in macro.scene_ids:
         scene_db = session.get(Scene, scene_id)
-        if not scene_db:
+        if scene_db is None:
             raise HTTPException(status_code=404, detail=f"Scene {scene_id} not found")
         db_macro.scenes.append(scene_db)
 
@@ -57,11 +58,12 @@ def create_macro(macro: MacroPost, session: SessionDep):
 
     for device_id in device_id_set:
         device_db = session.get(Device, device_id)
-        if not device_db:
+        if device_db is None:
             raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
         db_macro.devices.append(device_db)
 
     db_macro.delays = macro.delays
+    db_macro.command_ids = macro.command_ids
     session.commit()
     session.refresh(db_macro)
     return db_macro

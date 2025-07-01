@@ -123,8 +123,9 @@ class RemoteController:
                         await websocket.close()
 
     async def execute_macro(self, macro: Macro, from_start: bool = False, from_stop: bool = False):
-        for index, command in enumerate(macro.commands):
-            await self.send_db_command(command, from_start=from_start, from_stop=from_stop)
+        for index, command_id in enumerate(macro.command_ids):
+            await self.send_command(command_id, from_start=from_start, from_stop=from_stop)
+            #await self.send_db_command(command, from_start=from_start, from_stop=from_stop)
 
             if index < len(macro.commands) - 1:
                 await asyncio.sleep(macro.delays[index] / 1000)
@@ -163,7 +164,7 @@ class RemoteController:
             await self.set_state_for_command(command)
 
 
-    async def send_command(self, command_id: int, press_without_release = False):
+    async def send_command(self, command_id: int, press_without_release = False, from_start: bool = False, from_stop: bool = False):
 
         with Session(engine) as session:
             command_db = session.get(Command, command_id)
@@ -171,7 +172,7 @@ class RemoteController:
             if not command_db:
                 raise HTTPException(status_code=404, detail="Command not found")
 
-            await self.send_db_command(command_db, press_without_release)
+            await self.send_db_command(command_db, press_without_release, from_start=from_start, from_stop=from_stop)
 
 
     async def send_ir_command(self, command: Command, press_without_release = False):
@@ -378,12 +379,14 @@ class RemoteController:
                 await self.ble_keyboard.disconnect(bt_address)
 
             if scene_db.stop_macro is not None:
-                for index, command in enumerate(scene_db.stop_macro.commands):
-                    if ((command.device_id is None or command.device_id not in skip_power_down_for)
-                            and (command.button == RemoteButton.POWER_TOGGLE or command.button == RemoteButton.POWER_OFF)):
-                        await self.send_db_command(command, from_stop=True)
-                        if index < len(scene_db.stop_macro.commands)-1:
-                            await asyncio.sleep(scene_db.stop_macro.delays[index]/1000)
+                for index, command_id in enumerate(scene_db.stop_macro.command_ids):
+                    command = session.get(Command, command_id)
+                    if command is not None:
+                        if ((command.device_id is None or command.device_id not in skip_power_down_for)
+                                and (command.button == RemoteButton.POWER_TOGGLE or command.button == RemoteButton.POWER_OFF)):
+                            await self.send_command(command_id, from_stop=True)
+                            if index < len(scene_db.stop_macro.commands)-1:
+                                await asyncio.sleep(scene_db.stop_macro.delays[index]/1000)
 
             await self._update_current_scene(new_scene=None, new_scene_state=None)
 

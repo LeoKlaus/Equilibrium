@@ -218,6 +218,7 @@ class RemoteController:
                 case NetworkRequestType.GET:
                     async with httpx.AsyncClient() as client:
                         resp = await client.get(command.host)
+                        self.logger.debug(f"Sent network command and received {resp.status_code}: {resp.content}")
                         return {
                             "status": resp.status_code,
                             "response": resp.content
@@ -225,6 +226,7 @@ class RemoteController:
                 case NetworkRequestType.POST:
                     async with httpx.AsyncClient() as client:
                         resp = await client.post(command.host, content=command.body)
+                        self.logger.debug(f"Sent network command and received {resp.status_code}: {resp.content}")
                         return {
                             "status": resp.status_code,
                             "response": resp.content
@@ -232,6 +234,7 @@ class RemoteController:
                 case NetworkRequestType.DELETE:
                     async with httpx.AsyncClient() as client:
                         resp = await client.delete(command.host)
+                        self.logger.debug(f"Sent network command and received {resp.status_code}: {resp.content}")
                         return {
                             "status": resp.status_code,
                             "response": resp.content
@@ -239,6 +242,7 @@ class RemoteController:
                 case NetworkRequestType.HEAD:
                     async with httpx.AsyncClient() as client:
                         resp = await client.head(command.host)
+                        self.logger.debug(f"Sent network command and received {resp.status_code}: {resp.content}")
                         return {
                             "status": resp.status_code,
                             "response": resp.content
@@ -246,6 +250,7 @@ class RemoteController:
                 case NetworkRequestType.PATCH:
                     async with httpx.AsyncClient() as client:
                         resp = await client.patch(command.host, content=command.body)
+                        self.logger.debug(f"Sent network command and received {resp.status_code}: {resp.content}")
                         return {
                             "status": resp.status_code,
                             "response": resp.content
@@ -253,6 +258,7 @@ class RemoteController:
                 case NetworkRequestType.PUT:
                     async with httpx.AsyncClient() as client:
                         resp = await client.put(command.host, content=command.body)
+                        self.logger.debug(f"Sent network command and received {resp.status_code}: {resp.content}")
                         return {
                             "status": resp.status_code,
                             "response": resp.content

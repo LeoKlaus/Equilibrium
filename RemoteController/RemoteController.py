@@ -127,7 +127,7 @@ class RemoteController:
             await self.send_command(command_id, from_start=from_start, from_stop=from_stop)
             #await self.send_db_command(command, from_start=from_start, from_stop=from_stop)
 
-            if index < len(macro.commands):
+            if index < len(macro.delays):
                 await asyncio.sleep(macro.delays[index] / 1000)
 
 
@@ -386,7 +386,7 @@ class RemoteController:
                         if ((command.device_id is None or command.device_id not in skip_power_down_for)
                                 and (command.button == RemoteButton.POWER_TOGGLE or command.button == RemoteButton.POWER_OFF)):
                             await self.send_command(command_id, from_stop=True)
-                            if index < len(scene_db.stop_macro.commands):
+                            if index < len(scene_db.stop_macro.delays):
                                 await asyncio.sleep(scene_db.stop_macro.delays[index]/1000)
 
             await self._update_current_scene(new_scene=None, new_scene_state=None)

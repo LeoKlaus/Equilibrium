@@ -60,6 +60,11 @@ def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
             raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
         db_scene.devices.append(device_db)
 
+    for macro_id in scene.macro_ids:
+        macro_db = session.get(Macro, macro_id)
+        if macro_db is None:
+            raise HTTPException(status_code=404, detail=f"Macro {macro_id} not found")
+        db_scene.macros.append(macro_db)
 
     session.commit()
     session.refresh(db_scene)
@@ -113,6 +118,12 @@ def update_scene(scene_id: int, scene: ScenePost, session: SessionDep):
         if not device_db:
             raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
         scene_db.devices.append(device_db)
+
+    for macro_id in scene.macro_ids:
+        macro_db = session.get(Macro, macro_id)
+        if macro_db is None:
+            raise HTTPException(status_code=404, detail=f"Macro {macro_id} not found")
+        scene_db.macros.append(macro_db)
 
     scene_data = scene.model_dump(exclude_unset=True)
     scene_db.sqlmodel_update(scene_data)

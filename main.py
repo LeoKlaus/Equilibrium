@@ -26,6 +26,14 @@ if __name__ == '__main__':
         action="store_const", dest="loglevel", const=logging.INFO,
     )
 
+    parser.add_argument(
+        '-p', '--port',
+        help="Define a custom port.",
+        dest="port",
+        default=8000,
+        type=int
+    )
+
     args = parser.parse_args()
 
     if args.dev:
@@ -37,4 +45,4 @@ if __name__ == '__main__':
 
     app = app_generator(args.dev)
 
-    uvicorn.run(app, host='0.0.0.0', port=8000, log_config=None)
+    uvicorn.run(app, host='0.0.0.0', port=args.port, log_config=None)

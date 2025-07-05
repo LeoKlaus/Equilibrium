@@ -1,0 +1,204 @@
+{
+    "Off": {
+        "button": "power_off",
+        "rf_command": "0xc3ec01"
+    },
+    "Music": {
+        "button": "other",
+        "rf_command": "0xc3e801"
+    },
+    "TV": {
+        "button": "other",
+        "rf_command": "0xc3ed01"
+    },
+    "Movie": {
+        "button": "other",
+        "rf_command": "0xc3e901"
+    },
+
+    "BulbTop": {
+        "button": "other",
+        "rf_command": "0xc3f20f"
+    },
+    "BulbBottom": {
+        "button": "other",
+        "rf_command": "0xc3f30f"
+    },
+    "Plus": {
+        "button": "brightness_up",
+        "rf_command": "0xc3f00f"
+    },
+    "Minus": {
+        "button": "brightness_down",
+        "rf_command": "0xc3f10f"
+    },
+    "SocketTop": {
+        "button": "other",
+        "rf_command": "0xc3f40f"
+    },
+    "SocketBottom": {
+        "button": "other",
+        "rf_command": "0xc3f50f"
+    },
+
+    "Red": {
+        "button": "red",
+        "rf_command": "0xc3f701"
+    },
+    "Green": {
+        "button": "green",
+        "rf_command": "0xc3f601"
+    },
+    "Yellow": {
+        "button": "yellow",
+        "rf_command": "0xc3f501"
+    },
+    "Blue": {
+        "button": "blue",
+        "rf_command": "0xc3f401"
+    },
+
+    "DVR": {
+        "button": "other",
+        "rf_command": "0xc39a00"
+    },
+    "Guide": {
+        "button": "guide",
+        "rf_command": "0xc38d00"
+    },
+    "Info": {
+        "button": "info",
+        "rf_command": "0xc3ff01"
+    },
+
+    "Exit": {
+        "button": "exit",
+        "rf_command": "0xc39400"
+    },
+    "Menu": {
+        "button": "menu",
+        "rf_command": "0xc10065"
+    },
+
+    "VolumeUp": {
+        "button": "volume_up",
+        "rf_command": "0xc3e900"
+    },
+    "VolumeDown": {
+        "button": "volume_down",
+        "rf_command": "0xc3ea00"
+    },
+
+    "ChannelUp": {
+        "button": "channel_up",
+        "rf_command": "0xc39c00"
+    },
+    "ChannelDown": {
+        "button": "channel_down",
+        "rf_command": "0xc39d00"
+    },
+
+    "Up": {
+        "button": "direction_up",
+        "rf_command": "0xc10052"
+    },
+    "Down": {
+        "button": "direction_down",
+        "rf_command": "0xc10051"
+    },
+    "Left": {
+        "button": "direction_left",
+        "rf_command": "0xc10050"
+    },
+    "Right": {
+        "button": "direction_right",
+        "rf_command": "0xc1004f"
+    },
+    "OK": {
+        "button": "select",
+        "rf_command": "0xc10058"
+    },
+
+    "Mute": {
+        "button": "mute",
+        "rf_command": "0xc3e200"
+    },
+    "Back": {
+        "button": "back",
+        "rf_command": "0xc32402"
+    },
+
+    "Rewind": {
+        "button": "rewind",
+        "rf_command": "0xc3b400"
+    },
+    "FastForward": {
+        "button": "fast_forward",
+        "rf_command": "0xc3b300"
+    },
+    "Play": {
+        "button": "play",
+        "rf_command": "0xc3b000"
+    },
+    "Pause": {
+        "button": "pause",
+        "rf_command": "0xc3b100"
+    },
+    "Record": {
+        "button": "record",
+        "rf_command": "0xc3b200"
+    },
+    "Stop": {
+        "button": "stop",
+        "rf_command": "0xc3b700"
+    },
+
+    "1": {
+        "button": "number_one",
+        "rf_command": "0xc1001e"
+    },
+    "2": {
+        "button": "number_two",
+        "rf_command": "0xc1001f"
+    },
+    "3": {
+        "button": "number_three",
+        "rf_command": "0xc10020"
+    },
+    "4": {
+        "button": "number_four",
+        "rf_command": "0xc10021"
+    },
+    "5": {
+        "button": "number_five",
+        "rf_command": "0xc10022"
+    },
+    "6": {
+        "button": "number_six",
+        "rf_command": "0xc10023"
+    },
+    "7": {
+        "button": "number_seven",
+        "rf_command": "0xc10024"
+    },
+    "8": {
+        "button": "number_eight",
+        "rf_command": "0xc10025"
+    },
+    "9": {
+        "button": "number_nine",
+        "rf_command": "0xc10026"
+    },
+    ".": {
+        "button": "other",
+        "rf_command": "0xc10056"
+    },
+    "0": {
+        "button": "number_zero",
+        "rf_command": "0xc10027"
+    },
+    "E": {
+        "button": "other",
+        "rf_command": "0xc10028"
+    }
+}

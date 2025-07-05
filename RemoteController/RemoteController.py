@@ -61,7 +61,10 @@ class RemoteController:
 
         self.queue = AsyncQueueManager()
 
-        self.load_key_map()
+        try:
+            self.load_key_map()
+        except FileNotFoundError:
+            self.logger.warning("Couldn't find \"keymap_default.json\", no keymap will be active.")
 
         self.logger.debug("Remote controller ready")
 
@@ -77,7 +80,10 @@ class RemoteController:
 
         self.queue = AsyncQueueManager()
 
-        self.load_key_map()
+        try:
+            self.load_key_map()
+        except FileNotFoundError:
+            self.logger.warning("Couldn't find \"keymap_default.json\", no keymap will be active.")
 
         self.logger.debug("Remote controller ready")
 

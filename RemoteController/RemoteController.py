@@ -308,7 +308,7 @@ class RemoteController:
             await self._update_current_scene(new_scene=scene_db, new_scene_state=SceneStatus.STARTING)
 
             bt_address = scene_db.bluetooth_address
-            if bt_address:
+            if bt_address and not self.is_dev:
                 await self.ble_keyboard.unregister_services()
                 await self.ble_keyboard.connect(bt_address)
                 await self.ble_keyboard.register_services()
@@ -396,7 +396,7 @@ class RemoteController:
             await self._update_current_scene_status(new_scene_state=SceneStatus.STOPPING)
 
             bt_address = scene_db.bluetooth_address
-            if bt_address:
+            if bt_address and not self.is_dev:
                 await self.ble_keyboard.disconnect(bt_address)
 
             if scene_db.stop_macro is not None:

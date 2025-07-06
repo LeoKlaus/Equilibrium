@@ -183,6 +183,10 @@ class RemoteController:
 
 
     async def send_ir_command(self, command: Command, press_without_release = False):
+
+        if self.is_dev:
+            return
+
         ir_command = command.ir_action
 
         if ir_command:
@@ -195,6 +199,10 @@ class RemoteController:
             raise HTTPException(status_code=500, detail="Command doesn't include executable action")
 
     async def send_bt_command(self, command: Command, press_without_release = False, release_only=False):
+
+        if self.is_dev:
+            return
+
         bt_command = command.bt_action
         bt_media_command = command.bt_media_action
         if bt_command:

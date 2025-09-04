@@ -142,12 +142,12 @@ REPORT_MAP = [
   USAGE(1),           0xB5,          #   Usage (Scan Next Track) 32 0
   USAGE(1),           0xB6,          #   Usage (Scan Previous Track) 64 0
   USAGE(1),           0xB7,          #   Usage (Stop) 128 0
-  USAGE(1),           0x40,          #   Usage (Menu) Should be "Home" on Apple TV 0 1
+  USAGE(1),           0x40,          #   Usage (Menu) 0 1 Should be "Home" on Apple TV
   USAGE(1),           0xE9,          #   Usage (Volume Increment) 0 2
   USAGE(1),           0xEA,          #   Usage (Volume Decrement) 0 4
   USAGE(1),           0xE2,          #   Usage (Mute) 0 8
   USAGE(1),           0x30,          #   Usage (Power) 0 16
-  USAGE(1),           0x32,          #   Usage (Sleep) 0 32
+  USAGE(1),           0x41,          #   Usage (Menu Pick ) 0 32 Should be used for "Select" on Apple TV, as "Enter" dismisses search bars
   USAGE(2),           0x21, 0x02,    #   Usage (AC Search) 0 64
   USAGE(2),           0x23, 0x02,    #   Usage (AC Home) 0 128 "Back" on Apple TV
   HIDINPUT(1),        0x02,          #   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)

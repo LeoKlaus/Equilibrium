@@ -189,7 +189,7 @@ MEDIA_KEYS = {
     "KEY_VOLUME_DOWN": [0, 4],      # 0xEA
     "KEY_MUTE": [0, 8],             # 0xE2
     "KEY_POWER": [0, 16],           # 0x30
-    "KEY_SLEEP": [0, 32],           # 0x32
+    "KEY_MENU_PICK": [0, 32],       # 0x32
     "KEY_AC_SEARCH": [0, 64],       # 0x221
     "KEY_AC_HOME": [0, 128]         # 0x223
 }

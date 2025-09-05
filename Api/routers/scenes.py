@@ -125,6 +125,12 @@ def update_scene(scene_id: int, scene: ScenePost, session: SessionDep):
             raise HTTPException(status_code=404, detail=f"Macro {macro_id} not found")
         scene_db.macros.append(macro_db)
 
+    if scene.image_id is not None:
+        image_db = session.get(UserImage, scene.image_id)
+        if not image_db:
+            raise HTTPException(status_code=404, detail=f"Image {scene.image_id} not found")
+        scene_db.image = image_db
+
     scene_data = scene.model_dump(exclude_unset=True)
     scene_db.sqlmodel_update(scene_data)
     session.add(scene_db)

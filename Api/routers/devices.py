@@ -34,11 +34,18 @@ def delete_device(device_id: int, session: SessionDep):
     return {"ok": True}
 
 @router.patch("/{device_id}", tags=["Devices"])
-def update_device(device_id: int, device: DeviceBase, session: SessionDep):
+def update_device(device_id: int, device: DevicePost, session: SessionDep):
     device_db = session.get(Device, device_id)
     if not device_db:
         raise HTTPException(status_code=404, detail="Device not found")
     device_data = device.model_dump(exclude_unset=True)
+
+    if device.image_id is not None:
+        image_db = session.get(UserImage, device.image_id)
+        if not image_db:
+            raise HTTPException(status_code=404, detail=f"Image {device.image_id} not found")
+        device_db.image = image_db
+
     device_db.sqlmodel_update(device_data)
     session.add(device_db)
     session.commit()

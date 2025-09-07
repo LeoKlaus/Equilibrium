@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from starlette.responses import RedirectResponse
 
 from Api.lifespan import lifespan, lifespan_dev
@@ -12,6 +13,7 @@ def app_generator(dev: bool = False):
     else:
         app = FastAPI(lifespan=lifespan)
 
+    app.mount("/ui", StaticFiles(directory="web", html=True), name="ui")
     app.include_router(commands.router)
     app.include_router(devices.router)
     app.include_router(bluetooth.router)
@@ -23,7 +25,7 @@ def app_generator(dev: bool = False):
 
     @app.get("/", include_in_schema=False)
     def redirect():
-        return RedirectResponse("/docs")
+        return RedirectResponse("/ui")
 
     @app.get("/info", tags=["Info"], response_model=ServerInfo)
     def app_info():

@@ -1,12 +1,12 @@
 import threading
-import atexit
-from datetime import datetime
 import time
 import json
 import logging
 
-import pigpio
-from nrf24 import *
+from pyrf24 import RF24, RF24_2MBPS, RF24_CRC_16
+
+CSN_PIN = 0  # aka CE0 on SPI bus 0: /dev/spidev0.0
+CE_PIN = 1
 
 # This is heavily based on the great work done here: https://github.com/joakimjalden/Harmoino/tree/main
 class RfManager:
@@ -15,16 +15,16 @@ class RfManager:
     listener_thread = None
 
     def __init__(self, callback=None, repeat_callback=None, release_callback=None):
-        self.pi = pigpio.pi()
-        self.nrf = NRF24(
-            self.pi,
-            ce=26,
-            payload_size=RF24_PAYLOAD.DYNAMIC,
-            channel=5,
-            data_rate=RF24_DATA_RATE.RATE_2MBPS,
-            crc_bytes=RF24_CRC.BYTES_2,
-            pa_level=RF24_PA.MIN
-        )
+
+        self.rf = RF24(CE_PIN, CSN_PIN)
+
+        if not self.rf.begin():
+            raise self.logger.warning("RF hardware is not responding. Listener will not respond to commands.")
+
+        self.rf.setChannel(5)
+        self.rf.setDataRate(RF24_2MBPS)
+        self.rf.enableDynamicPayloads()
+        self.rf.setCRCLength(RF24_CRC_16)
 
         self.callback = callback
         self.repeat_callback = repeat_callback
@@ -44,20 +44,19 @@ class RfManager:
         except FileNotFoundError:
             self.logger.warning("\"config/remote_keymap.json\" could not be opened. Listener will not respond to signals.")
 
-        atexit.register(self.cleanup)
+        #atexit.register(self.cleanup)
 
-    def cleanup(self):
-        self.logger.info("Disconnecting from GPIO...")
-        self.pi.stop()
+    # Shouldn't be needed anymore
+    #def cleanup(self):
+    #    self.logger.info("Disconnecting from GPIO...")
+
 
     def start_listener(self, addresses: [bytes], debug = False):
-        # TODO: Implement helper to determine address
-
         if len(addresses) == 0:
             self.logger.warning("No RF addresses specified, skipping listener startup")
             return
 
-        self.nrf.power_up_rx()
+        self.rf.powerUp()
         self.listener_thread = threading.Thread(name='listener_thread', target=self._start_listening, args=(addresses, debug))
         self.listener_thread.start()
         self.logger.debug("Started rf listener")
@@ -65,20 +64,17 @@ class RfManager:
     def stop_listener(self):
         if self.listener_thread is not None:
             self.listener_thread.do_run = False
-            self.nrf.power_down()
+            self.rf.powerDown()
             self.logger.debug("Stopped rf listener")
 
     def _start_listening(self, addresses, debug):
         self.logger.debug("Setting addresses")
-        self.nrf.set_address_bytes(len(addresses[0]))
 
         # Listen on the addresses specified as parameter
-        self.nrf.open_reading_pipe(RF24_RX_ADDR.P0, addresses[0])
-        self.nrf.open_reading_pipe(RF24_RX_ADDR.P1, addresses[1])
+        self.rf.openReadingPipe(1, addresses[0])
+        self.rf.openReadingPipe(2, addresses[1])
+        self.rf.startListening()
         self.logger.debug("Set addresses!")
-        # Display the content of NRF24L01 device registers.
-        if debug:
-            self.nrf.show_registers()
 
         # Enter a loop receiving data on the address specified.
         try:
@@ -91,14 +87,10 @@ class RfManager:
 
             while getattr(self.listener_thread, "do_run", True):
                 # As long as data is ready for processing, process it.
-                while self.nrf.data_ready():
-                    # Count message and record time of reception.
-                    count += 1
-                    now = datetime.now()
-
+                if self.rf.available():
                     # Read pipe and payload for message.
-                    pipe = self.nrf.data_pipe()
-                    payload = self.nrf.get_payload()
+                    payload_size = self.rf.getDynamicPayloadSize()
+                    payload = self.rf.read(payload_size)
 
                     if len(payload) >= 5:
                         command = 0
@@ -148,7 +140,7 @@ class RfManager:
 
                         else:
                             self.logger.warning("Unexpected payload:")
-                            self.logger.warning(f"pipe: {pipe}, len: {len(payload)}, bytes: {':'.join(f'{i:02x}' for i in payload)}, count: {count}")
+                            self.logger.warning(f"len: {len(payload)}, bytes: {':'.join(f'{i:02x}' for i in payload)}, count: {count}")
 
                     else:
                         self.logger.warning(f"Received unexpectedly short payload: {':'.join(f'{i:02x}' for i in payload)}")

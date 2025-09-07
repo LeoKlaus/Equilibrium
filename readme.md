@@ -76,6 +76,25 @@ I'm using Raspberry Pi OS lite as a base, but pretty much any Linux distro shoul
 
 ### Setup
 
+Enable `spi`using `raspi-config`:
+``` bash
+sudo raspi-config
+```
+
+In the config menu select "Interfaces"
+![Screenshot of the main raspi-config menu](Extras/Images/raspi-config-1.png)
+then "SPI"
+![Screenshot of the main raspi-config menu](Extras/Images/raspi-config-2.png)
+and "Yes"
+![Screenshot of the main raspi-config menu](Extras/Images/raspi-config-3.png)
+after confirming
+![Screenshot of the main raspi-config menu](Extras/Images/raspi-config-4.png)
+press escape to close the menu and reboot your Pi:
+``` bash
+sudo reboot now
+```
+
+
 Start and enable `pigpiod`:
 
 ``` bash
@@ -164,8 +183,19 @@ Equilibrium expects you to provide a number of config files to work with an RF r
         "00529258cb"
     ]
     ```
-  To determine the address of your Harmony remote, follow [these](https://github.com/joakimjalden/Harmoino?tab=readme-ov-file#retrieve-the-unique-rf24-network-address) instructions (ESP32 and NRF24L01+ module required).
-  It should be fairly easy to translate this script to python so Equilibrium can help you discover the addresses right away, but I haven't gotten around to that yet.
+  To determine the address of your Harmony remote, stop Equilibrium and use the provided helper (the Harmony Hub your remote is connected to has to be on for this):<br>
+  ``` bash
+  python RfManager/getRemoteAddress.py 
+  ```
+  When instructed to do so, press the "Pair/Reset" button on the back of the hub, the output should look like this:
+  ```
+  Listening, press the pair button on your hub now.
+  The remote RF24 address is
+  08529258cb
+  00529258cb
+  Done
+  ```
+  Now copy the two addresses and save them as a json array to `config/rf_addresses.json` to look like the example above.<br><br>
 
 - `remote_keymap.json`, containing the names, types and rf_commands of the buttons. A full example for the Harmony Companion remote can be found in [Extras/Config Examples](Extras/Config%20Examples/remote_keymap.json).
   A single button should look like this:

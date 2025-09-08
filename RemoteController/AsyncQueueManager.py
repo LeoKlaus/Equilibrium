@@ -1,15 +1,21 @@
 import asyncio
+import logging
+
 
 class AsyncQueueManager:
 
     def __init__(self):
+        self.logger = logging.getLogger(__package__)
         self.loop = asyncio.get_event_loop()
 
         self.sem = asyncio.Semaphore(n := 1)
 
     async def _task_wrapper(self, coro):
         await self.sem.acquire()
-        await coro
+        try:
+            await coro
+        except Exception as e:
+            self.logger.exception(e)
         self.sem.release()
 
     def enqueue_task(self, coro):
@@ -17,7 +23,10 @@ class AsyncQueueManager:
 
     async def _sync_task_wrapper(self, task):
         await self.sem.acquire()
-        task()
+        try:
+            task()
+        except Exception as e:
+            self.logger.exception("message")
         self.sem.release()
 
     def enqueue_sync_task(self, task):

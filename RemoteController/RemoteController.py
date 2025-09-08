@@ -531,9 +531,9 @@ class RemoteController:
             self.queue.enqueue_task(self.send_command(command_id, press_without_release=True))
 
     def handle_button_release(self, _):
-        self.ble_keyboard.release_keys()
-        self.ble_keyboard.release_media_keys()
-        self.ir_manager.stop_repeating()
+        self.queue.enqueue_sync_task(self.ble_keyboard.release_keys)
+        self.queue.enqueue_sync_task(self.ble_keyboard.release_media_keys)
+        self.queue.enqueue_sync_task(self.ir_manager.stop_repeating)
 
     async def update_device_status(self, device_id: int, new_power_state: bool | None = None, new_input: int | None = None, toggle_power: bool | None = None):
 

@@ -1,0 +1,24 @@
+name: "Bug Report"
+fields:
+- type: "checkboxes"
+  attributes:
+    label: "Affected software"
+    description: "If you think this issue is in the mobile app or the WebUI of Equilibrium, please open an issue in their respective repo."
+    options:
+    - label: "This issue affects the Server/Hub component of Equilibrium and is not related to the WebUI or mobile app."
+      required: true
+  validations:
+    required: false
+- type: "textarea"
+  attributes:
+    label: "Description"
+    description: "Give a concise description of the problem"
+  validations:
+    required: true
+- type: "textarea"
+  attributes:
+    label: "Logs"
+    description: "Please include the logs from Equilibrium. If you're running Equilibrium as a service, you can access them using `sudo journalctl -u equilibrium -n 50`. You may want to run Equilibrium with the '--debug' option to produce more verbose logs."
+    render: shell
+  validations:
+    required: true

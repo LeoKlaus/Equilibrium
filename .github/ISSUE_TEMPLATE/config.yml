@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Wiki
+    url: https://github.com/LeoKlaus/Equilibrium/wiki
+    about: Check the Wiki if you're looking for help.
+  - name: Equilibrium-Flutter repo
+    url: https://github.com/LeoKlaus/Equilibrium-Flutter/issues
+    about: Please report issues with the WebUI or Android app here.
+  - name: Equilibrium-iOS
+    url: https://github.com/LeoKlaus/Equilibrium-iOS/issues
+    about: Please report issues with the iOS app here.

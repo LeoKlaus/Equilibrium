@@ -91,7 +91,6 @@ class RfManager:
                     # Read pipe and payload for message.
                     payload_size = self.rf.getDynamicPayloadSize()
                     payload = self.rf.read(payload_size)
-
                     if len(payload) >= 5:
                         command = 0
                         for i in range(1, 4):
@@ -145,8 +144,8 @@ class RfManager:
                     else:
                         self.logger.warning(f"Received unexpectedly short payload: {':'.join(f'{i:02x}' for i in payload)}")
 
-                # Sleep 100 ms.
-                time.sleep(0.1)
+                # Sleep 50 ms.
+                time.sleep(0.05)
 
             self.logger.debug("Exiting loop...")
         except Exception as e:

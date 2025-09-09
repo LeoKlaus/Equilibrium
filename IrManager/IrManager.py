@@ -51,7 +51,11 @@ class IrManager:
 
     async def _send_and_repeat(self, code: [int]):
         while True:
-            await self.send_command(code)
+            try:
+                await self.send_command(code)
+            except Exception as e:
+                self.cancel_sending()
+                self.logger.exception(e)
             await asyncio.sleep(0.25)
 
     def stop_repeating(self):

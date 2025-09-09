@@ -44,6 +44,8 @@ class RemoteController:
 
     status_callback: AsyncJsonCallback|None = None
 
+    cached_commands: {int:Command} = None
+
     @classmethod
     async def create(cls, rf_addresses: [bytes]):
         self = cls()
@@ -172,13 +174,9 @@ class RemoteController:
 
 
     async def send_command(self, command_id: int, press_without_release = False, from_start: bool = False, from_stop: bool = False):
+        command_db = self.cached_commands.get(command_id)
 
-        with Session(engine) as session:
-            command_db = session.get(Command, command_id)
-
-            if not command_db:
-                raise HTTPException(status_code=404, detail="Command not found")
-
+        if command_db:
             await self.send_db_command(command_db, press_without_release, from_start=from_start, from_stop=from_stop)
 
 
@@ -424,6 +422,14 @@ class RemoteController:
             keymap_data = file.read()
             self.keymap = json.loads(keymap_data)
 
+        self.cached_commands = {}
+        for command_id in self.keymap.values():
+            if command_id:
+                with Session(engine) as session:
+                    command_db = session.get(Command, command_id)
+                    if command_db:
+                        self.cached_commands[command_id] = command_db
+
         if not self.is_dev:
             self.rf_manager.set_callback(self.handle_button_press)
             self.rf_manager.set_release_callback(self.handle_button_release)
@@ -530,10 +536,13 @@ class RemoteController:
         if command_id:
             self.queue.enqueue_task(self.send_command(command_id, press_without_release=True))
 
+    def _release_all(self, _):
+        self.ir_manager.stop_repeating()
+        self.ble_keyboard.release_keys()
+        self.ble_keyboard.release_media_keys()
+
     def handle_button_release(self, _):
-        self.queue.enqueue_sync_task(self.ble_keyboard.release_keys)
-        self.queue.enqueue_sync_task(self.ble_keyboard.release_media_keys)
-        self.queue.enqueue_sync_task(self.ir_manager.stop_repeating)
+        self.queue.enqueue_sync_task(self._release_all, self)
 
     async def update_device_status(self, device_id: int, new_power_state: bool | None = None, new_input: int | None = None, toggle_power: bool | None = None):
 

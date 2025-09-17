@@ -178,6 +178,17 @@ class RemoteController:
 
         if command_db:
             await self.send_db_command(command_db, press_without_release, from_start=from_start, from_stop=from_stop)
+        else:
+            self.logger.debug(f"Command {command_id} is not cached, loading from db...")
+            with Session(engine) as session:
+                command_db = session.get(Command, command_id)
+                if command_db:
+                    self.cached_commands[command_id] = command_db
+                    self.logger.debug(f"Loaded and cached command {command_id} from db.")
+                    await self.send_db_command(command_db, press_without_release, from_start=from_start, from_stop=from_stop)
+                else:
+                    self.logger.error(f"Tried to send command {command_id}, which doesn't exist in the database.")
+
 
 
     async def send_ir_command(self, command: Command, press_without_release = False):

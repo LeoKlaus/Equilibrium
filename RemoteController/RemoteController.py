@@ -42,7 +42,7 @@ class RemoteController:
     ble_keyboard: BleKeyboard
     rf_manager: RfManager
     ir_manager: IrManager
-    ha_manager: HaManager|None
+    ha_manager: HaManager|None = None
     queue: AsyncQueueManager
 
     status_callback: AsyncJsonCallback|None = None

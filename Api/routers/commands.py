@@ -5,6 +5,7 @@ from starlette.requests import Request
 from Api.models.Command import Command, CommandBase, CommandWithRelationships
 from Api.models.Device import Device
 from Api.models.CommandType import CommandType
+from Api.models.IntegrationAction import IntegrationAction
 from DbManager.DbManager import SessionDep
 
 router = APIRouter(
@@ -24,6 +25,10 @@ def create_command(command: CommandBase, session: SessionDep) -> CommandWithRela
         raise HTTPException(status_code=400, detail="Network commands require a method to be set.")
     elif db_command.type == CommandType.BLUETOOTH and not db_command.bt_action and not db_command.bt_media_action:
         raise HTTPException(status_code=400, detail="Bluetooth commands require either an action or a media action.")
+    elif db_command.type == CommandType.INTEGRATION and not db_command.integration_action:
+        raise HTTPException(status_code=400, detail="Integration commands require an integration action.")
+    elif db_command.integration_action == IntegrationAction.TOGGLE_LIGHT and not db_command.integration_entity:
+        raise HTTPException(status_code=400, detail="A toggle_light command requires an entity.")
 
     if command.device_id is not None:
         db_device = session.get(Device, command.device_id)

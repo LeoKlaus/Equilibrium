@@ -8,6 +8,6 @@ zeroconf~=0.147.0
 SQLAlchemy~=2.0.41
 python-multipart~=0.0.20
 httpx~=1.0.dev2
-pydantic~=2.11.7
 pillow~=11.2.1
 pyrf24~=0.5.0
+homeassistant_api~=5.0.1

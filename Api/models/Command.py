@@ -6,6 +6,7 @@ from sqlmodel import SQLModel, Field, Relationship, Session
 from Api import logger
 from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
+from Api.models.IntegrationAction import IntegrationAction
 from Api.models.Macro import CommandMacroLink
 from Api.models.NetworkRequestType import NetworkRequestType
 from Api.models.RemoteButton import RemoteButton
@@ -26,6 +27,8 @@ class CommandBase(SQLModel):
     body: str | None = Field(default=None)
     bt_action: str | None = Field(default=None)
     bt_media_action: str | None = Field(default=None)
+    integration_action: IntegrationAction | None = Field(default=None)
+    integration_entity: str | None = Field(default=None)
 
 class Command(CommandBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -38,6 +41,8 @@ class Command(CommandBase, table=True):
     method: NetworkRequestType | None = Field(default=None)
     body: str | None = Field(default=None)
     macros: list["Macro"] = Relationship(back_populates="commands", link_model=CommandMacroLink)
+    integration_action: IntegrationAction | None = Field(default=None)
+    integration_entity: str | None = Field(default=None)
 
     # Needed for Column(JSON)
     class Config:

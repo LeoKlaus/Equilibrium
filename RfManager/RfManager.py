@@ -3,7 +3,12 @@ import time
 import json
 import logging
 
-from pyrf24 import RF24, RF24_2MBPS, RF24_CRC_16
+# pyrf24 only has precompiled binaries for linux. If you install it via pip on another os, the import will fail,
+# even though the package seems to be installed. For development setups, this is not an issue, as RfManager is not used.
+# TODO: Find a better solution for this
+from sys import platform
+if platform == "linux":
+    from pyrf24 import RF24, RF24_2MBPS, RF24_CRC_16
 
 CSN_PIN = 0  # aka CE0 on SPI bus 0: /dev/spidev0.0
 CE_PIN = 1

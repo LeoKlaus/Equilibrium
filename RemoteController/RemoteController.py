@@ -16,6 +16,7 @@ from Api.models.Command import CommandBase, Command
 from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
 from Api.models.DeviceType import DeviceType
+from Api.models.IntegrationAction import IntegrationAction
 from Api.models.NetworkRequestType import NetworkRequestType
 from Api.models.RemoteButton import RemoteButton
 from Api.models.Scene import Scene
@@ -27,6 +28,7 @@ from DbManager.DbManager import engine
 from IrManager.IrManager import IrManager
 from RemoteController.AsyncQueueManager import AsyncQueueManager
 from RfManager.RfManager import RfManager
+from HaManager.HaManager import HaManager
 
 class RemoteController:
 
@@ -40,6 +42,7 @@ class RemoteController:
     ble_keyboard: BleKeyboard
     rf_manager: RfManager
     ir_manager: IrManager
+    ha_manager: HaManager|None
     queue: AsyncQueueManager
 
     status_callback: AsyncJsonCallback|None = None
@@ -47,7 +50,7 @@ class RemoteController:
     cached_commands: {int:Command} = None
 
     @classmethod
-    async def create(cls, rf_addresses: [bytes]):
+    async def create(cls, rf_addresses: list[bytes], ha_url: str|None = None, ha_token: str|None = None):
         self = cls()
 
         self.logger = logging.getLogger(__package__)
@@ -63,6 +66,9 @@ class RemoteController:
 
         self.queue = AsyncQueueManager()
 
+        if ha_url is not None and ha_token is not None:
+            self.ha_manager = HaManager(ha_url, ha_token)
+
         try:
             self.load_key_map()
         except FileNotFoundError:
@@ -73,7 +79,7 @@ class RemoteController:
         return self
 
     @classmethod
-    async def create_dev(cls, ):
+    async def create_dev(cls, ha_url: str|None = None, ha_token: str|None = None):
         self = cls()
 
         self.logger = logging.getLogger(__package__)
@@ -81,6 +87,9 @@ class RemoteController:
         self.is_dev = True
 
         self.queue = AsyncQueueManager()
+
+        if ha_url is not None and ha_token is not None:
+            self.ha_manager = HaManager(ha_url, ha_token)
 
         try:
             self.load_key_map()
@@ -165,6 +174,8 @@ class RemoteController:
                 await self.send_network_command(command)
             case CommandType.SCRIPT:
                 await self.send_script_command(command)
+            case CommandType.INTEGRATION:
+                self.send_integration_command(command)
 
         # TODO: Maybe make this configurable?
         # In my usage, this was more annoying than helpful as it lead to breakage of scenes when manually
@@ -296,6 +307,19 @@ class RemoteController:
 
     async def send_script_command(self, command: Command):
         raise HTTPException(status_code=400, detail="Script commands are not implemented yet")
+
+    def send_integration_command(self, command: Command):
+        if self.ha_manager is None:
+            self.logger.error("Tried to send integration command but HA integration is not set up")
+            return
+
+        match command.integration_action:
+            case IntegrationAction.TOGGLE_LIGHT:
+                self.ha_manager.toggle_light(command.integration_entity)
+            case IntegrationAction.BRIGHTNESS_UP:
+                self.ha_manager.increase_brightness()
+            case IntegrationAction.BRIGHTNESS_DOWN:
+                self.ha_manager.decrease_brightness()
 
     async def start_scene(self, scene_id: int):
 

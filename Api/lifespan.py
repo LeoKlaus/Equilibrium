@@ -17,7 +17,7 @@ async def lifespan(_: FastAPI):
     create_db_and_tables()
     logger.info("Database initialized")
 
-    addresses = []
+    addresses: list[bytes] | None = None
 
     try:
         with open("config/rf_addresses.json", "r") as file:
@@ -28,7 +28,26 @@ async def lifespan(_: FastAPI):
     except FileNotFoundError:
         logger.warning("File \"rf_addresses.json\" was not found in config folder. Starting without RF addresses...")
 
-    controller = await RemoteController.create(rf_addresses=addresses)
+
+    ha_url: str | None = None
+    ha_token: str | None = None
+
+    try:
+        with open("config/ha_credentials.json", "r") as file:
+            credential_data = file.read()
+            ha_credentials = json.loads(credential_data)
+
+        ha_url = ha_credentials["url"]
+        ha_token = ha_credentials["token"]
+    except FileNotFoundError:
+        logger.warning(
+            "File \"ha_credentials.json\" was not found in config folder. Starting without HA integration...")
+    except KeyError:
+        logger.error(
+            "Couldn't get credentials from \"ha_credentials.json\". Make sure you have both \"url\" and \"token\" set."
+        )
+
+    controller = await RemoteController.create(rf_addresses=addresses, ha_url=ha_url, ha_token=ha_token)
     logger.info("Controller initialized")
 
     zeroconf = ZeroconfManager()
@@ -52,7 +71,26 @@ async def lifespan_dev(_: FastAPI):
     create_db_and_tables()
     logger.info("Database initialized")
 
-    controller = await RemoteController.create_dev()
+
+    ha_url: str | None = None
+    ha_token: str | None = None
+
+    try:
+        with open("config/ha_credentials.json", "r") as file:
+            credential_data = file.read()
+            ha_credentials = json.loads(credential_data)
+
+        ha_url = ha_credentials["url"]
+        ha_token = ha_credentials["token"]
+    except FileNotFoundError:
+        logger.warning(
+            "File \"ha_credentials.json\" was not found in config folder. Starting without HA integration...")
+    except KeyError:
+        logger.error(
+            "Couldn't get credentials from \"ha_credentials.json\". Make sure you have both \"url\" and \"token\" set."
+        )
+
+    controller = await RemoteController.create_dev(ha_url=ha_url, ha_token=ha_token)
     logger.info("Controller initialized")
 
     zeroconf = ZeroconfManager()

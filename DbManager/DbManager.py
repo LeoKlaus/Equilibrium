@@ -17,6 +17,9 @@ engine = create_engine(sqlite_url, connect_args=connect_args)
 
 # from https://github.com/sqlalchemy/alembic/discussions/1483
 def run_migrations(logger: logging.Logger):
+    if not Path(sqlite_file_name).exists():
+        logger.info("No database found, skipping migrations...")
+        return
     try:
         logger.info("Starting database migrations")
 

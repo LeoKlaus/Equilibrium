@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from Api import logger
-from DbManager.DbManager import create_db_and_tables
+from DbManager.DbManager import create_db_and_tables, run_migrations
 from RemoteController.RemoteController import RemoteController
 from ZeroconfManager.ZeroconfManager import ZeroconfManager
 
@@ -13,6 +13,9 @@ import json
 async def lifespan(_: FastAPI):
 
     logger.info("Starting up...")
+
+    run_migrations(logger)
+    logger.info("Database migrated")
 
     create_db_and_tables()
     logger.info("Database initialized")
@@ -67,6 +70,9 @@ async def lifespan(_: FastAPI):
 async def lifespan_dev(_: FastAPI):
 
     logger.info("Starting up...")
+
+    run_migrations(logger)
+    logger.info("Database migrated")
 
     create_db_and_tables()
     logger.info("Database initialized")

@@ -14,9 +14,6 @@ async def lifespan(_: FastAPI):
 
     logger.info("Starting up...")
 
-    run_migrations(logger)
-    logger.info("Database migrated")
-
     create_db_and_tables()
     logger.info("Database initialized")
 
@@ -70,9 +67,6 @@ async def lifespan(_: FastAPI):
 async def lifespan_dev(_: FastAPI):
 
     logger.info("Starting up...")
-
-    run_migrations(logger)
-    logger.info("Database migrated")
 
     create_db_and_tables()
     logger.info("Database initialized")

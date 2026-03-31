@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, Annotated
+from typing import TYPE_CHECKING, Optional, Annotated, Dict
 
 from sqlalchemy import Column, JSON, event
 from sqlmodel import SQLModel, Field, Relationship, Session
@@ -25,6 +25,7 @@ class CommandBase(SQLModel):
     host: str | None = Field(default=None)
     method: NetworkRequestType | None = Field(default=None)
     body: str | None = Field(default=None)
+    headers: Dict[str, str] |None = Field(default=None)
     bt_action: str | None = Field(default=None)
     bt_media_action: str | None = Field(default=None)
     integration_action: IntegrationAction | None = Field(default=None)
@@ -40,6 +41,7 @@ class Command(CommandBase, table=True):
     host: str | None = Field(default=None)
     method: NetworkRequestType | None = Field(default=None)
     body: str | None = Field(default=None)
+    headers: Dict[str, str] |None = Field(default=None, sa_column=Column(JSON))
     macros: list["Macro"] = Relationship(back_populates="commands", link_model=CommandMacroLink)
     integration_action: IntegrationAction | None = Field(default=None)
     integration_entity: str | None = Field(default=None)

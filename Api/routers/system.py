@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from starlette.requests import Request
 
 from Api.models.Status import StatusReport
-from RemoteController.RemoteController import RemoteController
+from Hub.StatusStore import StatusStore
 
 router = APIRouter(
     prefix="/system",
@@ -12,6 +12,6 @@ router = APIRouter(
 
 @router.get("/status", tags=["System"], response_model=StatusReport)
 def get_current_system_status(request: Request) -> StatusReport:
-    controller: RemoteController = request.state.controller
+    status_store: StatusStore = request.state.status_store
 
-    return controller.get_current_status()
+    return status_store.status

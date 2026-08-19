@@ -1,8 +1,13 @@
 import asyncio
 import logging
 
+from Hub.CommandDispatcher import CommandDispatcher
 from Hub.EventBus import EventBus
+from Hub.InputRouter import InputRouter
 from Hub.interfaces import ActionExecutor, InputSource
+from Hub.KeymapResolver import KeymapResolver
+from Hub.SceneManager import SceneManager
+from Hub.StatusStore import StatusStore
 
 
 class Hub:
@@ -16,12 +21,21 @@ class Hub:
 
     logger = logging.getLogger(__package__)
 
-    def __init__(self) -> None:
+    def __init__(self, config_dir: str = "config") -> None:
+        self._config_dir = config_dir
+
         self.bus = EventBus()
         self._sources: list[InputSource] = []
         self._executors: dict[str, ActionExecutor] = {}
         self._source_tasks: list[asyncio.Task] = []
         self._bus_task: asyncio.Task | None = None
+        self._assembled = False
+
+        self.status_store: StatusStore | None = None
+        self.keymap_resolver: KeymapResolver | None = None
+        self.command_dispatcher: CommandDispatcher | None = None
+        self.scene_manager: SceneManager | None = None
+        self.input_router: InputRouter | None = None
 
     @property
     def sources(self) -> list[InputSource]:
@@ -37,7 +51,35 @@ class Hub:
     def register_executor(self, executor: ActionExecutor) -> None:
         self._executors[executor.name] = executor
 
+    def assemble(self) -> None:
+        """Build StatusStore/KeymapResolver/CommandDispatcher/SceneManager/
+        InputRouter from whatever's been registered so far, and subscribe
+        InputRouter to the bus. Idempotent - only the first call does
+        anything. Must run after all sources/executors are registered;
+        start() calls this itself so callers can't get the order wrong.
+        """
+        if self._assembled:
+            return
+
+        self.status_store = StatusStore()
+        self.keymap_resolver = KeymapResolver(config_dir=self._config_dir)
+        self.command_dispatcher = CommandDispatcher(self.status_store, self.keymap_resolver, self._executors)
+
+        ble_keyboard = self._executors.get("bluetooth")
+        ir_manager = self._executors.get("ir")
+
+        self.scene_manager = SceneManager(
+            self.status_store, self.keymap_resolver, self.command_dispatcher, ble_keyboard
+        )
+        self.input_router = InputRouter(
+            self.keymap_resolver, self.scene_manager, self.command_dispatcher, ble_keyboard, ir_manager
+        )
+        self.input_router.subscribe(self.bus)
+
+        self._assembled = True
+
     async def start(self) -> None:
+        self.assemble()
         self._bus_task = asyncio.create_task(self.bus.run())
         self._source_tasks = [asyncio.create_task(source.start(self.bus)) for source in self._sources]
 

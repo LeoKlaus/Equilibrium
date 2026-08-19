@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+from BleKeyboard.BleKeyboard import BleKeyboard
+from HaManager.HaManager import HaManager
 from Hub.CommandDispatcher import CommandDispatcher
 from Hub.EventBus import EventBus
 from Hub.InputRouter import InputRouter
@@ -8,6 +10,10 @@ from Hub.interfaces import ActionExecutor, InputSource
 from Hub.KeymapResolver import KeymapResolver
 from Hub.SceneManager import SceneManager
 from Hub.StatusStore import StatusStore
+from IrManager.IrManager import IrManager
+from NetworkExecutor.NetworkExecutor import NetworkExecutor
+from RfManager.RfManager import RfInput
+from ScriptExecutor.ScriptExecutor import ScriptExecutor
 
 
 class Hub:
@@ -77,6 +83,56 @@ class Hub:
         self.input_router.subscribe(self.bus)
 
         self._assembled = True
+
+    @classmethod
+    async def create(
+        cls,
+        rf_addresses: list[bytes] | None = None,
+        ha_url: str | None = None,
+        ha_token: str | None = None,
+        scripts_dir: str | None = None,
+        dev: bool = False,
+        config_dir: str = "config",
+    ) -> "Hub":
+        """Build a Hub with the real hardware/protocol modules registered.
+
+        dev=True skips everything that touches actual hardware (RF, BLE,
+        IR)
+
+        scripts_dir is the explicit opt-in for ScriptExecutor: leave it
+        None to keep script commands disabled. Since Commands (including
+        script_path) are created through the HTTP API, enabling this
+        lets anything with API access run arbitrary executables from
+        that directory - only set it if you trust every API client.
+        """
+        hub = cls(config_dir=config_dir)
+
+        if not dev:
+            hub.register_source(RfInput(addresses=rf_addresses or [], config_dir=config_dir))
+            hub.register_executor(await BleKeyboard.create())
+            hub.register_executor(IrManager())
+
+        if ha_url is not None and ha_token is not None:
+            hub.register_executor(HaManager(ha_url, ha_token))
+
+        hub.register_executor(NetworkExecutor())
+
+        if scripts_dir is not None:
+            hub.logger.warning(
+                f"Script execution is ENABLED (scripts_dir={scripts_dir}). Commands with a "
+                f"script_path will run executables from that directory - only enable this if "
+                f"you trust everything with access to the HTTP API."
+            )
+            hub.register_executor(ScriptExecutor(scripts_dir=scripts_dir))
+
+        hub.assemble()
+
+        try:
+            hub.keymap_resolver.load_key_map()
+        except FileNotFoundError:
+            hub.logger.warning("Couldn't find \"keymap_default.json\", no keymap will be active.")
+
+        return hub
 
     async def start(self) -> None:
         self.assemble()

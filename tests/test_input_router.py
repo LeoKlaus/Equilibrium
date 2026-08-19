@@ -86,6 +86,71 @@ async def test_key_pressed_send_directive():
     assert command_dispatcher.dispatched == [directive]
 
 
+async def test_repeated_press_of_the_same_button_forces_a_release_first():
+    directive = Directive(command_id=1, press_without_release=True)
+    command_dispatcher = FakeCommandDispatcher()
+    ble_keyboard = FakeBleKeyboard()
+    router = InputRouter(
+        FakeKeymapResolver({"Exit": SendDirective(directive)}),
+        FakeSceneManager(),
+        command_dispatcher,
+        ble_keyboard=ble_keyboard,
+    )
+
+    await router._on_key_pressed(Event("key_pressed", {"button": "Exit"}))
+    assert ble_keyboard.calls == []
+    assert command_dispatcher.dispatched == [directive]
+
+    # Same button pressed again with no key_released in between - matches
+    # what the physical remote actually sends on a rapid double-tap.
+    await router._on_key_pressed(Event("key_pressed", {"button": "Exit"}))
+
+    assert ble_keyboard.calls == ["release_keys", "release_media_keys"]
+    assert command_dispatcher.dispatched == [directive, directive]
+
+
+async def test_press_of_a_different_button_does_not_force_a_release():
+    exit_directive = Directive(command_id=1, press_without_release=True)
+    up_directive = Directive(command_id=2, press_without_release=True)
+    command_dispatcher = FakeCommandDispatcher()
+    ble_keyboard = FakeBleKeyboard()
+    router = InputRouter(
+        FakeKeymapResolver({
+            "Exit": SendDirective(exit_directive),
+            "Up": SendDirective(up_directive),
+        }),
+        FakeSceneManager(),
+        command_dispatcher,
+        ble_keyboard=ble_keyboard,
+    )
+
+    await router._on_key_pressed(Event("key_pressed", {"button": "Exit"}))
+    await router._on_key_pressed(Event("key_pressed", {"button": "Up"}))
+
+    assert ble_keyboard.calls == []
+    assert command_dispatcher.dispatched == [exit_directive, up_directive]
+
+
+async def test_key_released_clears_held_button_so_next_press_does_not_force_a_release():
+    directive = Directive(command_id=1, press_without_release=True)
+    command_dispatcher = FakeCommandDispatcher()
+    ble_keyboard = FakeBleKeyboard()
+    router = InputRouter(
+        FakeKeymapResolver({"Exit": SendDirective(directive)}),
+        FakeSceneManager(),
+        command_dispatcher,
+        ble_keyboard=ble_keyboard,
+    )
+
+    await router._on_key_pressed(Event("key_pressed", {"button": "Exit"}))
+    await router._on_key_released(Event("key_released", {}))
+    ble_keyboard.calls.clear()
+
+    await router._on_key_pressed(Event("key_pressed", {"button": "Exit"}))
+
+    assert ble_keyboard.calls == []
+
+
 async def test_key_pressed_unmapped_button_does_nothing():
     scene_manager = FakeSceneManager()
     command_dispatcher = FakeCommandDispatcher()

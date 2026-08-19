@@ -1,107 +1,80 @@
+import json
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from Api import logger
-from DbManager.DbManager import create_db_and_tables, run_migrations
-from RemoteController.RemoteController import RemoteController
+from DbManager.DbManager import create_db_and_tables
+from Hub.Hub import Hub
 from ZeroconfManager.ZeroconfManager import ZeroconfManager
 
-import json
+
+def _load_rf_addresses() -> list[bytes] | None:
+    try:
+        with open("config/rf_addresses.json", "r") as file:
+            address_strings = json.loads(file.read())
+        return [bytes.fromhex(address) for address in address_strings]
+    except FileNotFoundError:
+        logger.warning("File \"rf_addresses.json\" was not found in config folder. Starting without RF addresses...")
+        return None
+
+
+def _load_ha_credentials() -> tuple[str | None, str | None]:
+    try:
+        with open("config/ha_credentials.json", "r") as file:
+            ha_credentials = json.loads(file.read())
+        return ha_credentials["url"], ha_credentials["token"]
+    except FileNotFoundError:
+        logger.warning(
+            "File \"ha_credentials.json\" was not found in config folder. Starting without HA integration...")
+        return None, None
+    except KeyError:
+        logger.error(
+            "Couldn't get credentials from \"ha_credentials.json\". Make sure you have both \"url\" and \"token\" set."
+        )
+        return None, None
+
+
+@asynccontextmanager
+async def _lifespan(dev: bool):
+    logger.info("Starting up...")
+
+    create_db_and_tables()
+    logger.info("Database initialized")
+
+    addresses = _load_rf_addresses()
+    ha_url, ha_token = _load_ha_credentials()
+
+    hub = await Hub.create(rf_addresses=addresses, ha_url=ha_url, ha_token=ha_token, dev=dev)
+    await hub.start()
+    logger.info("Hub initialized")
+
+    zeroconf = ZeroconfManager()
+    await zeroconf.register_service("Test-Instance-Dev" if dev else "Test-Instance")
+    logger.info("Registered bonjour service")
+
+    yield {
+        "status_store": hub.status_store,
+        "keymap_resolver": hub.keymap_resolver,
+        "scene_manager": hub.scene_manager,
+        "command_dispatcher": hub.command_dispatcher,
+        "ble_keyboard": hub.executors.get("bluetooth"),
+        "ir_manager": hub.executors.get("ir"),
+    }
+
+    logger.info("Shutting down...")
+    await zeroconf.unregister_service()
+    logger.info("Unregistered Zeroconf/Bonjour service")
+    await hub.shutdown()
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    async with _lifespan(dev=False) as state:
+        yield state
 
-    logger.info("Starting up...")
-
-    create_db_and_tables()
-    logger.info("Database initialized")
-
-    addresses: list[bytes] | None = None
-
-    try:
-        with open("config/rf_addresses.json", "r") as file:
-            address_data = file.read()
-
-        address_strings = json.loads(address_data)
-        addresses = list(map(lambda x: bytes.fromhex(x), address_strings))
-    except FileNotFoundError:
-        logger.warning("File \"rf_addresses.json\" was not found in config folder. Starting without RF addresses...")
-
-
-    ha_url: str | None = None
-    ha_token: str | None = None
-
-    try:
-        with open("config/ha_credentials.json", "r") as file:
-            credential_data = file.read()
-            ha_credentials = json.loads(credential_data)
-
-        ha_url = ha_credentials["url"]
-        ha_token = ha_credentials["token"]
-    except FileNotFoundError:
-        logger.warning(
-            "File \"ha_credentials.json\" was not found in config folder. Starting without HA integration...")
-    except KeyError:
-        logger.error(
-            "Couldn't get credentials from \"ha_credentials.json\". Make sure you have both \"url\" and \"token\" set."
-        )
-
-    controller = await RemoteController.create(rf_addresses=addresses, ha_url=ha_url, ha_token=ha_token)
-    logger.info("Controller initialized")
-
-    zeroconf = ZeroconfManager()
-    await zeroconf.register_service("Test-Instance")
-    logger.info("Registered bonjour service")
-
-    yield {
-        "controller": controller
-    }
-
-    logger.info("Shutting down...")
-    await zeroconf.unregister_service()
-    logger.info("Unregistered Zeroconf/Bonjour service")
-    await controller.shutdown()
 
 @asynccontextmanager
 async def lifespan_dev(_: FastAPI):
-
-    logger.info("Starting up...")
-
-    create_db_and_tables()
-    logger.info("Database initialized")
-
-
-    ha_url: str | None = None
-    ha_token: str | None = None
-
-    try:
-        with open("config/ha_credentials.json", "r") as file:
-            credential_data = file.read()
-            ha_credentials = json.loads(credential_data)
-
-        ha_url = ha_credentials["url"]
-        ha_token = ha_credentials["token"]
-    except FileNotFoundError:
-        logger.warning(
-            "File \"ha_credentials.json\" was not found in config folder. Starting without HA integration...")
-    except KeyError:
-        logger.error(
-            "Couldn't get credentials from \"ha_credentials.json\". Make sure you have both \"url\" and \"token\" set."
-        )
-
-    controller = await RemoteController.create_dev(ha_url=ha_url, ha_token=ha_token)
-    logger.info("Controller initialized")
-
-    zeroconf = ZeroconfManager()
-    await zeroconf.register_service("Test-Instance-Dev")
-    logger.info("Registered bonjour service")
-
-    yield {
-        "controller": controller
-    }
-
-    logger.info("Shutting down...")
-    await zeroconf.unregister_service()
-    logger.info("Unregistered Zeroconf/Bonjour service")
-    await controller.shutdown()
+    async with _lifespan(dev=True) as state:
+        yield state

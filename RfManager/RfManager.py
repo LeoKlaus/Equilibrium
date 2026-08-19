@@ -123,11 +123,13 @@ class RfManager:
                             self.logger.debug("Remote woke up")
 
                         elif command == 0x400028:
-                            # Repeat
-                            # print(f"Repeat of {last_key}")
+                            # Repeat, sent continuously while a button stays held.
+                            # TODO(rewrite): when this class becomes RfInput (async InputSource,
+                            # see architecture.md), keep translating this into its own bus event
+                            # (e.g. "key_repeated") instead of dropping it as unused - it's the
+                            # raw signal a future long-press feature needs.
                             if self.repeat_callback is not None:
                                 self.repeat_callback(last_key)
-                            pass
 
                         elif command == 0x4f0004:
                             # All Buttons Released

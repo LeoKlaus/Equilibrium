@@ -1,169 +1,160 @@
-import threading
-import time
+import asyncio
 import json
 import logging
+import time
+from dataclasses import dataclass
+from sys import platform
+
+from Hub.EventBus import Event, EventBus
+from Hub.interfaces import InputSource
 
 # pyrf24 only has precompiled binaries for linux. If you install it via pip on another os, the import will fail,
-# even though the package seems to be installed. For development setups, this is not an issue, as RfManager is not used.
-# TODO: Find a better solution for this
-from sys import platform
+# even though the package seems to be installed. For development setups, this is not an issue, as this class is
+# never started on non-linux platforms.
 if platform == "linux":
     from pyrf24 import RF24, RF24_2MBPS, RF24_CRC_16
 
 CSN_PIN = 0  # aka CE0 on SPI bus 0: /dev/spidev0.0
 CE_PIN = 1
 
+_IDLE = 0x40044c
+_GOING_TO_SLEEP = 0x4f0300
+_WOKE_UP = 0x4f0700
+_REPEAT = 0x400028
+_ALL_RELEASED = 0x4f0004
+_RELEASED_BUTTON = (0xc10000, 0xc30000)
+
+
+@dataclass
+class _Signal:
+    kind: str  # "pressed" | "repeated" | "released"
+    button: str | None
+
+
+_EVENT_TYPES = {
+    "pressed": "key_pressed",
+    "repeated": "key_repeated",
+    "released": "key_released",
+}
+
+
 # This is heavily based on the great work done here: https://github.com/joakimjalden/Harmoino/tree/main
-class RfManager:
+class RfInput(InputSource):
+    """Reads button presses from the NRF24L01+ remote receiver.
+
+    `run_in_executor` wraps every blocking pyrf24 call, per the golden
+    rule - an async function that internally calls a blocking function
+    still blocks the whole event loop.
+    """
+
+    name = "rf"
 
     logger = logging.getLogger(__package__)
-    listener_thread = None
 
-    def __init__(self, callback=None, repeat_callback=None, release_callback=None):
+    def __init__(self, addresses: list[bytes], config_dir: str = "config") -> None:
+        self._addresses = addresses
+        self._known_commands = self._load_known_commands(config_dir)
+        self._rf: "RF24 | None" = None
+        self._last_key: str | None = None
+        self._running = True
 
-        self.rf = RF24(CE_PIN, CSN_PIN)
-
-        if not self.rf.begin():
-            raise self.logger.warning("RF hardware is not responding. Listener will not respond to commands.")
-
-        self.rf.setChannel(5)
-        self.rf.setDataRate(RF24_2MBPS)
-        self.rf.enableDynamicPayloads()
-        self.rf.setCRCLength(RF24_CRC_16)
-
-        self.callback = callback
-        self.repeat_callback = repeat_callback
-        self.release_callback = release_callback
-
+    def _load_known_commands(self, config_dir: str) -> dict[int, str]:
         try:
-            with open("config/remote_keymap.json", "r") as file:
-                keymap_data = file.read()
-
-            keymap_json = json.loads(keymap_data)
-
-            self.known_commands = {}
-
-            for key, value in keymap_json.items():
-                self.known_commands[int(value["rf_command"], 16)] = key
-
+            with open(f"{config_dir}/remote_keymap.json") as file:
+                keymap_json = json.loads(file.read())
         except FileNotFoundError:
-            self.logger.warning("\"config/remote_keymap.json\" could not be opened. Listener will not respond to signals.")
+            self.logger.warning(
+                f"\"{config_dir}/remote_keymap.json\" could not be opened. Listener will not respond to signals."
+            )
+            return {}
 
-        #atexit.register(self.cleanup)
+        return {int(value["rf_command"], 16): key for key, value in keymap_json.items()}
 
-    # Shouldn't be needed anymore
-    #def cleanup(self):
-    #    self.logger.info("Disconnecting from GPIO...")
-
-
-    def start_listener(self, addresses: [bytes], debug = False):
-        if len(addresses) == 0:
-            self.logger.warning("No RF addresses specified, skipping listener startup")
+    async def start(self, bus: EventBus) -> None:
+        loop = asyncio.get_running_loop()
+        self._rf = await loop.run_in_executor(None, self._init_radio)
+        if self._rf is None:
             return
 
-        self.rf.powerUp()
-        self.listener_thread = threading.Thread(name='listener_thread', target=self._start_listening, args=(addresses, debug))
-        self.listener_thread.start()
-        self.logger.debug("Started rf listener")
+        while self._running:
+            signal = await loop.run_in_executor(None, self._blocking_receive)
+            if signal is not None:
+                await bus.publish(Event(_EVENT_TYPES[signal.kind], {"button": signal.button}))
 
-    def stop_listener(self):
-        if self.listener_thread is not None:
-            self.listener_thread.do_run = False
-            self.rf.powerDown()
-            self.logger.debug("Stopped rf listener")
+    def stop(self) -> None:
+        self._running = False
+        if self._rf is not None:
+            self._rf.powerDown()
+            self.logger.debug("Stopped RF listener")
 
-    def _start_listening(self, addresses, debug):
-        self.logger.debug("Setting addresses")
+    def _init_radio(self) -> "RF24 | None":
+        if len(self._addresses) < 2:
+            self.logger.warning("No RF addresses specified, skipping listener startup")
+            return None
 
-        # Listen on the addresses specified as parameter
-        self.rf.openReadingPipe(1, addresses[0])
-        self.rf.openReadingPipe(2, addresses[1])
-        self.rf.startListening()
-        self.logger.debug("Set addresses!")
+        rf = RF24(CE_PIN, CSN_PIN)
+        if not rf.begin():
+            self.logger.warning("RF hardware is not responding. Listener will not respond to commands.")
+            return None
 
-        # Enter a loop receiving data on the address specified.
-        try:
-            self.logger.debug("Entering loop...")
-            if debug:
-                self.logger.debug(f'Receiving from {addresses[0]}, {addresses[1]}')
+        rf.setChannel(5)
+        rf.setDataRate(RF24_2MBPS)
+        rf.enableDynamicPayloads()
+        rf.setCRCLength(RF24_CRC_16)
 
-            count = 0
-            last_key = None
+        rf.openReadingPipe(1, self._addresses[0])
+        rf.openReadingPipe(2, self._addresses[1])
+        rf.powerUp()
+        rf.startListening()
+        return rf
 
-            while getattr(self.listener_thread, "do_run", True):
-                # As long as data is ready for processing, process it.
-                if self.rf.available():
-                    # Read pipe and payload for message.
-                    payload_size = self.rf.getDynamicPayloadSize()
-                    payload = self.rf.read(payload_size)
-                    if len(payload) >= 5:
-                        command = 0
-                        for i in range(1, 4):
-                            command <<= 8
-                            command += payload[i]
+    def _blocking_receive(self) -> _Signal | None:
+        while self._running:
+            if self._rf.available():
+                payload_size = self._rf.getDynamicPayloadSize()
+                payload = self._rf.read(payload_size)
+                signal = self._decode(payload)
+                if signal is not None:
+                    return signal
+            time.sleep(0.05)
+        return None
 
-                        recognized_command = self.known_commands.get(command)
+    def _decode(self, payload: bytes) -> _Signal | None:
+        if len(payload) < 5:
+            self.logger.warning(f"Received unexpectedly short payload: {':'.join(f'{i:02x}' for i in payload)}")
+            return None
 
-                        if recognized_command:
-                            self.logger.debug(f"Button {recognized_command} pressed!")
-                            if self.callback is not None:
-                                self.callback(recognized_command)
-                            last_key = recognized_command
+        command = 0
+        for i in range(1, 4):
+            command <<= 8
+            command += payload[i]
 
-                        elif command == 0x40044c:
-                            # Remote Idle
-                            pass
+        recognized_command = self._known_commands.get(command)
+        if recognized_command:
+            self.logger.debug(f"Button {recognized_command} pressed!")
+            self._last_key = recognized_command
+            return _Signal("pressed", recognized_command)
 
-                        elif command == 0x4f0300:
-                            # Remote Going to Sleep
-                            self.logger.debug("Remote going to sleep")
+        if command == _IDLE:
+            return None
+        if command == _GOING_TO_SLEEP:
+            self.logger.debug("Remote going to sleep")
+            return None
+        if command == _WOKE_UP:
+            self.logger.debug("Remote woke up")
+            return None
+        if command == _REPEAT:
+            # Sent continuously while a button stays held - the raw signal a
+            # future long-press feature would build on (see architecture.md).
+            return _Signal("repeated", self._last_key) if self._last_key is not None else None
+        if command == _ALL_RELEASED:
+            self.logger.debug(f"{self._last_key} released")
+            return _Signal("released", self._last_key)
+        if command in _RELEASED_BUTTON:
+            # Always followed by _ALL_RELEASED if the released button was the only one
+            # pressed. With multiple buttons held, this could differentiate them.
+            return None
 
-                        elif command == 0x4f0700:
-                            # Remote Woke Up
-                            self.logger.debug("Remote woke up")
-
-                        elif command == 0x400028:
-                            # Repeat, sent continuously while a button stays held.
-                            # TODO(rewrite): when this class becomes RfInput (async InputSource,
-                            # see architecture.md), keep translating this into its own bus event
-                            # (e.g. "key_repeated") instead of dropping it as unused - it's the
-                            # raw signal a future long-press feature needs.
-                            if self.repeat_callback is not None:
-                                self.repeat_callback(last_key)
-
-                        elif command == 0x4f0004:
-                            # All Buttons Released
-                            self.logger.debug(f"{last_key} released")
-                            if self.release_callback is not None:
-                                self.release_callback(last_key)
-
-                        elif command == 0xc10000 or command == 0xc30000:
-                            # Released Button
-                            # always followed by 0x4f0004, if released button was only pressed button
-                            # if multiple buttons are pressed at the same time, this could be used to
-                            # differentiate them (somewhat)
-                            pass
-
-                        else:
-                            self.logger.warning("Unexpected payload:")
-                            self.logger.warning(f"len: {len(payload)}, bytes: {':'.join(f'{i:02x}' for i in payload)}, count: {count}")
-
-                    else:
-                        self.logger.warning(f"Received unexpectedly short payload: {':'.join(f'{i:02x}' for i in payload)}")
-
-                # Sleep 50 ms.
-                time.sleep(0.05)
-
-            self.logger.debug("Exiting loop...")
-        except Exception as e:
-            self.logger.error(e)
-            self.stop_listener()
-
-    def set_callback(self, _callback):
-        self.callback = _callback
-
-    def set_repeat_callback(self, _repeat_callback):
-        self.repeat_callback = _repeat_callback
-
-    def set_release_callback(self, _release_callback):
-        self.release_callback = _release_callback
+        self.logger.warning("Unexpected payload:")
+        self.logger.warning(f"len: {len(payload)}, bytes: {':'.join(f'{i:02x}' for i in payload)}")
+        return None

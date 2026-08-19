@@ -1,3 +1,6 @@
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
 from Api.models.Command import Command
 from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
@@ -138,3 +141,103 @@ async def test_execute_without_bluetooth_action_logs_and_does_nothing():
 
     assert keyboard.hid_service.pressed_keys_calls == []
     assert keyboard.hid_service.pressed_media_keys_calls == []
+
+
+def _client_for(keyboard: BleKeyboard) -> TestClient:
+    app = FastAPI()
+    app.include_router(keyboard.router)
+    return TestClient(app)
+
+
+def test_router_has_the_expected_routes():
+    keyboard = _keyboard()
+
+    paths = {route.path for route in keyboard.router.routes}
+
+    assert paths == {
+        "/bluetooth/devices",
+        "/bluetooth/start_advertisement",
+        "/bluetooth/start_pairing",
+        "/bluetooth/connect/{mac_address}",
+        "/bluetooth/disconnect",
+    }
+
+
+def test_router_devices_endpoint_returns_ble_devices(monkeypatch):
+    keyboard = _keyboard()
+
+    async def fake_devices(self):
+        return [{"path": "/dev1", "address": "AA:BB", "alias": "TV", "paired": True, "connected": True}]
+
+    monkeypatch.setattr(BleKeyboard, "devices", property(fake_devices))
+
+    with _client_for(keyboard) as client:
+        response = client.get("/bluetooth/devices")
+
+    assert response.status_code == 200
+    assert response.json()[0]["address"] == "AA:BB"
+
+
+def test_router_start_advertisement_calls_advertise():
+    keyboard = _keyboard()
+    calls = []
+
+    async def fake_advertise():
+        calls.append("advertise")
+
+    keyboard.advertise = fake_advertise
+
+    with _client_for(keyboard) as client:
+        response = client.post("/bluetooth/start_advertisement")
+
+    assert response.status_code == 200
+    assert response.json() == {"success": True}
+    assert calls == ["advertise"]
+
+
+def test_router_start_pairing_calls_initiate_pairing():
+    keyboard = _keyboard()
+    calls = []
+
+    async def fake_initiate_pairing():
+        calls.append("initiate_pairing")
+
+    keyboard.initiate_pairing = fake_initiate_pairing
+
+    with _client_for(keyboard) as client:
+        response = client.post("/bluetooth/start_pairing")
+
+    assert response.status_code == 200
+    assert calls == ["initiate_pairing"]
+
+
+def test_router_connect_passes_the_mac_address():
+    keyboard = _keyboard()
+    calls = []
+
+    async def fake_connect(address):
+        calls.append(address)
+
+    keyboard.connect = fake_connect
+
+    with _client_for(keyboard) as client:
+        response = client.post("/bluetooth/connect/AA:BB:CC:DD:EE:FF")
+
+    assert response.status_code == 200
+    assert calls == ["AA:BB:CC:DD:EE:FF"]
+
+
+def test_router_disconnect_calls_disconnect():
+    keyboard = _keyboard()
+    calls = []
+
+    async def fake_disconnect():
+        calls.append("disconnect")
+
+    keyboard.disconnect = fake_disconnect
+
+    with _client_for(keyboard) as client:
+        response = client.post("/bluetooth/disconnect")
+
+    assert response.status_code == 200
+    assert calls == ["disconnect"]

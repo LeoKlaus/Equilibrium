@@ -5,8 +5,10 @@ from random import randint
 from bluez_peripheral.advert import Advertisement
 from bluez_peripheral.agent import NoIoAgent
 from bluez_peripheral.util import get_message_bus, Adapter
+from fastapi import APIRouter
 
 from Api.models.Command import Command
+from Api.models.WebsocketResponses import BleDevice
 from BleKeyboard.BatteryService import BatteryService
 from BleKeyboard.DeviceInformationService import DeviceInformationService
 from BleKeyboard.HidService import HidService
@@ -49,6 +51,45 @@ class BleKeyboard(ActionExecutor):
 
         self.pressed_keys = []
         self.pressed_media_keys = []
+
+        self.router = self._build_router()
+
+    def _build_router(self) -> APIRouter:
+        router = APIRouter(
+            prefix="/bluetooth",
+            tags=["Bluetooth Devices"],
+            responses={404: {"description": "Not found"}},
+        )
+
+        @router.get("/devices", response_model=list[BleDevice])
+        async def get_connected_ble_devices() -> list[BleDevice]:
+            return await self.devices
+
+        @router.post("/start_advertisement")
+        async def start_ble_discovery():
+            await self.advertise()
+            return {"success": True}
+
+        @router.post(
+            "/start_pairing",
+            description="Will initiate pairing with all connected bluetooth devices that are not currently "
+                        "paired. This is may be necessary for some devices (notably Apple TVs).",
+        )
+        async def start_ble_pairing():
+            await self.initiate_pairing()
+            return {"success": True}
+
+        @router.post("/connect/{mac_address}")
+        async def connect_ble_device(mac_address: str):
+            await self.connect(mac_address)
+            return {"success": True}
+
+        @router.post("/disconnect")
+        async def disconnect_ble_devices():
+            await self.disconnect()
+            return {"success": True}
+
+        return router
 
     @classmethod
     async def create(cls):

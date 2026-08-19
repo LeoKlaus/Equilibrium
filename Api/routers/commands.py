@@ -7,6 +7,8 @@ from Api.models.Device import Device
 from Api.models.CommandType import CommandType
 from Api.models.IntegrationAction import IntegrationAction
 from DbManager.DbManager import SessionDep
+from Hub.CommandDispatcher import CommandDispatcher
+from Hub.EventBus import Directive
 
 router = APIRouter(
     prefix="/commands",
@@ -57,8 +59,9 @@ def show_command(command_id: int, session: SessionDep) -> CommandWithRelationshi
 
 @router.post("/{command_id}/send", tags=["Commands"])
 async def send_command(command_id: int, request: Request):
-    controller: RemoteController = request.state.controller
-    return await controller.send_command(command_id)
+    command_dispatcher: CommandDispatcher = request.state.command_dispatcher
+    await command_dispatcher.dispatch(Directive(command_id=command_id))
+    return "Command sent"
 
 
 @router.delete("/{command_id}", tags=["Commands"])

@@ -59,15 +59,8 @@ class RemoteController:
 
         self.ble_keyboard = await BleKeyboard.create()
 
-#        self.rf_manager = RfManager()
-#        self.rf_manager.start_listener(addresses=rf_addresses)
-
-        try:
-            self.rf_manager = RfManager()
-            self.rf_manager.start_listener(addresses=rf_addresses)
-        except RuntimeError:
-            self.rf_manager = None
-            self.logger.warning("Continuing without RF support.")
+        self.rf_manager = RfManager()
+        self.rf_manager.start_listener(addresses=rf_addresses)
 
         self.ir_manager = IrManager()
 

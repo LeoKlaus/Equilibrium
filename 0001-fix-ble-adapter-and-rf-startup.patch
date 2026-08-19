@@ -1,0 +1,137 @@
+From 211ec4a9bad99e4ee98cd43d2dced6b227210269 Mon Sep 17 00:00:00 2001
+From: Hannes <izeman@equilibrium.local>
+Date: Wed, 19 Aug 2026 09:16:26 +0000
+Subject: [PATCH] Fix startup crashes: SQLModel field, BLE adapter enumeration,
+ RF hardware handling
+
+- Api/models/Command.py: ir_action used Annotated[..., Field(...)] which
+  SQLModel's metaclass doesn't unpack the way it does '= Field(...)',
+  causing 'ValueError: has no matching SQLAlchemy type'. Switched to the
+  standard Field assignment pattern used by other columns in the model.
+
+- BleKeyboard/BleKeyboard.py: bluez_peripheral 0.2.0a3's Adapter.get_all()/
+  get_first() enumerate every child D-Bus node under /org/bluez and crash
+  with InterfaceNotFoundError if any node doesn't implement
+  org.bluez.Adapter1 (e.g. a non-adapter /org/bluez/test object exposed by
+  some BlueZ builds). Added _get_adapter() to fetch hci0 directly instead,
+  and pass it explicitly into service registration and advertising.
+
+- RfManager/RfManager.py: 'raise self.logger.warning(...)' raised None
+  (TypeError: exceptions must derive from BaseException) instead of a real
+  exception when RF hardware doesn't respond. Now logs the warning and
+  raises RuntimeError. Also fixed start_listener() to handle addresses=None
+  (e.g. when rf_addresses.json is missing) instead of only an empty list.
+
+- RemoteController/RemoteController.py: RF hardware is now optional at
+  startup, consistent with how a missing rf_addresses.json/ha_credentials.json
+  is already tolerated. rf_manager is set to None if RfManager() raises.
+---
+ Api/models/Command.py                |  2 +-
+ BleKeyboard/BleKeyboard.py           | 22 ++++++++++++++++++----
+ RemoteController/RemoteController.py |  8 ++++++--
+ RfManager/RfManager.py               |  5 +++--
+ 4 files changed, 28 insertions(+), 9 deletions(-)
+
+diff --git a/Api/models/Command.py b/Api/models/Command.py
+index b687062..ec0cfc5 100644
+--- a/Api/models/Command.py
++++ b/Api/models/Command.py
+@@ -35,7 +35,7 @@ class Command(CommandBase, table=True):
+     id: int | None = Field(default=None, primary_key=True)
+     device_id: int | None = Field(default=None, foreign_key="device.id")
+     device: "Device" = Relationship(back_populates="commands")
+-    ir_action:  Annotated[list[int], Field(default=[], sa_column=Column(JSON), exclude=True)]
++    ir_action: list[int] = Field(default=[], sa_column=Column(JSON), exclude=True)
+     bt_action: str | None = Field(default=None)
+     bt_media_action: str | None = Field(default=None)
+     host: str | None = Field(default=None)
+diff --git a/BleKeyboard/BleKeyboard.py b/BleKeyboard/BleKeyboard.py
+index 4958163..f16ff9f 100644
+--- a/BleKeyboard/BleKeyboard.py
++++ b/BleKeyboard/BleKeyboard.py
+@@ -50,14 +50,28 @@ class BleKeyboard:
+         await self.register_services()
+         return self
+ 
++    async def _get_adapter(self, adapter_name="hci0"):
++        """
++        Gets the Bluetooth adapter directly by name, bypassing bluez_peripheral's
++        Adapter.get_all()/get_first(). Those enumerate every child node under
++        /org/bluez and crash with InterfaceNotFoundError if any node (e.g. a
++        non-adapter object like /org/bluez/test) doesn't implement
++        org.bluez.Adapter1.
++        """
++        path = f"/org/bluez/{adapter_name}"
++        introspection = await self.bus.introspect("org.bluez", path)
++        proxy = self.bus.get_proxy_object("org.bluez", path, introspection)
++        return Adapter(proxy)
++
+     async def register_services(self):
+         self.battery_service = BatteryService()
+         self.device_info_service = DeviceInformationService()
+         self.hid_service = HidService()
+ 
+-        await self.battery_service.register(self.bus, "/me/wehrfritz/bluez_peripheral/service_battery")
+-        await self.device_info_service.register(self.bus, "/me/wehrfritz/bluez_peripheral/service_info")
+-        await self.hid_service.register(self.bus, "/me/wehrfritz/bluez_peripheral/service_hid")
++        adapter = await self._get_adapter()
++        await self.battery_service.register(self.bus, "/me/wehrfritz/bluez_peripheral/service_battery", adapter)
++        await self.device_info_service.register(self.bus, "/me/wehrfritz/bluez_peripheral/service_info", adapter)
++        await self.hid_service.register(self.bus, "/me/wehrfritz/bluez_peripheral/service_hid", adapter)
+         self.logger.debug("Registered services")
+ 
+     async def unregister_services(self):
+@@ -78,7 +92,7 @@ class BleKeyboard:
+ 
+         await agent.register(self.bus)
+ 
+-        adapter = await Adapter.get_first(self.bus)
++        adapter = await self._get_adapter()
+ 
+         # Start an advert that will last for 60 seconds.
+         advert = Advertisement("Virtual Keyboard", [
+diff --git a/RemoteController/RemoteController.py b/RemoteController/RemoteController.py
+index 07a7d73..35e7df2 100644
+--- a/RemoteController/RemoteController.py
++++ b/RemoteController/RemoteController.py
+@@ -59,8 +59,12 @@ class RemoteController:
+ 
+         self.ble_keyboard = await BleKeyboard.create()
+ 
+-        self.rf_manager = RfManager()
+-        self.rf_manager.start_listener(addresses=rf_addresses)
++        try:
++            self.rf_manager = RfManager()
++            self.rf_manager.start_listener(addresses=rf_addresses)
++        except RuntimeError:
++            self.rf_manager = None
++            self.logger.warning("Continuing without RF support.")
+ 
+         self.ir_manager = IrManager()
+ 
+diff --git a/RfManager/RfManager.py b/RfManager/RfManager.py
+index d2b1130..d445a25 100644
+--- a/RfManager/RfManager.py
++++ b/RfManager/RfManager.py
+@@ -24,7 +24,8 @@ class RfManager:
+         self.rf = RF24(CE_PIN, CSN_PIN)
+ 
+         if not self.rf.begin():
+-            raise self.logger.warning("RF hardware is not responding. Listener will not respond to commands.")
++            self.logger.warning("RF hardware is not responding. Listener will not respond to commands.")
++            raise RuntimeError("RF hardware is not responding.")
+ 
+         self.rf.setChannel(5)
+         self.rf.setDataRate(RF24_2MBPS)
+@@ -57,7 +58,7 @@ class RfManager:
+ 
+ 
+     def start_listener(self, addresses: [bytes], debug = False):
+-        if len(addresses) == 0:
++        if not addresses:
+             self.logger.warning("No RF addresses specified, skipping listener startup")
+             return
+ 
+-- 
+2.43.0
+

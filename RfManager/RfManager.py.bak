@@ -24,9 +24,8 @@ class RfManager:
         self.rf = RF24(CE_PIN, CSN_PIN)
 
         if not self.rf.begin():
-#            raise self.logger.warning("RF hardware is not responding. Listener will not respond to commands.")
-            self.logger.warning("RF hardware is not responding. Listener will not respond to commands.")
-            raise RuntimeError("RF hardware is not responding.")
+            raise self.logger.warning("RF hardware is not responding. Listener will not respond to commands.")
+
         self.rf.setChannel(5)
         self.rf.setDataRate(RF24_2MBPS)
         self.rf.enableDynamicPayloads()
@@ -57,10 +56,8 @@ class RfManager:
     #    self.logger.info("Disconnecting from GPIO...")
 
 
-#    def start_listener(self, addresses: [bytes], debug = False):
-#        if len(addresses) == 0:
     def start_listener(self, addresses: [bytes], debug = False):
-        if not addresses:
+        if len(addresses) == 0:
             self.logger.warning("No RF addresses specified, skipping listener startup")
             return
 

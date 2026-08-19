@@ -31,7 +31,7 @@ class Device(DeviceBase, table=True):
 
 class DeviceWithRelationships(DeviceBase):
     id: int | None
-    commands: list["Command"]
+    commands: list["Command"] = []
     scenes: list[Scene] = []
     image: UserImage | None = None
     macros: list[Macro] = []

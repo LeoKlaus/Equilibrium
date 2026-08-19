@@ -36,17 +36,9 @@ class Command(CommandBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     device_id: int | None = Field(default=None, foreign_key="device.id")
     device: "Device" = Relationship(back_populates="commands")
-    ir_action:  Annotated[list[int], Field(default=[], sa_column=Column(JSON), exclude=True)]
-    bt_action: str | None = Field(default=None)
-    bt_media_action: str | None = Field(default=None)
-    host: str | None = Field(default=None)
-    method: NetworkRequestType | None = Field(default=None)
-    body: str | None = Field(default=None)
-    headers: Dict[str, str] |None = Field(default=None, sa_column=Column(JSON))
+    ir_action: Annotated[list[int], Field(default=[], sa_column=Column(JSON), exclude=True)]
+    headers: Dict[str, str] | None = Field(default=None, sa_column=Column(JSON))
     macros: list["Macro"] = Relationship(back_populates="commands", link_model=CommandMacroLink)
-    integration_action: IntegrationAction | None = Field(default=None)
-    integration_entity: str | None = Field(default=None)
-    script_path: str | None = Field(default=None)
 
     # Needed for Column(JSON)
     class Config:

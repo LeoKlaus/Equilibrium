@@ -6,10 +6,13 @@ from bluez_peripheral.advert import Advertisement
 from bluez_peripheral.agent import NoIoAgent
 from bluez_peripheral.util import get_message_bus, Adapter
 
+from Api.models.Command import Command
 from BleKeyboard.BatteryService import BatteryService
 from BleKeyboard.DeviceInformationService import DeviceInformationService
 from BleKeyboard.HidService import HidService
 from BleKeyboard.KeymapHelper import create_keycode, create_media_keycode
+from Hub.EventBus import Directive
+from Hub.interfaces import ActionExecutor
 
 
 # For Apple TV:
@@ -29,19 +32,23 @@ from BleKeyboard.KeymapHelper import create_keycode, create_media_keycode
 # MENU (hold)         = Control Center
 
 
-class BleKeyboard:
+class BleKeyboard(ActionExecutor):
     """
     Class representing a BLE keyboard.
     """
+
+    name = "bluetooth"
+
     logger = logging.getLogger(__package__)
 
-    bus = None
-    battery_service = None
-    device_info_service = None
-    hid_service = None
+    def __init__(self) -> None:
+        self.bus = None
+        self.battery_service = None
+        self.device_info_service = None
+        self.hid_service = None
 
-    pressed_keys = []
-    pressed_media_keys = []
+        self.pressed_keys = []
+        self.pressed_media_keys = []
 
     @classmethod
     async def create(cls):
@@ -49,6 +56,22 @@ class BleKeyboard:
         self.bus = await get_message_bus()
         await self.register_services()
         return self
+
+    async def execute(self, directive: Directive, command: Command) -> None:
+        if command.bt_action:
+            if directive.press_without_release:
+                self.press_key(command.bt_action)
+            else:
+                await self.send_key(command.bt_action)
+            self.logger.debug(f"Sent command {command.name}")
+        elif command.bt_media_action:
+            if directive.press_without_release:
+                self.press_media_key(command.bt_media_action)
+            else:
+                await self.send_media_key(command.bt_media_action)
+            self.logger.debug(f"Sent media command {command.name}")
+        else:
+            self.logger.error(f"Command {command.name} doesn't include a bluetooth action")
 
     async def register_services(self):
         self.battery_service = BatteryService()

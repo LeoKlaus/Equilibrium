@@ -1,11 +1,17 @@
 import asyncio
 
 import pigpio
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from sqlmodel import Session, select
 
 from Api.models.Command import Command
 from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
+from Api.models.Device import Device
+from Api.models.DeviceType import DeviceType
 from Api.models.RemoteButton import RemoteButton
+from Api.models.WebsocketResponses import WebsocketIrResponse
 from Hub.EventBus import Directive
 from IrManager.IrManager import IrManager
 
@@ -53,6 +59,7 @@ def _ir_manager(pi=None) -> IrManager:
     manager.repeating = False
     manager.recording_task = None
     manager.sending_task = None
+    manager.router = manager._build_router()
     return manager
 
 
@@ -165,3 +172,93 @@ async def test_execute_without_ir_action_does_not_send_anything():
     await manager.execute(Directive(command_id=1), _command(ir_action=[]))
 
     assert calls == []
+
+
+def test_router_has_the_expected_routes():
+    manager = _ir_manager()
+
+    paths = {route.path for route in manager.router.routes}
+
+    assert paths == {"/ws/commands"}
+
+
+def _client_for(manager: IrManager) -> TestClient:
+    app = FastAPI()
+    app.include_router(manager.router)
+    return TestClient(app)
+
+
+def test_ws_commands_records_and_persists_a_command(db_engine, monkeypatch):
+    monkeypatch.setattr("IrManager.IrManager.engine", db_engine)
+    manager = _ir_manager()
+
+    async def fake_record_command(name, websocket):
+        return [100, 200]
+
+    manager.record_command = fake_record_command
+
+    payload = {"name": "Play", "button": "play", "type": "ir", "command_group": "transport"}
+
+    with _client_for(manager) as client:
+        with client.websocket_connect("/ws/commands") as websocket:
+            websocket.send_json(payload)
+            response = websocket.receive_json()
+
+    assert response == WebsocketIrResponse.DONE.value
+
+    with Session(db_engine) as session:
+        saved = session.exec(select(Command).where(Command.name == "Play")).one()
+        assert saved.ir_action == [100, 200]
+
+
+def test_ws_commands_links_the_device_when_device_id_is_given(db_engine, monkeypatch):
+    monkeypatch.setattr("IrManager.IrManager.engine", db_engine)
+    manager = _ir_manager()
+
+    async def fake_record_command(name, websocket):
+        return [1, 2]
+
+    manager.record_command = fake_record_command
+
+    with Session(db_engine) as session:
+        device = Device(name="TV", type=DeviceType.DISPLAY)
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+        device_id = device.id
+
+    payload = {
+        "name": "Power", "button": "power_on", "type": "ir",
+        "command_group": "power", "device_id": device_id,
+    }
+
+    with _client_for(manager) as client:
+        with client.websocket_connect("/ws/commands") as websocket:
+            websocket.send_json(payload)
+            websocket.receive_json()
+
+    with Session(db_engine) as session:
+        saved = session.exec(select(Command).where(Command.name == "Power")).one()
+        assert saved.device_id == device_id
+
+
+def test_ws_commands_cancelled_recording_sends_cancelled_and_closes_cleanly(db_engine, monkeypatch):
+    monkeypatch.setattr("IrManager.IrManager.engine", db_engine)
+    manager = _ir_manager()
+
+    async def fake_record_command(name, websocket):
+        raise asyncio.CancelledError()
+
+    manager.record_command = fake_record_command
+
+    payload = {"name": "Play", "button": "play", "type": "ir", "command_group": "transport"}
+
+    with _client_for(manager) as client:
+        with client.websocket_connect("/ws/commands") as websocket:
+            websocket.send_json(payload)
+            response = websocket.receive_json()
+
+    assert response == WebsocketIrResponse.CANCELLED.value
+
+    with Session(db_engine) as session:
+        assert session.exec(select(Command).where(Command.name == "Play")).first() is None

@@ -1,13 +1,17 @@
 import asyncio
 import atexit
 import logging
+import time
 from asyncio import Task
 from typing import Callable, Awaitable
 
 import pigpio
 from starlette.websockets import WebSocketDisconnect, WebSocket, WebSocketState
 
+from Api.models.Command import Command
 from Api.models.WebsocketResponses import WebsocketIrResponse
+from Hub.EventBus import Directive
+from Hub.interfaces import ActionExecutor
 
 AsyncCallback = Callable[[str], Awaitable[None]]
 
@@ -21,7 +25,9 @@ TXGPIO = 18
 FREQ = 38
 
 
-class IrManager:
+class IrManager(ActionExecutor):
+
+    name = "ir"
 
     logger = logging.getLogger(__package__)
     recording_task: Task|None = None
@@ -39,6 +45,16 @@ class IrManager:
     def cleanup(self):
         self.logger.info("Disconnecting from GPIO...")
         self.pi.stop()
+
+    async def execute(self, directive: Directive, command: Command) -> None:
+        if not command.ir_action:
+            self.logger.error(f"Command {command.name} doesn't include an IR action")
+            return
+
+        if directive.press_without_release:
+            await self.send_and_repeat(command.ir_action)
+        else:
+            await self.send_command(command.ir_action)
 
     async def send_and_repeat(self, code: [int]):
         self.cancel_sending()
@@ -63,6 +79,13 @@ class IrManager:
 
 
     async def send_command(self, code: [int]):
+        # pigpio's socket API is blocking - every call in _blocking_send must
+        # run off the event loop, or a send stalls whatever else is pending
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self._blocking_send, code)
+        self.logger.debug("Sent IR command")
+
+    def _blocking_send(self, code: [int]):
         def carrier(gpio, frequency, micros, dutycycle=0.5):
             """
             Generate cycles of carrier on gpio with frequency and dutycycle.
@@ -120,14 +143,12 @@ class IrManager:
         self.pi.wave_chain(wave)
 
         while self.pi.wave_tx_busy():
-            await asyncio.sleep(0.05)
+            time.sleep(0.05)
 
         for i in marks:
             self.pi.wave_delete(marks[i])
         for i in spaces:
             self.pi.wave_delete(spaces[i])
-
-        self.logger.debug("Sent IR command")
 
 
     async def record_command(self, name: str, websocket: WebSocket = None) -> [int]:

@@ -3,7 +3,14 @@ import asyncio
 from homeassistant_api import Client, Domain
 import logging
 
-class HaManager:
+from Api.models.Command import Command
+from Api.models.IntegrationAction import IntegrationAction
+from Hub.EventBus import Directive
+from Hub.interfaces import ActionExecutor
+
+class HaManager(ActionExecutor):
+
+    name = "integration"
 
     logger = logging.getLogger(__package__)
 
@@ -12,6 +19,20 @@ class HaManager:
 
     def __init__(self, url, token):
         self.client = Client(url, token)
+
+    async def execute(self, directive: Directive, command: Command) -> None:
+        if command.integration_action is None:
+            self.logger.error(f"Command {command.name} doesn't include a Home Assistant action")
+            return
+
+        loop = asyncio.get_running_loop()
+        match command.integration_action:
+            case IntegrationAction.TOGGLE_LIGHT:
+                await loop.run_in_executor(None, self.toggle_light, command.integration_entity)
+            case IntegrationAction.BRIGHTNESS_UP:
+                await loop.run_in_executor(None, self.increase_brightness)
+            case IntegrationAction.BRIGHTNESS_DOWN:
+                await loop.run_in_executor(None, self.decrease_brightness)
 
     def get_lights(self):
         entities = self.client.get_entities()

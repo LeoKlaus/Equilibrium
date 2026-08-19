@@ -1,5 +1,7 @@
 import json
 
+from fastapi import FastAPI
+
 from Api.lifespan import _lifespan, _load_ha_credentials, _load_rf_addresses
 
 
@@ -59,7 +61,7 @@ async def test_lifespan_dev_yields_the_hub_pieces(tmp_path, monkeypatch):
     (tmp_path / "config").mkdir()
     monkeypatch.setattr("Api.lifespan.ZeroconfManager", FakeZeroconfManager)
 
-    async with _lifespan(dev=True) as state:
+    async with _lifespan(FastAPI(), dev=True) as state:
         assert set(state.keys()) == {
             "status_store", "keymap_resolver", "scene_manager",
             "command_dispatcher", "ble_keyboard", "ir_manager",
@@ -74,6 +76,39 @@ async def test_lifespan_dev_yields_the_hub_pieces(tmp_path, monkeypatch):
     assert zeroconf.unregistered is True
 
 
+async def test_lifespan_mounts_module_routers_onto_the_app(tmp_path, monkeypatch):
+    from fastapi import APIRouter
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir()
+    monkeypatch.setattr("Api.lifespan.ZeroconfManager", FakeZeroconfManager)
+
+    class FakeExecutorWithRouter:
+        name = "fake"
+
+        def __init__(self):
+            self.router = APIRouter()
+
+            @self.router.get("/fake-module-ping")
+            def ping():
+                return {"ok": True}
+
+        async def execute(self, directive, command) -> None:
+            pass
+
+    async def fake_create(cls, **kwargs):
+        hub = cls()
+        hub.register_executor(FakeExecutorWithRouter())
+        return hub
+
+    monkeypatch.setattr("Api.lifespan.Hub.create", classmethod(fake_create))
+
+    app = FastAPI()
+    async with _lifespan(app, dev=True):
+        paths = [route.path for route in app.routes]
+        assert "/fake-module-ping" in paths
+
+
 async def test_lifespan_non_dev_uses_the_non_dev_service_name(tmp_path, monkeypatch):
     # Avoids real Hub.create(dev=False), which would touch BLE/RF hardware -
     # only lifespan.py's own service-naming logic is under test here.
@@ -86,7 +121,7 @@ async def test_lifespan_non_dev_uses_the_non_dev_service_name(tmp_path, monkeypa
 
     monkeypatch.setattr("Api.lifespan.Hub.create", classmethod(fake_create))
 
-    async with _lifespan(dev=False) as _:
+    async with _lifespan(FastAPI(), dev=False) as _:
         pass
 
     zeroconf = FakeZeroconfManager.instances[-1]

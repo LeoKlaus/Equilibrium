@@ -1,6 +1,8 @@
 import asyncio
 import json
 
+from fastapi import APIRouter, FastAPI
+from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from Api.models.Command import Command
@@ -12,6 +14,8 @@ from Hub.Hub import Hub
 
 
 class FakeInputSource:
+    router = None
+
     def __init__(self, name: str = "fake"):
         self.name = name
         self.started = False
@@ -30,6 +34,8 @@ class FakeInputSource:
 class FakeInputSourceWithoutStop:
     """No stop() - only asyncio cancellation can end its task."""
 
+    router = None
+
     def __init__(self, name: str = "fake-no-stop"):
         self.name = name
         self.started = False
@@ -40,6 +46,8 @@ class FakeInputSourceWithoutStop:
 
 
 class FakeExecutor:
+    router = None
+
     def __init__(self, name: str):
         self.name = name
         self.calls = []
@@ -51,6 +59,8 @@ class FakeExecutor:
 class FakeBleExecutor:
     """Also duck-types the BLE-specific surface SceneManager/InputRouter
     need beyond the plain ActionExecutor interface."""
+
+    router = None
 
     def __init__(self):
         self.name = "bluetooth"
@@ -79,6 +89,8 @@ class FakeBleExecutor:
 
 
 class FakeIrExecutor:
+    router = None
+
     def __init__(self):
         self.name = "ir"
         self.calls = []
@@ -284,3 +296,60 @@ async def test_full_pipeline_from_bus_event_to_executor(db_engine, tmp_path, mon
         assert command.name == "Play"
     finally:
         bus_task.cancel()
+
+
+class FakeModuleWithRouter:
+    def __init__(self, name: str = "with-router", path: str = "/fake-ping"):
+        self.name = name
+        self.router = APIRouter()
+
+        @self.router.get(path)
+        def ping():
+            return {"ok": True}
+
+    async def start(self, bus) -> None:
+        pass
+
+    async def execute(self, directive, command) -> None:
+        pass
+
+
+def test_mount_routers_includes_routers_from_sources_and_executors():
+    hub = Hub()
+    source = FakeModuleWithRouter("source", "/fake-source-ping")
+    executor = FakeModuleWithRouter("executor", "/fake-executor-ping")
+    hub.register_source(source)
+    hub.register_executor(executor)
+
+    app = FastAPI()
+    hub.mount_routers(app)
+
+    paths = [route.path for route in app.routes]
+    assert "/fake-source-ping" in paths
+    assert "/fake-executor-ping" in paths
+
+
+def test_mount_routers_skips_modules_without_a_router():
+    hub = Hub()
+    hub.register_source(FakeInputSource())
+    hub.register_executor(FakeExecutor("ir"))
+
+    app = FastAPI()
+    routes_before = len(app.routes)
+    hub.mount_routers(app)
+
+    assert len(app.routes) == routes_before
+
+
+def test_mount_routers_endpoint_is_actually_callable():
+    hub = Hub()
+    hub.register_executor(FakeModuleWithRouter("with-router", "/fake-ping"))
+
+    app = FastAPI()
+    hub.mount_routers(app)
+
+    with TestClient(app) as client:
+        response = client.get("/fake-ping")
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}

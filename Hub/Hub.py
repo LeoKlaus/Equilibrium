@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+from fastapi import FastAPI
+
 from BleKeyboard.BleKeyboard import BleKeyboard
 from HaManager.HaManager import HaManager
 from Hub.CommandDispatcher import CommandDispatcher
@@ -56,6 +58,17 @@ class Hub:
 
     def register_executor(self, executor: ActionExecutor) -> None:
         self._executors[executor.name] = executor
+
+    def mount_routers(self, app: FastAPI) -> None:
+        """Include the router of every registered source/executor that has
+        one. Modules without a router (most of them) are unaffected - this
+        is how a module exposes extra capability-specific endpoints (BLE
+        pairing, IR recording) without the main app hardcoding what those
+        are.
+        """
+        for module in [*self._sources, *self._executors.values()]:
+            if module.router is not None:
+                app.include_router(module.router)
 
     def assemble(self) -> None:
         """Build StatusStore/KeymapResolver/CommandDispatcher/SceneManager/

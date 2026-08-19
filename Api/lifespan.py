@@ -36,7 +36,7 @@ def _load_ha_credentials() -> tuple[str | None, str | None]:
 
 
 @asynccontextmanager
-async def _lifespan(dev: bool):
+async def _lifespan(app: FastAPI, dev: bool):
     logger.info("Starting up...")
 
     create_db_and_tables()
@@ -47,6 +47,7 @@ async def _lifespan(dev: bool):
 
     hub = await Hub.create(rf_addresses=addresses, ha_url=ha_url, ha_token=ha_token, dev=dev)
     await hub.start()
+    hub.mount_routers(app)
     logger.info("Hub initialized")
 
     zeroconf = ZeroconfManager()
@@ -69,12 +70,12 @@ async def _lifespan(dev: bool):
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
-    async with _lifespan(dev=False) as state:
+async def lifespan(app: FastAPI):
+    async with _lifespan(app, dev=False) as state:
         yield state
 
 
 @asynccontextmanager
-async def lifespan_dev(_: FastAPI):
-    async with _lifespan(dev=True) as state:
+async def lifespan_dev(app: FastAPI):
+    async with _lifespan(app, dev=True) as state:
         yield state

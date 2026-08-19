@@ -1,14 +1,13 @@
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
-from starlette.requests import Request
 
+from Api.dependencies import KeymapResolverDep, SceneManagerDep
 from Api.models import Macro
 from Api.models.Device import Device
 from Api.models.Scene import SceneWithRelationships, ScenePost, Scene, SceneWithRelationshipsAndFullDevices
 from Api.models.UserImage import UserImage
 from DbManager.DbManager import SessionDep
-from Hub.KeymapResolver import KeymapResolver
-from Hub.SceneManager import NoActiveSceneError, SceneManager, SceneNotFoundError
+from Hub.SceneManager import NoActiveSceneError, SceneNotFoundError
 
 router = APIRouter(
     prefix="/scenes",
@@ -161,9 +160,7 @@ def get_scene(scene_id: int, session: SessionDep) -> Scene:
 
 
 @router.post("/{scene_id}/start", tags=["Scenes"])
-async def start_scene(scene_id: int, request: Request):
-    scene_manager: SceneManager = request.state.scene_manager
-
+async def start_scene(scene_id: int, scene_manager: SceneManagerDep):
     try:
         await scene_manager.start_scene(scene_id)
     except SceneNotFoundError:
@@ -173,9 +170,7 @@ async def start_scene(scene_id: int, request: Request):
 
 
 @router.post("/{scene_id}/set_current", tags=["Scenes"], description="Sets the given scene as current scene **without** executing its start macro.")
-async def set_current_scene(scene_id: int, request: Request):
-    scene_manager: SceneManager = request.state.scene_manager
-
+async def set_current_scene(scene_id: int, scene_manager: SceneManagerDep):
     try:
         await scene_manager.set_current_scene(scene_id)
     except SceneNotFoundError:
@@ -184,20 +179,16 @@ async def set_current_scene(scene_id: int, request: Request):
     return f"Set scene {scene_id} as current scene."
 
 @router.get("/{scene_id}/keymap_suggestions", tags=["Scenes"], description="Generates a suggested keymap based on the associated devices and remote.")
-async def suggest_keymap(scene_id: int, session: SessionDep, request: Request):
+async def suggest_keymap(scene_id: int, session: SessionDep, keymap_resolver: KeymapResolverDep):
     scene = session.get(Scene, scene_id)
 
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
-    keymap_resolver: KeymapResolver = request.state.keymap_resolver
-
     return keymap_resolver.suggest_keymap(scene)
 
 @router.post("/stop", tags=["Scenes"])
-async def stop_current_scene(request: Request):
-    scene_manager: SceneManager = request.state.scene_manager
-
+async def stop_current_scene(scene_manager: SceneManagerDep):
     try:
         await scene_manager.stop_current_scene()
     except NoActiveSceneError:

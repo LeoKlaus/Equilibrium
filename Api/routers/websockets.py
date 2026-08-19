@@ -2,8 +2,8 @@ from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from Api import logger
+from Api.dependencies import StatusStoreWsDep
 from Api.WebsocketConnectionManager.WebsocketConnectionManager import WebsocketConnectionManager
-from Hub.StatusStore import StatusStore
 
 router = APIRouter(
     prefix="/ws",
@@ -15,9 +15,7 @@ manager = WebsocketConnectionManager()
 
 
 @router.websocket("/status")
-async def websocket_status(websocket: WebSocket):
-
-    status_store: StatusStore = websocket.state.status_store
+async def websocket_status(websocket: WebSocket, status_store: StatusStoreWsDep):
 
     await manager.connect(websocket)
 

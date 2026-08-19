@@ -1,13 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
-from starlette.requests import Request
 
+from Api.dependencies import CommandDispatcherDep
 from Api.models.Command import Command, CommandBase, CommandWithRelationships
 from Api.models.Device import Device
 from Api.models.CommandType import CommandType
 from Api.models.IntegrationAction import IntegrationAction
 from DbManager.DbManager import SessionDep
-from Hub.CommandDispatcher import CommandDispatcher
 from Hub.EventBus import Directive
 
 router = APIRouter(
@@ -58,8 +57,7 @@ def show_command(command_id: int, session: SessionDep) -> CommandWithRelationshi
     return command
 
 @router.post("/{command_id}/send", tags=["Commands"])
-async def send_command(command_id: int, request: Request):
-    command_dispatcher: CommandDispatcher = request.state.command_dispatcher
+async def send_command(command_id: int, command_dispatcher: CommandDispatcherDep):
     await command_dispatcher.dispatch(Directive(command_id=command_id))
     return "Command sent"
 

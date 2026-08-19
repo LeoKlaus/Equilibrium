@@ -1,12 +1,10 @@
-from starlette.requests import Request
-
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
+from Api.dependencies import CommandDispatcherDep
 from Api.models import Command, Scene, Device
 from Api.models.Macro import Macro, MacroPost, MacroWithRelationships
 from DbManager.DbManager import SessionDep
-from Hub.CommandDispatcher import CommandDispatcher
 
 router = APIRouter(
     prefix="/macros",
@@ -129,12 +127,11 @@ def delete_macros(macro_id: int, session: SessionDep):
     return {"message": f"Successfully deleted {macro.name}"}
 
 @router.post("/{macro_id}/execute", tags=["Macros"])
-async def send_command(macro_id: int, session: SessionDep, request: Request):
+async def send_command(macro_id: int, session: SessionDep, command_dispatcher: CommandDispatcherDep):
     macro = session.get(Macro, macro_id)
 
     if macro is None:
         raise HTTPException(status_code=404, detail="Macro not found")
 
-    command_dispatcher: CommandDispatcher = request.state.command_dispatcher
     await command_dispatcher.execute_macro(macro)
     return "Macro executed"

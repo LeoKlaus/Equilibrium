@@ -46,9 +46,3 @@ def get_session():
         yield session
 
 SessionDep = Annotated[Session, Depends(get_session)]
-
-# TODO(optional): routers currently pull StatusStore/SceneManager/CommandDispatcher/
-# KeymapResolver/BleKeyboard/IrManager via request.state.X / websocket.state.X
-# (see Api/lifespan.py) rather than Depends(). Could follow this same
-# Annotated[..., Depends(...)] pattern for consistency - not done, deliberately
-# deferred.

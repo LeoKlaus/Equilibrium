@@ -1,9 +1,8 @@
 from fastapi import APIRouter
-from starlette.requests import Request
 
+from Api.dependencies import ModulesManifestDep, StatusStoreDep
 from Api.models.ModuleManifest import ModulesManifestResponse
 from Api.models.Status import StatusReport
-from Hub.StatusStore import StatusStore
 
 router = APIRouter(
     prefix="/system",
@@ -12,9 +11,7 @@ router = APIRouter(
 )
 
 @router.get("/status", tags=["System"], response_model=StatusReport)
-def get_current_system_status(request: Request) -> StatusReport:
-    status_store: StatusStore = request.state.status_store
-
+def get_current_system_status(status_store: StatusStoreDep) -> StatusReport:
     return status_store.status
 
 @router.get(
@@ -24,5 +21,5 @@ def get_current_system_status(request: Request) -> StatusReport:
     description="Lists every registered module's name, capabilities, and endpoint paths, "
                 "so a client can discover what's available without hardcoding routes.",
 )
-def get_modules_manifest(request: Request) -> ModulesManifestResponse:
-    return ModulesManifestResponse(modules=request.state.modules_manifest)
+def get_modules_manifest(modules_manifest: ModulesManifestDep) -> ModulesManifestResponse:
+    return ModulesManifestResponse(modules=modules_manifest)

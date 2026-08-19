@@ -30,6 +30,7 @@ class CommandBase(SQLModel):
     bt_media_action: str | None = Field(default=None)
     integration_action: IntegrationAction | None = Field(default=None)
     integration_entity: str | None = Field(default=None)
+    script_path: str | None = Field(default=None)
 
 class Command(CommandBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -45,6 +46,7 @@ class Command(CommandBase, table=True):
     macros: list["Macro"] = Relationship(back_populates="commands", link_model=CommandMacroLink)
     integration_action: IntegrationAction | None = Field(default=None)
     integration_entity: str | None = Field(default=None)
+    script_path: str | None = Field(default=None)
 
     # Needed for Column(JSON)
     class Config:

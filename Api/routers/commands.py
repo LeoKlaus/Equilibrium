@@ -29,6 +29,8 @@ def create_command(command: CommandBase, session: SessionDep) -> CommandWithRela
         raise HTTPException(status_code=400, detail="Integration commands require an integration action.")
     elif db_command.integration_action == IntegrationAction.TOGGLE_LIGHT and not db_command.integration_entity:
         raise HTTPException(status_code=400, detail="A toggle_light command requires an entity.")
+    elif db_command.type == CommandType.SCRIPT and not db_command.script_path:
+        raise HTTPException(status_code=400, detail="Script commands require a script_path to be set.")
 
     if command.device_id is not None:
         db_device = session.get(Device, command.device_id)

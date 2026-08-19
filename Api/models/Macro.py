@@ -9,16 +9,16 @@ if TYPE_CHECKING:
     from Api.models.Command import Command
 
 class CommandMacroLink(SQLModel, table=True):
-    command_id: int | None = Field(default=None, foreign_key="macro.id", primary_key=True)
-    macro_id: int | None = Field(default=None, foreign_key="command.id", primary_key=True)
+    command_id: int | None = Field(default=None, foreign_key="command.id", primary_key=True)
+    macro_id: int | None = Field(default=None, foreign_key="macro.id", primary_key=True)
 
 class SceneMacroLink(SQLModel, table=True):
-    scene_id: int | None = Field(default=None, foreign_key="macro.id", primary_key=True)
-    macro_id: int | None = Field(default=None, foreign_key="scene.id", primary_key=True)
+    scene_id: int | None = Field(default=None, foreign_key="scene.id", primary_key=True)
+    macro_id: int | None = Field(default=None, foreign_key="macro.id", primary_key=True)
 
 class DeviceMacroLink(SQLModel, table=True):
-    device_id: int | None = Field(default=None, foreign_key="macro.id", primary_key=True)
-    macro_id: int | None = Field(default=None, foreign_key="device.id", primary_key=True)
+    device_id: int | None = Field(default=None, foreign_key="device.id", primary_key=True)
+    macro_id: int | None = Field(default=None, foreign_key="macro.id", primary_key=True)
 
 class MacroBase(SQLModel):
     name: str | None = Field(default=None)

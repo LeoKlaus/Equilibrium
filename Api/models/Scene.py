@@ -11,8 +11,8 @@ if TYPE_CHECKING:
     from Api.models.Device import Device
 
 class SceneDeviceLink(SQLModel, table=True):
-    scene_id: int | None = Field(default=None, foreign_key="device.id", primary_key=True)
-    device_id: int | None = Field(default=None, foreign_key="scene.id", primary_key=True)
+    scene_id: int | None = Field(default=None, foreign_key="scene.id", primary_key=True)
+    device_id: int | None = Field(default=None, foreign_key="device.id", primary_key=True)
 
 class SceneBase(SQLModel):
     name: str | None = Field(index=True)

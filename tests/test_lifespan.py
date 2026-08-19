@@ -60,6 +60,7 @@ async def test_lifespan_dev_yields_the_hub_pieces(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config").mkdir()
     monkeypatch.setattr("Api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("Api.lifespan.create_db_and_tables", lambda: None)
 
     async with _lifespan(FastAPI(), dev=True) as state:
         assert set(state.keys()) == {
@@ -83,6 +84,7 @@ async def test_lifespan_mounts_module_routers_onto_the_app(tmp_path, monkeypatch
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config").mkdir()
     monkeypatch.setattr("Api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("Api.lifespan.create_db_and_tables", lambda: None)
 
     class FakeExecutorWithRouter:
         name = "fake"
@@ -117,6 +119,7 @@ async def test_lifespan_non_dev_uses_the_non_dev_service_name(tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config").mkdir()
     monkeypatch.setattr("Api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("Api.lifespan.create_db_and_tables", lambda: None)
 
     async def fake_create(cls, **kwargs):
         return cls()

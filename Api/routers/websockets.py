@@ -8,9 +8,7 @@ from Api import logger
 from Api.WebsocketConnectionManager.WebsocketConnectionManager import WebsocketConnectionManager
 from Api.models.Command import Command, CommandBase
 from Api.models.Device import Device
-from Api.models.WebsocketResponses import WebsocketBleCommand, WebsocketBleSuccessResponse, BleDevice, \
-    WebsocketBleDeviceResponse, WebsocketIrResponse
-from BleKeyboard.BleKeyboard import BleKeyboard
+from Api.models.WebsocketResponses import WebsocketIrResponse
 from DbManager.DbManager import engine
 from Hub.StatusStore import StatusStore
 from IrManager.IrManager import IrManager
@@ -24,46 +22,6 @@ router = APIRouter(
 manager = WebsocketConnectionManager()
 
 _UNAVAILABLE_CLOSE_CODE = 1013  # RFC 6455 "Try Again Later"
-
-
-# This is a bit finicky with some devices. On my ATV 4K, the pairing prompt only appears if it is manually triggered
-# within a short time after connecting for the first time. I have built this into the `devices` property of the
-# BleKeyboard class for now, which isn't super elegant but works.
-# Pairing flow for the ATV 4K is thus:
-# 1. Start advertisement
-# 2. Select Equilibrium Virtual Keyboard in Apple TVs bluetooth settings
-# 3. Send a devices query via websocket to trigger pairing (this should return connected: True, paired: False)
-# 4. Confirm pairing on Apple TV
-@router.websocket("/bt_pairing")
-async def websocket_bt_pairing(websocket: WebSocket):
-
-    ble_keyboard: BleKeyboard | None = websocket.state.ble_keyboard
-
-    await websocket.accept()
-
-    if ble_keyboard is None:
-        await websocket.close(code=_UNAVAILABLE_CLOSE_CODE, reason="BLE is not available (dev mode or no adapter configured)")
-        return
-
-    while websocket.client_state == WebSocketState.CONNECTED:
-        command = await websocket.receive_text()
-        if command == WebsocketBleCommand.ADVERTISE:
-            await ble_keyboard.advertise()
-            await websocket.send_json(WebsocketBleSuccessResponse().model_dump())
-
-        if command == WebsocketBleCommand.CONNECT:
-            devices = await ble_keyboard.devices
-            await  websocket.send_json(WebsocketBleDeviceResponse(devices=devices).model_dump())
-            addr = await websocket.receive_text()
-            await ble_keyboard.connect(addr)
-
-        if command == WebsocketBleCommand.DISCONNECT:
-            await ble_keyboard.disconnect()
-            await websocket.send_json(WebsocketBleSuccessResponse().model_dump())
-
-        if command == WebsocketBleCommand.DEVICES:
-            devices = await ble_keyboard.devices
-            await  websocket.send_json(WebsocketBleDeviceResponse(devices=devices).model_dump())
 
 
 async def _record_ir_command(ir_manager: IrManager, data: dict, websocket: WebSocket) -> None:

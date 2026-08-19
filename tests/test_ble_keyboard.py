@@ -160,6 +160,7 @@ def test_router_has_the_expected_routes():
         "/bluetooth/start_pairing",
         "/bluetooth/connect/{mac_address}",
         "/bluetooth/disconnect",
+        "/ws/bt_pairing",
     }
 
 
@@ -240,4 +241,80 @@ def test_router_disconnect_calls_disconnect():
         response = client.post("/bluetooth/disconnect")
 
     assert response.status_code == 200
+    assert calls == ["disconnect"]
+
+
+def test_ws_bt_pairing_advertise():
+    keyboard = _keyboard()
+    calls = []
+
+    async def fake_advertise():
+        calls.append("advertise")
+
+    keyboard.advertise = fake_advertise
+
+    with _client_for(keyboard) as client:
+        with client.websocket_connect("/ws/bt_pairing") as websocket:
+            websocket.send_text("advertise")
+            response = websocket.receive_json()
+
+    assert response == {"success": True}
+    assert calls == ["advertise"]
+
+
+def test_ws_bt_pairing_devices(monkeypatch):
+    keyboard = _keyboard()
+
+    async def fake_devices(self):
+        return [{"path": "/dev1", "address": "AA:BB", "alias": "TV", "paired": True, "connected": True}]
+
+    monkeypatch.setattr(BleKeyboard, "devices", property(fake_devices))
+
+    with _client_for(keyboard) as client:
+        with client.websocket_connect("/ws/bt_pairing") as websocket:
+            websocket.send_text("devices")
+            response = websocket.receive_json()
+
+    assert response["devices"][0]["address"] == "AA:BB"
+
+
+def test_ws_bt_pairing_connect_sends_devices_then_connects_to_the_chosen_address(monkeypatch):
+    keyboard = _keyboard()
+
+    async def fake_devices(self):
+        return [{"path": "/dev1", "address": "AA:BB", "alias": "TV", "paired": False, "connected": True}]
+
+    monkeypatch.setattr(BleKeyboard, "devices", property(fake_devices))
+    calls = []
+
+    async def fake_connect(address):
+        calls.append(address)
+
+    keyboard.connect = fake_connect
+
+    with _client_for(keyboard) as client:
+        with client.websocket_connect("/ws/bt_pairing") as websocket:
+            websocket.send_text("connect")
+            devices_response = websocket.receive_json()
+            websocket.send_text("AA:BB")
+
+    assert devices_response["devices"][0]["address"] == "AA:BB"
+    assert calls == ["AA:BB"]
+
+
+def test_ws_bt_pairing_disconnect():
+    keyboard = _keyboard()
+    calls = []
+
+    async def fake_disconnect():
+        calls.append("disconnect")
+
+    keyboard.disconnect = fake_disconnect
+
+    with _client_for(keyboard) as client:
+        with client.websocket_connect("/ws/bt_pairing") as websocket:
+            websocket.send_text("disconnect")
+            response = websocket.receive_json()
+
+    assert response == {"success": True}
     assert calls == ["disconnect"]

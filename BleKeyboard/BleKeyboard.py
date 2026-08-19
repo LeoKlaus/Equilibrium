@@ -6,9 +6,15 @@ from bluez_peripheral.advert import Advertisement
 from bluez_peripheral.agent import NoIoAgent
 from bluez_peripheral.util import get_message_bus, Adapter
 from fastapi import APIRouter
+from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from Api.models.Command import Command
-from Api.models.WebsocketResponses import BleDevice
+from Api.models.WebsocketResponses import (
+    BleDevice,
+    WebsocketBleCommand,
+    WebsocketBleDeviceResponse,
+    WebsocketBleSuccessResponse,
+)
 from BleKeyboard.BatteryService import BatteryService
 from BleKeyboard.DeviceInformationService import DeviceInformationService
 from BleKeyboard.HidService import HidService
@@ -55,6 +61,15 @@ class BleKeyboard(ActionExecutor):
         self.router = self._build_router()
 
     def _build_router(self) -> APIRouter:
+        # Combines two differently-prefixed sub-routers into the one router
+        # this module exposes, so /bluetooth/* and /ws/bt_pairing both keep
+        # their existing paths despite now living in the same module.
+        router = APIRouter()
+        router.include_router(self._build_http_router())
+        router.include_router(self._build_websocket_router())
+        return router
+
+    def _build_http_router(self) -> APIRouter:
         router = APIRouter(
             prefix="/bluetooth",
             tags=["Bluetooth Devices"],
@@ -88,6 +103,49 @@ class BleKeyboard(ActionExecutor):
         async def disconnect_ble_devices():
             await self.disconnect()
             return {"success": True}
+
+        return router
+
+    def _build_websocket_router(self) -> APIRouter:
+        router = APIRouter(
+            prefix="/ws",
+            tags=["websockets"],
+            responses={404: {"description": "Not found"}},
+        )
+
+        # Pairing flow (e.g. for an ATV 4K, where the pairing prompt only appears if triggered
+        # manually within a short time after connecting for the first time - handled in the
+        # `devices` property below):
+        # 1. Start advertisement
+        # 2. Select "Virtual Keyboard" in the target's bluetooth settings
+        # 3. Send a devices query over this socket to trigger pairing (returns connected: True, paired: False)
+        # 4. Confirm pairing on the target device
+        @router.websocket("/bt_pairing")
+        async def websocket_bt_pairing(websocket: WebSocket):
+            await websocket.accept()
+
+            try:
+                while websocket.client_state == WebSocketState.CONNECTED:
+                    command = await websocket.receive_text()
+                    if command == WebsocketBleCommand.ADVERTISE:
+                        await self.advertise()
+                        await websocket.send_json(WebsocketBleSuccessResponse().model_dump())
+
+                    if command == WebsocketBleCommand.CONNECT:
+                        devices = await self.devices
+                        await websocket.send_json(WebsocketBleDeviceResponse(devices=devices).model_dump())
+                        addr = await websocket.receive_text()
+                        await self.connect(addr)
+
+                    if command == WebsocketBleCommand.DISCONNECT:
+                        await self.disconnect()
+                        await websocket.send_json(WebsocketBleSuccessResponse().model_dump())
+
+                    if command == WebsocketBleCommand.DEVICES:
+                        devices = await self.devices
+                        await websocket.send_json(WebsocketBleDeviceResponse(devices=devices).model_dump())
+            except WebSocketDisconnect:
+                self.logger.debug("Client disconnected from bt_pairing websocket")
 
         return router
 

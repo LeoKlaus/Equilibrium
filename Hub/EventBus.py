@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, DefaultDict
@@ -29,6 +30,8 @@ class EventBus:
     subscriber, or the next event being pulled off the queue.
     """
 
+    logger = logging.getLogger(__package__)
+
     def __init__(self) -> None:
         self._queue: asyncio.Queue[Event] = asyncio.Queue()
         self._subscribers: DefaultDict[str, list[EventHandler]] = defaultdict(list)
@@ -47,4 +50,10 @@ class EventBus:
 
     def _dispatch(self, event: Event) -> None:
         for handler in self._subscribers.get(event.type, []):
-            asyncio.create_task(handler(event))
+            asyncio.create_task(self._run_handler(handler, event))
+
+    async def _run_handler(self, handler: EventHandler, event: Event) -> None:
+        try:
+            await handler(event)
+        except Exception:
+            self.logger.exception(f"Handler for event '{event.type}' raised")

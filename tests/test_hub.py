@@ -15,6 +15,7 @@ from Hub.Hub import Hub
 
 class FakeInputSource:
     router = None
+    capabilities = []
 
     def __init__(self, name: str = "fake"):
         self.name = name
@@ -35,6 +36,7 @@ class FakeInputSourceWithoutStop:
     """No stop() - only asyncio cancellation can end its task."""
 
     router = None
+    capabilities = []
 
     def __init__(self, name: str = "fake-no-stop"):
         self.name = name
@@ -47,6 +49,7 @@ class FakeInputSourceWithoutStop:
 
 class FakeExecutor:
     router = None
+    capabilities = []
 
     def __init__(self, name: str):
         self.name = name
@@ -61,6 +64,7 @@ class FakeBleExecutor:
     need beyond the plain ActionExecutor interface."""
 
     router = None
+    capabilities = []
 
     def __init__(self):
         self.name = "bluetooth"
@@ -90,6 +94,7 @@ class FakeBleExecutor:
 
 class FakeIrExecutor:
     router = None
+    capabilities = []
 
     def __init__(self):
         self.name = "ir"
@@ -299,6 +304,8 @@ async def test_full_pipeline_from_bus_event_to_executor(db_engine, tmp_path, mon
 
 
 class FakeModuleWithRouter:
+    capabilities = []
+
     def __init__(self, name: str = "with-router", path: str = "/fake-ping"):
         self.name = name
         self.router = APIRouter()
@@ -353,3 +360,43 @@ def test_mount_routers_endpoint_is_actually_callable():
 
     assert response.status_code == 200
     assert response.json() == {"ok": True}
+
+
+def test_build_modules_manifest_includes_name_capabilities_and_endpoints():
+    hub = Hub()
+    ble = FakeBleExecutor()
+    ble.capabilities = ["pairing", "device_list"]
+    ble.router = APIRouter()
+
+    @ble.router.get("/bluetooth/devices")
+    def devices():
+        return []
+
+    hub.register_executor(ble)
+
+    manifest = hub.build_modules_manifest()
+
+    assert manifest == [{
+        "name": "bluetooth",
+        "capabilities": ["pairing", "device_list"],
+        "endpoints": {"devices": "/bluetooth/devices"},
+    }]
+
+
+def test_build_modules_manifest_empty_endpoints_for_modules_without_a_router():
+    hub = Hub()
+    hub.register_executor(FakeExecutor("network"))
+
+    manifest = hub.build_modules_manifest()
+
+    assert manifest == [{"name": "network", "capabilities": [], "endpoints": {}}]
+
+
+def test_build_modules_manifest_covers_sources_and_executors():
+    hub = Hub()
+    hub.register_source(FakeInputSource("rf"))
+    hub.register_executor(FakeExecutor("ir"))
+
+    manifest = hub.build_modules_manifest()
+
+    assert {module["name"] for module in manifest} == {"rf", "ir"}

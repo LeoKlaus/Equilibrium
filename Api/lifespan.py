@@ -61,6 +61,7 @@ async def _lifespan(app: FastAPI, dev: bool):
         "command_dispatcher": hub.command_dispatcher,
         "ble_keyboard": hub.executors.get("bluetooth"),
         "ir_manager": hub.executors.get("ir"),
+        "modules_manifest": hub.build_modules_manifest(),
     }
 
     logger.info("Shutting down...")

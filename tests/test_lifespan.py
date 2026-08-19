@@ -64,12 +64,13 @@ async def test_lifespan_dev_yields_the_hub_pieces(tmp_path, monkeypatch):
     async with _lifespan(FastAPI(), dev=True) as state:
         assert set(state.keys()) == {
             "status_store", "keymap_resolver", "scene_manager",
-            "command_dispatcher", "ble_keyboard", "ir_manager",
+            "command_dispatcher", "ble_keyboard", "ir_manager", "modules_manifest",
         }
         assert state["status_store"] is not None
         assert state["scene_manager"] is not None
         assert state["ble_keyboard"] is None  # dev mode skips hardware
         assert state["ir_manager"] is None
+        assert {module["name"] for module in state["modules_manifest"]} == {"network"}  # only the non-hardware executor in dev mode
 
     zeroconf = FakeZeroconfManager.instances[-1]
     assert zeroconf.registered_name == "Test-Instance-Dev"
@@ -85,6 +86,7 @@ async def test_lifespan_mounts_module_routers_onto_the_app(tmp_path, monkeypatch
 
     class FakeExecutorWithRouter:
         name = "fake"
+        capabilities = []
 
         def __init__(self):
             self.router = APIRouter()

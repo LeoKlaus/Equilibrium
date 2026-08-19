@@ -46,6 +46,7 @@ class BleKeyboard(ActionExecutor):
     """
 
     name = "bluetooth"
+    capabilities = ["pairing", "device_list"]
 
     logger = logging.getLogger(__package__)
 

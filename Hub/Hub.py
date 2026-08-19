@@ -70,6 +70,24 @@ class Hub:
             if module.router is not None:
                 app.include_router(module.router)
 
+    def build_modules_manifest(self) -> list[dict]:
+        """Describe every registered source/executor: name, capabilities,
+        and the paths of whatever router it owns (keyed by route name).
+        Lets a client discover what's actually available without
+        hardcoding routes - see architecture.md's "Client API discovery".
+        """
+        manifest = []
+        for module in [*self._sources, *self._executors.values()]:
+            endpoints = {}
+            if module.router is not None:
+                endpoints = {route.name: route.path for route in module.router.routes}
+            manifest.append({
+                "name": module.name,
+                "capabilities": list(module.capabilities),
+                "endpoints": endpoints,
+            })
+        return manifest
+
     def assemble(self) -> None:
         """Build StatusStore/KeymapResolver/CommandDispatcher/SceneManager/
         InputRouter from whatever's been registered so far, and subscribe

@@ -32,6 +32,7 @@ FREQ = 38
 class IrManager(ActionExecutor):
 
     name = "ir"
+    capabilities = ["command_recording"]
 
     logger = logging.getLogger(__package__)
     recording_task: Task|None = None

@@ -6,7 +6,7 @@ from sqlmodel import select
 from Api.models import Command, Scene, Device
 from Api.models.Macro import Macro, MacroPost, MacroWithRelationships
 from DbManager.DbManager import SessionDep
-from RemoteController.RemoteController import RemoteController
+from Hub.CommandDispatcher import CommandDispatcher
 
 router = APIRouter(
     prefix="/macros",
@@ -135,5 +135,6 @@ async def send_command(macro_id: int, session: SessionDep, request: Request):
     if macro is None:
         raise HTTPException(status_code=404, detail="Macro not found")
 
-    controller: RemoteController = request.state.controller
-    return await controller.execute_macro(macro=macro)
+    command_dispatcher: CommandDispatcher = request.state.command_dispatcher
+    await command_dispatcher.execute_macro(macro)
+    return "Macro executed"

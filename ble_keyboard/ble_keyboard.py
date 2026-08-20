@@ -2,9 +2,10 @@ import asyncio
 import logging
 from typing import ClassVar
 
+from bluez_peripheral.adapter import Adapter
 from bluez_peripheral.advert import Advertisement
 from bluez_peripheral.agent import NoIoAgent
-from bluez_peripheral.util import Adapter, get_message_bus
+from bluez_peripheral.util import get_message_bus
 from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
@@ -159,9 +160,9 @@ class BleKeyboard(ActionExecutor):
         self.device_info_service = DeviceInformationService()
         self.hid_service = HidService()
 
-        await self.battery_service.register(self.bus, "/me/wehrfritz/bluez_peripheral/service_battery")
-        await self.device_info_service.register(self.bus, "/me/wehrfritz/bluez_peripheral/service_info")
-        await self.hid_service.register(self.bus, "/me/wehrfritz/bluez_peripheral/service_hid")
+        await self.battery_service.register(self.bus, path="/me/wehrfritz/bluez_peripheral/service_battery")
+        await self.device_info_service.register(self.bus, path="/me/wehrfritz/bluez_peripheral/service_info")
+        await self.hid_service.register(self.bus, path="/me/wehrfritz/bluez_peripheral/service_hid")
         self.logger.debug("Registered services")
 
     async def unregister_services(self):
@@ -189,9 +190,9 @@ class BleKeyboard(ActionExecutor):
             "0000180F-0000-1000-8000-00805F9B34FB",
             "0000180A-0000-1000-8000-00805F9B34FB",
             "00001812-0000-1000-8000-00805F9B34FB"
-        ], 0x03C1, 60)
+        ], appearance=0x03C1, timeout=60)
 
-        await advert.register(self.bus, adapter)
+        await advert.register(self.bus, adapter=adapter)
         self.logger.info("Started advertising!")
 
 

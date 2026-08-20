@@ -163,7 +163,7 @@ def formatted_hex_str(value: int):
     return f"0x{value:0{2}x}"
 
 
-def generate_report_map_str(report_map: [int]):
+def generate_report_map_str(report_map: list[int]):
     """
     Generates a formatted string of the entire report map that can be pasted into a parser like this one:
     https://eleccelerator.com/usbdescreqparser/

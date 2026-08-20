@@ -124,7 +124,7 @@ class IrManager(ActionExecutor):
         else:
             await self.send_command(command.ir_action)
 
-    async def send_and_repeat(self, code: [int]):
+    async def send_and_repeat(self, code: list[int]):
         self.cancel_sending()
         self.sending_task = asyncio.create_task(self._send_and_repeat(code))
 
@@ -133,7 +133,7 @@ class IrManager(ActionExecutor):
             self.sending_task.cancel()
             self.sending_task = None
 
-    async def _send_and_repeat(self, code: [int]):
+    async def _send_and_repeat(self, code: list[int]):
         while True:
             try:
                 await self.send_command(code)
@@ -146,14 +146,14 @@ class IrManager(ActionExecutor):
         self.cancel_sending()
 
 
-    async def send_command(self, code: [int]):
+    async def send_command(self, code: list[int]):
         # pigpio's socket API is blocking - every call in _blocking_send must
         # run off the event loop, or a send stalls whatever else is pending
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._blocking_send, code)
         self.logger.debug("Sent IR command")
 
-    def _blocking_send(self, code: [int]):
+    def _blocking_send(self, code: list[int]):
         def carrier(gpio, frequency, micros, dutycycle=0.5):
             """
             Generate cycles of carrier on gpio with frequency and dutycycle.
@@ -219,16 +219,16 @@ class IrManager(ActionExecutor):
             self.pi.wave_delete(spaces[i])
 
 
-    async def record_command(self, name: str, websocket: WebSocket = None) -> [int]:
+    async def record_command(self, name: str, websocket: WebSocket | None = None) -> list[int] | None:
         #self.cancel_recording()
         self.recording_task = asyncio.create_task(self._record_command(name, websocket))
         return await self.recording_task
 
-    async def _record_command(self, name: str, websocket: WebSocket = None) -> [int]:
+    async def _record_command(self, name: str, websocket: WebSocket | None = None) -> list[int] | None:
 
         last_tick = None
         in_code = False
-        code = []
+        code: list[int] = []
         code_done = False
 
         async def send_message(msg: str):

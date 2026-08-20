@@ -51,12 +51,12 @@ class BleKeyboard(ActionExecutor):
 
     def __init__(self) -> None:
         self.bus = None
-        self.battery_service = None
-        self.device_info_service = None
-        self.hid_service = None
+        self.battery_service: BatteryService | None = None
+        self.device_info_service: DeviceInformationService | None = None
+        self.hid_service: HidService | None = None
 
-        self.pressed_keys = []
-        self.pressed_media_keys = []
+        self.pressed_keys: list[list[int]] = []
+        self.pressed_media_keys: list[list[int]] = []
 
         self.router = self._build_router()
 
@@ -218,6 +218,7 @@ class BleKeyboard(ActionExecutor):
         Send a key press to the connected device
         :param key_str: Key descriptor from key_map_helper.KEY_TABLE
         """
+        assert self.hid_service is not None  # create() already registered services
 
         key = create_keycode(key_str)
         if key:
@@ -229,6 +230,7 @@ class BleKeyboard(ActionExecutor):
         """
         Send a key release to the connected device
         """
+        assert self.hid_service is not None  # create() already registered services
         if self.pressed_keys:
             self.hid_service.update_pressed_keys([00, 00, 00, 00, 00, 00, 00, 00])
             self.pressed_keys = []
@@ -250,6 +252,7 @@ class BleKeyboard(ActionExecutor):
         Send a media key press to the connected device
         :param key_str: Key descriptor from key_map_helper.MEDIA_KEYS
         """
+        assert self.hid_service is not None  # create() already registered services
 
         key = create_media_keycode(key_str)
         if key:
@@ -261,6 +264,7 @@ class BleKeyboard(ActionExecutor):
         """
         Send a key release to the connected device
         """
+        assert self.hid_service is not None  # create() already registered services
         if self.pressed_media_keys:
             self.hid_service.update_pressed_media_keys([00, 00])
             self.pressed_media_keys = []
@@ -281,6 +285,7 @@ class BleKeyboard(ActionExecutor):
         Update the reported battery state of the keyboard. I don't think this has any practical use
         :param new_level: Battery level to set (0-100)
         """
+        assert self.battery_service is not None  # create() already registered services
         self.battery_service.update_battery_state(new_level)
 
 

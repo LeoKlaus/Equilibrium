@@ -16,7 +16,7 @@ class NetworkExecutor(ActionExecutor):
 
     logger = logging.getLogger(__package__)
 
-    def __init__(self, transport: httpx.BaseTransport | None = None) -> None:
+    def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
         # transport is a testing hook - None means httpx's real network transport.
         self._transport = transport
 

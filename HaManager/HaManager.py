@@ -29,6 +29,7 @@ class HaManager(ActionExecutor):
         loop = asyncio.get_running_loop()
         match command.integration_action:
             case IntegrationAction.TOGGLE_LIGHT:
+                assert command.integration_entity is not None  # enforced at command creation
                 await loop.run_in_executor(None, self.toggle_light, command.integration_entity)
             case IntegrationAction.BRIGHTNESS_UP:
                 await loop.run_in_executor(None, self.increase_brightness)

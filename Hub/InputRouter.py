@@ -1,16 +1,10 @@
-from __future__ import annotations
-
 import logging
-from typing import TYPE_CHECKING
 
 from Hub.CommandDispatcher import CommandDispatcher
 from Hub.EventBus import Event, EventBus
+from Hub.interfaces import BleKeyboardProtocol, IrManagerProtocol
 from Hub.KeymapResolver import KeymapResolver, SendDirective, StartScene, StopScene
 from Hub.SceneManager import SceneManager
-
-if TYPE_CHECKING:
-    from BleKeyboard.BleKeyboard import BleKeyboard
-    from IrManager.IrManager import IrManager
 
 
 class InputRouter:
@@ -40,8 +34,8 @@ class InputRouter:
         keymap_resolver: KeymapResolver,
         scene_manager: SceneManager,
         command_dispatcher: CommandDispatcher,
-        ble_keyboard: BleKeyboard | None = None,
-        ir_manager: IrManager | None = None,
+        ble_keyboard: BleKeyboardProtocol | None = None,
+        ir_manager: IrManagerProtocol | None = None,
     ) -> None:
         self._keymap_resolver = keymap_resolver
         self._scene_manager = scene_manager

@@ -73,6 +73,7 @@ def _create_command(db_engine, **overrides) -> int:
         session.add(command)
         session.commit()
         session.refresh(command)
+        assert command.id is not None
         return command.id
 
 
@@ -112,6 +113,7 @@ def _create_scene(
         session.add(scene)
         session.commit()
         session.refresh(scene)
+        assert scene.id is not None
         return scene.id
 
 
@@ -138,6 +140,27 @@ async def test_start_scene_activates_runs_macro_loads_keymap_and_connects_ble(db
     assert keymap_resolver.loaded == ["movie"]
     assert ("connect", "AA:BB:CC:DD:EE:FF") in ble_keyboard.calls
     assert ("register_services",) in ble_keyboard.calls
+
+
+async def test_start_scene_broadcasts_full_relationship_data(db_engine, deps):
+    """StatusStore.current_scene is typed SceneWithRelationships, but Scene is
+    a different pydantic model - assigning a raw Scene there causes pydantic
+    to silently drop every relationship field (devices, start_macro, etc.) on
+    serialization instead of raising. Guards against that regressing."""
+    status_store, keymap_resolver, command_dispatcher, ble_keyboard = deps
+    tv_on = Command(
+        name="TV On", button=RemoteButton.POWER_ON, type=CommandType.IR,
+        command_group=CommandGroupType.POWER, ir_action="ff",
+    )
+    scene_id = _create_scene(db_engine, start_macro_commands=[tv_on])
+    manager = SceneManager(status_store, keymap_resolver, command_dispatcher, ble_keyboard)
+
+    await manager.start_scene(scene_id)
+
+    dumped = status_store.status.model_dump()
+    start_macro = dumped["current_scene"]["start_macro"]
+    assert start_macro is not None
+    assert [c["name"] for c in start_macro["commands"]] == ["TV On"]
 
 
 async def test_start_scene_without_ble_keyboard_does_not_raise(db_engine, monkeypatch):

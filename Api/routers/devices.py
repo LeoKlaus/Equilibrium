@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
@@ -12,7 +14,7 @@ router = APIRouter(
 )
 
 @router.get("/", tags=["Devices"], response_model=list[DeviceWithRelationships])
-def list_devices(session: SessionDep) -> list[Device]:
+def list_devices(session: SessionDep) -> Sequence[Device]:
     devices = session.exec(select(Device)).all()
     return devices
 

@@ -43,6 +43,7 @@ def _add_command(db_engine, **overrides) -> int:
         session.add(command)
         session.commit()
         session.refresh(command)
+        assert command.id is not None
         return command.id
 
 

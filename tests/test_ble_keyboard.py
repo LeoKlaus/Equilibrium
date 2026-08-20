@@ -23,7 +23,7 @@ class FakeHidService:
 
 def _keyboard() -> BleKeyboard:
     keyboard = BleKeyboard()
-    keyboard.hid_service = FakeHidService()
+    keyboard.hid_service = FakeHidService()  # type: ignore[assignment]  # duck-typed test double
     return keyboard
 
 
@@ -144,6 +144,7 @@ async def test_execute_without_bluetooth_action_logs_and_does_nothing():
 
 
 def _client_for(keyboard: BleKeyboard) -> TestClient:
+    assert keyboard.router is not None
     app = FastAPI()
     app.include_router(keyboard.router)
     return TestClient(app)

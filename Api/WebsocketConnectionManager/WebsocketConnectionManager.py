@@ -1,9 +1,10 @@
 from collections.abc import Awaitable, Callable
+from typing import Any
 
 from sqlmodel import SQLModel
 from starlette.websockets import WebSocket
 
-AsyncJsonCallback = Callable[[any], Awaitable[None]]
+AsyncJsonCallback = Callable[[Any], Awaitable[None]]
 
 class WebsocketConnectionManager:
     def __init__(self):

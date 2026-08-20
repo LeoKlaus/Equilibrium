@@ -34,11 +34,32 @@ class FakeBleKeyboard:
     async def execute(self, directive, command) -> None:
         pass
 
+    async def connect(self, address: str) -> None:
+        pass
+
+    async def disconnect(self, address: str | None = None) -> None:
+        pass
+
+    async def register_services(self) -> None:
+        pass
+
+    async def unregister_services(self) -> None:
+        pass
+
+    def release_keys(self) -> None:
+        pass
+
+    def release_media_keys(self) -> None:
+        pass
+
 
 class FakeIrManager:
     name = "ir"
     router = None
     capabilities: ClassVar[list[str]] = []
+
+    def stop_repeating(self) -> None:
+        pass
 
     async def execute(self, directive, command) -> None:
         pass

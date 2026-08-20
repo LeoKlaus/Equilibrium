@@ -54,7 +54,7 @@ class FakeExecutor:
 
     def __init__(self, name: str):
         self.name = name
-        self.calls = []
+        self.calls: list[tuple] = []
 
     async def execute(self, directive, command) -> None:
         self.calls.append((directive, command))
@@ -223,7 +223,7 @@ def test_assemble_is_idempotent():
 
 def test_assemble_passes_the_executor_registry_to_command_dispatcher():
     hub = Hub()
-    hub.register_executor(FakeExecutor("ir"))
+    hub.register_executor(FakeExecutor("script"))
 
     hub.assemble()
 

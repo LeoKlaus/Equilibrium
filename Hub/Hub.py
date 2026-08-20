@@ -9,7 +9,7 @@ from HaManager.HaManager import HaManager
 from Hub.CommandDispatcher import CommandDispatcher
 from Hub.EventBus import EventBus
 from Hub.InputRouter import InputRouter
-from Hub.interfaces import ActionExecutor, InputSource
+from Hub.interfaces import ActionExecutor, BleKeyboardProtocol, InputSource, IrManagerProtocol
 from Hub.KeymapResolver import KeymapResolver
 from Hub.SceneManager import SceneManager
 from Hub.StatusStore import StatusStore
@@ -67,7 +67,8 @@ class Hub:
         pairing, IR recording) without the main app hardcoding what those
         are.
         """
-        for module in [*self._sources, *self._executors.values()]:
+        modules: list[InputSource | ActionExecutor] = [*self._sources, *self._executors.values()]
+        for module in modules:
             if module.router is not None:
                 app.include_router(module.router)
 
@@ -78,10 +79,11 @@ class Hub:
         hardcoding routes - see architecture.md's "Client API discovery".
         """
         manifest = []
-        for module in [*self._sources, *self._executors.values()]:
+        modules: list[InputSource | ActionExecutor] = [*self._sources, *self._executors.values()]
+        for module in modules:
             endpoints = {}
             if module.router is not None:
-                endpoints = {route.name: route.path for route in module.router.routes}
+                endpoints = {route.name: route.path for route in module.router.routes}  # type: ignore[attr-defined]  # every route an APIRouter decorator produces is a Route/WebSocketRoute, which do have these
             manifest.append({
                 "name": module.name,
                 "capabilities": list(module.capabilities),
@@ -104,7 +106,9 @@ class Hub:
         self.command_dispatcher = CommandDispatcher(self.status_store, self.keymap_resolver, self._executors)
 
         ble_keyboard = self._executors.get("bluetooth")
+        assert ble_keyboard is None or isinstance(ble_keyboard, BleKeyboardProtocol)
         ir_manager = self._executors.get("ir")
+        assert ir_manager is None or isinstance(ir_manager, IrManagerProtocol)
 
         self.scene_manager = SceneManager(
             self.status_store, self.keymap_resolver, self.command_dispatcher, ble_keyboard
@@ -158,6 +162,7 @@ class Hub:
             hub.register_executor(ScriptExecutor(scripts_dir=scripts_dir))
 
         hub.assemble()
+        assert hub.keymap_resolver is not None  # assemble() always sets it
 
         try:
             hub.keymap_resolver.load_key_map()

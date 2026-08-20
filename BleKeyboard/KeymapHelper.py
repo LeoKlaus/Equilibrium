@@ -195,7 +195,7 @@ MEDIA_KEYS = {
 }
 
 mod_keys = 0b00000000
-pressed_keys = []
+pressed_keys: list[int] = []
 
 
 def to_mod_key(key_str):
@@ -272,6 +272,9 @@ def create_media_keycode(media_key_str: str | None = None):
     :param media_key_str: Key to be pressed (from KEY_TABLE)
     :return: The key code for the given keys
     """
+    if not media_key_str:
+        return [0, 0]
+
     media_key = MEDIA_KEYS.get(media_key_str)
     if not media_key:
         return [0, 0]

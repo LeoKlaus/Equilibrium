@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Optional
 
 from sqlalchemy import JSON, Column, event
 from sqlmodel import Field, Relationship, Session, SQLModel
@@ -35,7 +35,7 @@ class CommandBase(SQLModel):
 class Command(CommandBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     device_id: int | None = Field(default=None, foreign_key="device.id")
-    device: "Device" = Relationship(back_populates="commands")
+    device: Optional["Device"] = Relationship(back_populates="commands")
     ir_action: Annotated[list[int], Field(default_factory=list, sa_column=Column(JSON), exclude=True)]
     headers: dict[str, str] | None = Field(default=None, sa_column=Column(JSON))
     macros: list["Macro"] = Relationship(back_populates="commands", link_model=CommandMacroLink)

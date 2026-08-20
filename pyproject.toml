@@ -23,3 +23,12 @@ ignore = [
              # manually rewrapping lines by hand is pure cosmetic risk
              # (dense f-strings, migration DDL) for no functional benefit.
 ]
+
+[tool.mypy]
+python_version = "3.14"
+
+# bluez_peripheral and pigpio ship no type stubs and no py.typed marker,
+# so every import of them is otherwise flagged as import-untyped.
+[[tool.mypy.overrides]]
+module = ["bluez_peripheral.*", "pigpio"]
+ignore_missing_imports = true

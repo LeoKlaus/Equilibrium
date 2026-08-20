@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
@@ -29,27 +31,27 @@ def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
             raise HTTPException(status_code=404, detail=f"Image {image_id} not found")
         db_scene.image = image_db
 
-    device_ids: [int] = scene.device_ids
+    device_ids: list[int] = scene.device_ids
 
     if scene.start_macro_id is not None:
         start_macro = session.get(Macro, scene.start_macro_id)
         if not start_macro:
             raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
         db_scene.start_macro = start_macro
-        device_ids += [x.id for x in start_macro.devices]
+        device_ids += [x.id for x in start_macro.devices if x.id is not None]
 
     if scene.stop_macro_id is not None:
         stop_macro = session.get(Macro, scene.stop_macro_id)
         if not stop_macro:
             raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
         db_scene.stop_macro = stop_macro
-        device_ids += [x.id for x in stop_macro.devices]
+        device_ids += [x.id for x in stop_macro.devices if x.id is not None]
 
     if scene.bluetooth_address is not None:
         statement = select(Device).where(Device.bluetooth_address == scene.bluetooth_address)
         results = session.exec(statement)
         bt_device = results.first()
-        if bt_device is not None:
+        if bt_device is not None and bt_device.id is not None:
             device_ids.append(bt_device.id)
 
     device_id_set = set(device_ids)
@@ -72,7 +74,7 @@ def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
 
 
 @router.get("/", tags=["Scenes"], response_model=list[SceneWithRelationships])
-def list_scenes(session: SessionDep) -> list[Scene]:
+def list_scenes(session: SessionDep) -> Sequence[Scene]:
     scenes = session.exec(select(Scene)).all()
     return scenes
 
@@ -86,27 +88,27 @@ def update_scene(scene_id: int, scene: ScenePost, session: SessionDep):
     if scene.bluetooth_address:
         scene_db.bluetooth_address = scene.bluetooth_address
 
-    device_ids: [int] = scene.device_ids
+    device_ids: list[int] = scene.device_ids
 
     if scene.start_macro_id is not None:
         start_macro = session.get(Macro, scene.start_macro_id)
         if not start_macro:
             raise HTTPException(status_code=400, detail=f"Start macro {scene.start_macro_id} not found")
         scene_db.start_macro = start_macro
-        device_ids += [x.id for x in start_macro.devices]
+        device_ids += [x.id for x in start_macro.devices if x.id is not None]
 
     if scene.stop_macro_id is not None:
         stop_macro = session.get(Macro, scene.stop_macro_id)
         if not stop_macro:
             raise HTTPException(status_code=400, detail=f"Stop macro {scene.stop_macro_id} not found")
         scene_db.stop_macro = stop_macro
-        device_ids += [x.id for x in stop_macro.devices]
+        device_ids += [x.id for x in stop_macro.devices if x.id is not None]
 
     if scene.bluetooth_address is not None:
         statement = select(Device).where(Device.bluetooth_address == scene.bluetooth_address)
         results = session.exec(statement)
         bt_device = results.first()
-        if bt_device is not None:
+        if bt_device is not None and bt_device.id is not None:
             device_ids.append(bt_device.id)
 
     device_id_set = set(device_ids)

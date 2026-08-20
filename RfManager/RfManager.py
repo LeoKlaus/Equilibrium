@@ -110,6 +110,7 @@ class RfInput(InputSource):
 
     def _blocking_receive(self) -> _Signal | None:
         while self._running:
+            assert self._rf is not None  # start() already returned early if radio init failed
             if self._rf.available():
                 payload_size = self._rf.getDynamicPayloadSize()
                 payload = self._rf.read(payload_size)
@@ -119,7 +120,7 @@ class RfInput(InputSource):
             time.sleep(0.05)
         return None
 
-    def _decode(self, payload: bytes) -> _Signal | None:
+    def _decode(self, payload: bytes | bytearray) -> _Signal | None:
         if len(payload) < 5:
             self.logger.warning(f"Received unexpectedly short payload: {':'.join(f'{i:02x}' for i in payload)}")
             return None

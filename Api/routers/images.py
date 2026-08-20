@@ -31,6 +31,9 @@ def get_image(image_id: int, session: SessionDep):
 @router.post("/", tags=["Images"], response_model=UserImage)
 async def upload_image(file: UploadFile, session: SessionDep):
     try:
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="File must have a filename")
+
         contents = await file.read()
         pil_img = Image.open(BytesIO(contents))
         pil_img.thumbnail((512,512))

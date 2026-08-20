@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
@@ -16,7 +18,7 @@ router = APIRouter(
 )
 
 @router.post("/", tags=["Commands"], response_model=CommandWithRelationships)
-def create_command(command: CommandBase, session: SessionDep) -> CommandWithRelationships:
+def create_command(command: CommandBase, session: SessionDep) -> Command:
     db_command = Command.model_validate(command)
     if db_command.type == CommandType.IR and not db_command.ir_action:
         raise HTTPException(status_code=400, detail="IR commands can only be created via WebSocket. Please use the /ws/commands endpoint.")
@@ -45,12 +47,12 @@ def create_command(command: CommandBase, session: SessionDep) -> CommandWithRela
     return db_command
 
 @router.get("/", tags=["Commands"], response_model=list[CommandWithRelationships])
-def list_commands(session: SessionDep) -> list[CommandWithRelationships]:
+def list_commands(session: SessionDep) -> Sequence[Command]:
     commands = session.exec(select(Command)).all()
     return commands
 
 @router.get("/{command_id}", tags=["Commands"], response_model=CommandWithRelationships)
-def show_command(command_id: int, session: SessionDep) -> CommandWithRelationships:
+def show_command(command_id: int, session: SessionDep) -> Command:
     command = session.get(Command, command_id)
     if not command:
         raise HTTPException(status_code=404, detail="Command not found")

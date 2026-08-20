@@ -1,23 +1,18 @@
-from __future__ import annotations
-
 import asyncio
 import logging
-from typing import TYPE_CHECKING
 
 from sqlmodel import Session
 
 from Api.models.Command import Command
 from Api.models.RemoteButton import RemoteButton
-from Api.models.Scene import Scene
+from Api.models.Scene import Scene, SceneWithRelationships
 from Api.models.SceneStatus import SceneStatus
 from DbManager.DbManager import engine
 from Hub.CommandDispatcher import CommandDispatcher
 from Hub.EventBus import Directive
+from Hub.interfaces import BleKeyboardProtocol
 from Hub.KeymapResolver import KeymapResolver
 from Hub.StatusStore import StatusStore
-
-if TYPE_CHECKING:
-    from BleKeyboard.BleKeyboard import BleKeyboard
 
 
 class SceneNotFoundError(Exception):
@@ -46,7 +41,7 @@ class SceneManager:
         status_store: StatusStore,
         keymap_resolver: KeymapResolver,
         command_dispatcher: CommandDispatcher,
-        ble_keyboard: BleKeyboard | None = None,
+        ble_keyboard: BleKeyboardProtocol | None = None,
     ) -> None:
         self._status_store = status_store
         self._keymap_resolver = keymap_resolver
@@ -69,7 +64,7 @@ class SceneManager:
                 }
                 await self.stop_current_scene(skip_power_down_for=skip_power_down_for)
 
-            await self._status_store.set_scene(scene, SceneStatus.STARTING)
+            await self._status_store.set_scene(SceneWithRelationships.model_validate(scene), SceneStatus.STARTING)
 
             await self._connect_ble_for_scene(scene)
 
@@ -79,7 +74,7 @@ class SceneManager:
             if scene.keymap:
                 self._keymap_resolver.load_key_map(scene.keymap)
 
-            await self._status_store.set_scene(scene, SceneStatus.ACTIVE)
+            await self._status_store.set_scene(SceneWithRelationships.model_validate(scene), SceneStatus.ACTIVE)
 
             self.logger.info(f"Scene {scene.name} started!")
 
@@ -103,7 +98,7 @@ class SceneManager:
             if scene.start_macro is not None and scene.start_macro.commands:
                 await self._command_dispatcher.update_states_for_commands(scene.start_macro.commands)
 
-            await self._status_store.set_scene(scene, SceneStatus.ACTIVE)
+            await self._status_store.set_scene(SceneWithRelationships.model_validate(scene), SceneStatus.ACTIVE)
 
             if scene.keymap:
                 self._keymap_resolver.load_key_map(scene.keymap)

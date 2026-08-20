@@ -18,7 +18,7 @@ def list_macros(session: SessionDep):
     return macros
 
 @router.get("/{macro_id}", tags=["Macros"], response_model=MacroWithRelationships)
-def get_macro(macro_id: int, session: SessionDep) -> MacroWithRelationships:
+def get_macro(macro_id: int, session: SessionDep) -> Macro:
     macro = session.get(Macro, macro_id)
     if not macro:
         raise HTTPException(status_code=404, detail="Macro not found")
@@ -36,14 +36,14 @@ def create_macro(macro: MacroPost, session: SessionDep):
 
     session.add(db_macro)
 
-    device_ids: [int] = []
+    device_ids: list[int] = []
 
     for command_id in set(macro.command_ids):
         command_db = session.get(Command, command_id)
         if command_db is None:
             raise HTTPException(status_code=404, detail=f"Command {command_id} not found")
         db_macro.commands.append(command_db)
-        if command_db.device is not None:
+        if command_db.device_id is not None:
             device_ids.append(command_db.device_id)
 
     for scene_id in macro.scene_ids:
@@ -67,7 +67,7 @@ def create_macro(macro: MacroPost, session: SessionDep):
     return db_macro
 
 @router.patch("/{macro_id}", tags=["Macros"], response_model=MacroWithRelationships)
-def update_macro(macro_id: int, macro: MacroPost, session: SessionDep) -> MacroWithRelationships:
+def update_macro(macro_id: int, macro: MacroPost, session: SessionDep) -> Macro:
     macro_db = session.get(Macro, macro_id)
     if not macro_db:
         raise HTTPException(status_code=404, detail="Macro not found")
@@ -80,14 +80,15 @@ def update_macro(macro_id: int, macro: MacroPost, session: SessionDep) -> MacroW
 
     macro_db.commands = []
 
-    device_ids: [int] = []
+    device_ids: list[int] = []
 
     for command_id in set(macro.command_ids):
         command_db = session.get(Command, command_id)
         if not command_db:
             raise HTTPException(status_code=404, detail=f"Command {command_id} not found")
         macro_db.commands.append(command_db)
-        device_ids.append(command_db.device_id)
+        if command_db.device_id is not None:
+            device_ids.append(command_db.device_id)
 
     macro_db.scenes = []
 

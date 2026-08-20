@@ -16,8 +16,8 @@ class HidService(Service):
 
     def __init__(self):
         super().__init__("1812", True)
-        self.pressed_keys: [int] = [00, 00, 00, 00, 00, 00, 00, 00]
-        self.pressed_media_keys: [int] = [00, 00]
+        self.pressed_keys: list[int] = [00, 00, 00, 00, 00, 00, 00, 00]
+        self.pressed_media_keys: list[int] = [00, 00]
 
 
     # hid info characteristic: uuid="2A4A"
@@ -50,7 +50,7 @@ class HidService(Service):
         return bytes([0x00])
 
 
-    @control_point.setter
+    @control_point.setter  # type: ignore[no-redef]  # bluez_peripheral's getter/setter pair, not a real redefinition
     def control_point(self, value, options):
         self.logger.debug(f"control point set to {value} with {options}")
 
@@ -72,7 +72,7 @@ class HidService(Service):
         return bytes([0x01, 0x01])
 
 
-    def update_pressed_keys(self, new_state: [int]):
+    def update_pressed_keys(self, new_state: list[int]):
         """
         Update the currently pressed keys on the keyboard.
         :param new_state: New keys to be pressed
@@ -81,7 +81,7 @@ class HidService(Service):
 
         keys = bytes(bytearray(self.pressed_keys))
         self.report1.changed(keys)
-        self.logger.debug(f"Notified with {keys}")
+        self.logger.debug(f"Notified with {keys!r}")
 
 
     # report characteristic(2): uuid="2A4D"
@@ -101,7 +101,7 @@ class HidService(Service):
         return bytes([0x02, 0x01])
 
 
-    def update_pressed_media_keys(self, new_state: [int]):
+    def update_pressed_media_keys(self, new_state: list[int]):
         """
         Update the currently pressed media keys on the keyboard.
         :param new_state: New keys to be pressed
@@ -110,7 +110,7 @@ class HidService(Service):
 
         keys = bytes(bytearray(new_state))
         self.report2.changed(keys)
-        self.logger.debug(f"Notified with {keys}")
+        self.logger.debug(f"Notified with {keys!r}")
 
 
     # protocol mode characteristic: uuid="2A4E"

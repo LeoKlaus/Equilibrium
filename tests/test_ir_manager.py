@@ -19,7 +19,7 @@ class FakePigpio:
     """Stands in for pigpio.pi() - avoids needing a real pigpiod daemon."""
 
     def __init__(self, busy_ticks: int = 0):
-        self.calls = []
+        self.calls: list[tuple] = []
         self._busy_ticks = busy_ticks
         self._next_wave_id = 0
 
@@ -182,6 +182,7 @@ def test_router_has_the_expected_routes():
 
 
 def _client_for(manager: IrManager) -> TestClient:
+    assert manager.router is not None
     app = FastAPI()
     app.include_router(manager.router)
     return TestClient(app)

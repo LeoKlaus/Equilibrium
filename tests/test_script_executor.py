@@ -6,7 +6,7 @@ from Api.models.CommandType import CommandType
 from Api.models.RemoteButton import RemoteButton
 from Hub.EventBus import Directive
 from Hub.interfaces import ActionExecutor
-from ScriptExecutor.ScriptExecutor import ScriptExecutor
+from script_executor.script_executor import ScriptExecutor
 
 
 def _command(**overrides) -> Command:

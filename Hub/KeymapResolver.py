@@ -8,7 +8,7 @@ from Api.models.Command import Command
 from Api.models.DeviceType import DeviceType
 from Api.models.RemoteButton import RemoteButton
 from Api.models.Scene import Scene
-from DbManager.DbManager import engine
+from db_manager.db_manager import engine
 from Hub.EventBus import Directive
 
 

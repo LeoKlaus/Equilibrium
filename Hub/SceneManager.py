@@ -7,7 +7,7 @@ from Api.models.Command import Command
 from Api.models.RemoteButton import RemoteButton
 from Api.models.Scene import Scene, SceneWithRelationships
 from Api.models.SceneStatus import SceneStatus
-from DbManager.DbManager import engine
+from db_manager.db_manager import engine
 from Hub.CommandDispatcher import CommandDispatcher
 from Hub.EventBus import Directive
 from Hub.interfaces import BleKeyboardProtocol

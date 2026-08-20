@@ -9,7 +9,7 @@ def db_engine(tmp_path):
     Modules under test import `engine` by name at module load time (same
     pattern the rest of the codebase uses), so a test needs to patch that
     name directly, e.g. `monkeypatch.setattr("Hub.KeymapResolver.engine",
-    db_engine)` - patching DbManager.DbManager.engine has no effect on
+    db_engine)` - patching db_manager.db_manager.engine has no effect on
     already-imported references.
     """
     engine = create_engine(

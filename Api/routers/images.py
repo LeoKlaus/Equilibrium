@@ -8,7 +8,7 @@ from sqlmodel import select
 from starlette.responses import FileResponse
 
 from Api.models.UserImage import UserImage
-from DbManager.DbManager import SessionDep
+from db_manager.db_manager import SessionDep
 
 router = APIRouter(
     prefix="/images",

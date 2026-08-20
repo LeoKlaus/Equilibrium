@@ -14,7 +14,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 from Api.models.Command import Command, CommandBase
 from Api.models.Device import Device
 from Api.models.WebsocketResponses import WebsocketIrResponse
-from DbManager.DbManager import engine
+from db_manager.db_manager import engine
 from Hub.EventBus import Directive
 from Hub.interfaces import ActionExecutor
 

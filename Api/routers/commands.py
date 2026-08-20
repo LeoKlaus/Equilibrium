@@ -8,7 +8,7 @@ from Api.models.Command import Command, CommandBase, CommandWithRelationships
 from Api.models.CommandType import CommandType
 from Api.models.Device import Device
 from Api.models.IntegrationAction import IntegrationAction
-from DbManager.DbManager import SessionDep
+from db_manager.db_manager import SessionDep
 from Hub.EventBus import Directive
 
 router = APIRouter(

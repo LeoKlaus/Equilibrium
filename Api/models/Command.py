@@ -11,7 +11,7 @@ from Api.models.IntegrationAction import IntegrationAction
 from Api.models.Macro import CommandMacroLink
 from Api.models.NetworkRequestType import NetworkRequestType
 from Api.models.RemoteButton import RemoteButton
-from DbManager.DbManager import engine
+from db_manager.db_manager import engine
 
 if TYPE_CHECKING:
     from Api.models.Device import Device

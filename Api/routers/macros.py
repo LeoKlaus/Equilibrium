@@ -4,7 +4,7 @@ from sqlmodel import select
 from Api.dependencies import CommandDispatcherDep
 from Api.models import Command, Device, Scene
 from Api.models.Macro import Macro, MacroPost, MacroWithRelationships
-from DbManager.DbManager import SessionDep
+from db_manager.db_manager import SessionDep
 
 router = APIRouter(
     prefix="/macros",

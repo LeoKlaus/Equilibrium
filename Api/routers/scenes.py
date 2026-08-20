@@ -163,8 +163,8 @@ def get_scene(scene_id: int, session: SessionDep) -> Scene:
 async def start_scene(scene_id: int, scene_manager: SceneManagerDep):
     try:
         await scene_manager.start_scene(scene_id)
-    except SceneNotFoundError:
-        raise HTTPException(status_code=404, detail="Scene not found")
+    except SceneNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Scene not found") from e
 
     return f"Started scene {scene_id}"
 
@@ -173,8 +173,8 @@ async def start_scene(scene_id: int, scene_manager: SceneManagerDep):
 async def set_current_scene(scene_id: int, scene_manager: SceneManagerDep):
     try:
         await scene_manager.set_current_scene(scene_id)
-    except SceneNotFoundError:
-        raise HTTPException(status_code=404, detail="Scene not found")
+    except SceneNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Scene not found") from e
 
     return f"Set scene {scene_id} as current scene."
 
@@ -191,9 +191,9 @@ async def suggest_keymap(scene_id: int, session: SessionDep, keymap_resolver: Ke
 async def stop_current_scene(scene_manager: SceneManagerDep):
     try:
         await scene_manager.stop_current_scene()
-    except NoActiveSceneError:
-        raise HTTPException(status_code=404, detail="No scene active")
+    except NoActiveSceneError as e:
+        raise HTTPException(status_code=404, detail="No scene active") from e
     except SceneNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
     return "Stopped current scene."

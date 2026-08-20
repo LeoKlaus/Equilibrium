@@ -49,7 +49,7 @@ async def upload_image(file: UploadFile, session: SessionDep):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f'Something went wrong: {e}')
+        raise HTTPException(status_code=500, detail=f'Something went wrong: {e}') from e
     finally:
         file.file.close()
 

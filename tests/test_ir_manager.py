@@ -12,7 +12,7 @@ from Api.models.DeviceType import DeviceType
 from Api.models.RemoteButton import RemoteButton
 from Api.models.WebsocketResponses import WebsocketIrResponse
 from Hub.EventBus import Directive
-from IrManager.IrManager import IrManager
+from ir_manager.ir_manager import IrManager
 
 
 class FakePigpio:
@@ -189,7 +189,7 @@ def _client_for(manager: IrManager) -> TestClient:
 
 
 def test_ws_commands_records_and_persists_a_command(db_engine, monkeypatch):
-    monkeypatch.setattr("IrManager.IrManager.engine", db_engine)
+    monkeypatch.setattr("ir_manager.ir_manager.engine", db_engine)
     manager = _ir_manager()
 
     async def fake_record_command(name, websocket):
@@ -211,7 +211,7 @@ def test_ws_commands_records_and_persists_a_command(db_engine, monkeypatch):
 
 
 def test_ws_commands_links_the_device_when_device_id_is_given(db_engine, monkeypatch):
-    monkeypatch.setattr("IrManager.IrManager.engine", db_engine)
+    monkeypatch.setattr("ir_manager.ir_manager.engine", db_engine)
     manager = _ir_manager()
 
     async def fake_record_command(name, websocket):
@@ -241,7 +241,7 @@ def test_ws_commands_links_the_device_when_device_id_is_given(db_engine, monkeyp
 
 
 def test_ws_commands_cancelled_recording_sends_cancelled_and_closes_cleanly(db_engine, monkeypatch):
-    monkeypatch.setattr("IrManager.IrManager.engine", db_engine)
+    monkeypatch.setattr("ir_manager.ir_manager.engine", db_engine)
     manager = _ir_manager()
 
     async def fake_record_command(name, websocket):

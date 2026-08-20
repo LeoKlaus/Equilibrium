@@ -4,7 +4,7 @@ import logging
 
 from fastapi import FastAPI
 
-from BleKeyboard.BleKeyboard import BleKeyboard
+from ble_keyboard.ble_keyboard import BleKeyboard
 from ha_manager.ha_manager import HaManager
 from Hub.CommandDispatcher import CommandDispatcher
 from Hub.EventBus import EventBus
@@ -13,7 +13,7 @@ from Hub.interfaces import ActionExecutor, BleKeyboardProtocol, InputSource, IrM
 from Hub.KeymapResolver import KeymapResolver
 from Hub.SceneManager import SceneManager
 from Hub.StatusStore import StatusStore
-from IrManager.IrManager import IrManager
+from ir_manager.ir_manager import IrManager
 from network_executor.network_executor import NetworkExecutor
 from rf_manager.rf_manager import RfInput
 from script_executor.script_executor import ScriptExecutor

@@ -5,7 +5,7 @@ from Api.models.Command import Command
 from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
 from Api.models.RemoteButton import RemoteButton
-from BleKeyboard.BleKeyboard import BleKeyboard
+from ble_keyboard.ble_keyboard import BleKeyboard
 from Hub.EventBus import Directive
 
 

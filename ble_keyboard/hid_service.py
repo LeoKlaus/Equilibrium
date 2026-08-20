@@ -6,7 +6,7 @@ from bluez_peripheral.gatt.characteristic import characteristic
 from bluez_peripheral.gatt.descriptor import descriptor
 from bluez_peripheral.gatt.service import Service
 
-from BleKeyboard.ReportmapHelper import REPORT_MAP
+from ble_keyboard.reportmap_helper import REPORT_MAP
 
 
 #hid service: type="primary" uuid="1812" 00001812-0000-1000-8000-00805F9B34FB

@@ -1,4 +1,5 @@
 import asyncio
+import gc
 
 from Hub.EventBus import Directive, Event, EventBus
 
@@ -91,6 +92,29 @@ async def test_a_raising_handler_does_not_prevent_a_sibling_handler_from_running
 
     assert set(order) == {"raising", "other"}
     assert "raised" in caplog.text
+
+
+async def test_dispatched_task_is_not_garbage_collected_before_it_completes():
+    bus = EventBus()
+    completed = []
+
+    async def handler(_: Event) -> None:
+        await asyncio.sleep(0)
+        completed.append(True)
+
+    bus.subscribe("key_pressed", handler)
+    bus._dispatch(Event("key_pressed", {}))
+
+    assert len(bus._background_tasks) == 1
+
+    # asyncio.create_task() only registers a weak reference with the event
+    # loop - without EventBus holding a strong one of its own, this collect()
+    # could reap the task before the handler gets to run.
+    gc.collect()
+    await asyncio.sleep(0.01)
+
+    assert completed == [True]
+    assert bus._background_tasks == set()
 
 
 def test_directive_defaults():

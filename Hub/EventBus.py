@@ -36,6 +36,7 @@ class EventBus:
     def __init__(self) -> None:
         self._queue: asyncio.Queue[Event] = asyncio.Queue()
         self._subscribers: defaultdict[str, list[EventHandler]] = defaultdict(list)
+        self._background_tasks: set[asyncio.Task[None]] = set()
 
     def subscribe(self, event_type: str, handler: EventHandler) -> None:
         self._subscribers[event_type].append(handler)
@@ -51,7 +52,9 @@ class EventBus:
 
     def _dispatch(self, event: Event) -> None:
         for handler in self._subscribers.get(event.type, []):
-            asyncio.create_task(self._run_handler(handler, event))
+            task = asyncio.create_task(self._run_handler(handler, event))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
 
     async def _run_handler(self, handler: EventHandler, event: Event) -> None:
         try:

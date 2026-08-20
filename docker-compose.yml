@@ -1,0 +1,26 @@
+services:
+  equilibrium:
+    build: .
+    restart: unless-stopped
+    # Host networking so mDNS advertising (zeroconf) works without extra
+    # plumbing - matches the app binding 0.0.0.0 directly. The port is
+    # controlled by main.py's -p/--port (default 8000); override it via
+    # `command:` if needed. Note this does NOT cover D-Bus (see below) -
+    # D-Bus is a Unix socket, not a network port, so it isn't shared by
+    # host networking and needs its own bind mount.
+    network_mode: host
+    # Privileged + /dev mounted in: pyrf24 needs direct SPI/GPIO access
+    # for the RF24 radio. Device paths vary across Pi models/OS
+    # versions, so this is simpler and more portable than enumerating
+    # individual devices.
+    privileged: true
+    volumes:
+      - /dev:/dev
+      - ./config:/app/config
+      # BlueZ D-Bus access for bluez_peripheral - without this,
+      # connecting to the system bus fails with ENOENT and the
+      # container crashes during startup (Hub.create() -> BleKeyboard).
+      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
+    # pigpiod (for the IR blaster) is expected to already be running on
+    # the host, as it does today outside of Docker - this container
+    # only runs the pigpio client, which connects to it over TCP.

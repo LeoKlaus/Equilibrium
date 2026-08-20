@@ -5,10 +5,10 @@ from Api.models.SceneStatus import SceneStatus
 
 class DeviceState(SQLModel):
     powered: bool = False
-    input: int|None = None
+    input: int | None = None
 
 class DeviceStates(SQLModel):
-    states: dict[int, DeviceState] = Field(default = {})
+    states: dict[int, DeviceState] = Field(default_factory=dict)
 
     def state(self, for_device_id: int) -> DeviceState:
         return self.states.get(for_device_id, DeviceState())
@@ -34,4 +34,4 @@ class DeviceStates(SQLModel):
 class StatusReport(SQLModel):
     current_scene: SceneWithRelationships | None = Field(default=None)
     scene_status: SceneStatus | None = Field(default=None)
-    devices: DeviceStates = Field(default=DeviceStates())
+    devices: DeviceStates = Field(default_factory=DeviceStates)

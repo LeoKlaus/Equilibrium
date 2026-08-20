@@ -1,5 +1,5 @@
-from pydantic import BaseModel
+from sqlmodel import SQLModel
 
 
-class ServerInfo(BaseModel):
+class ServerInfo(SQLModel):
     version: str = "0.1.0"

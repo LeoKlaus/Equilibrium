@@ -24,15 +24,15 @@ class MacroBase(SQLModel):
     name: str | None = Field(default=None)
 
 class MacroPost(MacroBase):
-    command_ids: list[int] = Field(default=[])
-    delays: list[int] = Field(default=[])
-    scene_ids: list[int] = Field(default=[])
+    command_ids: list[int] = Field(default_factory=list)
+    delays: list[int] = Field(default_factory=list)
+    scene_ids: list[int] = Field(default_factory=list)
 
 class Macro(MacroBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     commands: list["Command"] = Relationship(back_populates="macros", link_model=CommandMacroLink)
-    command_ids: list[int] = Field(default=[], sa_column=Column(JSON))
-    delays: list[int] = Field(default=[], sa_column=Column(JSON))
+    command_ids: list[int] = Field(default_factory=list, sa_column=Column(JSON))
+    delays: list[int] = Field(default_factory=list, sa_column=Column(JSON))
     scenes_start: list["Scene"] = Relationship(
         back_populates="start_macro",
         sa_relationship_kwargs={"foreign_keys": "Scene.start_macro_id"}

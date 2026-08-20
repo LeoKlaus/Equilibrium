@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, Annotated, Dict
+from typing import TYPE_CHECKING, Annotated
 
 from sqlalchemy import Column, JSON, event
 from sqlmodel import SQLModel, Field, Relationship, Session
@@ -25,7 +25,7 @@ class CommandBase(SQLModel):
     host: str | None = Field(default=None)
     method: NetworkRequestType | None = Field(default=None)
     body: str | None = Field(default=None)
-    headers: Dict[str, str] |None = Field(default=None)
+    headers: dict[str, str] | None = Field(default=None)
     bt_action: str | None = Field(default=None)
     bt_media_action: str | None = Field(default=None)
     integration_action: IntegrationAction | None = Field(default=None)
@@ -36,8 +36,8 @@ class Command(CommandBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     device_id: int | None = Field(default=None, foreign_key="device.id")
     device: "Device" = Relationship(back_populates="commands")
-    ir_action: Annotated[list[int], Field(default=[], sa_column=Column(JSON), exclude=True)]
-    headers: Dict[str, str] | None = Field(default=None, sa_column=Column(JSON))
+    ir_action: Annotated[list[int], Field(default_factory=list, sa_column=Column(JSON), exclude=True)]
+    headers: dict[str, str] | None = Field(default=None, sa_column=Column(JSON))
     macros: list["Macro"] = Relationship(back_populates="commands", link_model=CommandMacroLink)
 
     # Needed for Column(JSON)
@@ -46,11 +46,8 @@ class Command(CommandBase, table=True):
 
 class CommandWithRelationships(CommandBase):
     id: int | None
-    device: Optional["Device"] = None
+    device: "Device | None" = None
     macros: list["Macro"] = []
-
-
-
 
 @event.listens_for(Session, "deleted_to_detached")
 def after_delete_command(emitting_session, instance):

@@ -1,6 +1,6 @@
 fastapi[standard]~=0.115.13
 sqlmodel~=0.0.39
-uvicorn~=0.34.3
+uvicorn~=0.52.4
 starlette~=0.46.2
 pigpio~=1.78
 bluez_peripheral~=0.2.0a3

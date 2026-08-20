@@ -3,27 +3,33 @@ line-length = 120
 
 [tool.ruff.lint]
 # Deliberately curated rather than "ALL" - ruff's own guidance advises
-# against ALL for ongoing use, it's too broad/noisy. Only N999 from
-# pep8-naming is enabled (module/package names are now snake_case
-# throughout); the rest of the N family (N802 function naming, N816
-# mixed-case globals, etc.) surfaces ~40 pre-existing findings of its
-# own and hasn't been reviewed as its own phase yet.
+# against ALL for ongoing use, it's too broad/noisy.
 select = [
-    "E",     # pycodestyle errors
-    "F",     # pyflakes
-    "I",     # isort
-    "UP",    # pyupgrade
-    "B",     # flake8-bugbear
-    "C4",    # flake8-comprehensions
-    "SIM",   # flake8-simplify
-    "RUF",   # ruff-specific rules
-    "N999",  # invalid-module-name
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules
+    "N",    # pep8-naming
 ]
 ignore = [
     "E501",  # line-too-long - no auto-formatter is adopted here, and
              # manually rewrapping lines by hand is pure cosmetic risk
              # (dense f-strings, migration DDL) for no functional benefit.
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# HID report descriptor opcodes named to match the USB HID spec / the
+# reference C header this was ported from (HIDINPUT, USAGE_PAGE,
+# COLLECTION, ...) - renaming to snake_case would break the direct
+# correspondence to the spec these are modeling.
+"ble_keyboard/reportmap_helper.py" = ["N802"]
+# FakeRadio duck-types pyrf24.RF24's real (camelCase, C++-derived) API -
+# getDynamicPayloadSize/powerDown must match the library's own names.
+"tests/test_rf_input.py" = ["N802"]
 
 [tool.mypy]
 python_version = "3.14"

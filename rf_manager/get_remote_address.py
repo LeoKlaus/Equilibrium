@@ -19,36 +19,36 @@ radio.setCRCLength (RF24_CRC_16)
 radio.stopListening(address)
 
 channels = [5,8,14,17,32,35,41,44,62,65,71,74]
-channelId = 0
+channel_id = 0
 
-pairMessage = [242,95,1,225,154,157,218,83,40,64,30,4,2,7,12,0,0,0,0,0,102,100]
-pingMessage = [242,64,1,225,236]
-pingRetries = 0
+pair_message = [242,95,1,225,154,157,218,83,40,64,30,4,2,7,12,0,0,0,0,0,102,100]
+ping_message = [242,64,1,225,236]
+ping_retries = 0
 
 print("Listening, press the pair button on your hub now.")
 
 while True:
-    if pingRetries == 0:
-        radio.setChannel(channels[channelId])
-        if radio.write(bytearray(pairMessage)):
-            pingRetries = 10
+    if ping_retries == 0:
+        radio.setChannel(channels[channel_id])
+        if radio.write(bytearray(pair_message)):
+            ping_retries = 10
         else:
-            channelId += 1
-            if channelId > 11:
-                channelId = 0
+            channel_id += 1
+            if channel_id > 11:
+                channel_id = 0
     else:
-        radio.write(bytearray(pingMessage))
-        pingRetries -= 1
+        radio.write(bytearray(ping_message))
+        ping_retries -= 1
 
 
     time.sleep(0.1)
 
     has_payload, pipe_number = radio.available_pipe()
     if has_payload:
-        payloadSize = radio.getDynamicPayloadSize()
-        payload = radio.read(payloadSize)
+        payload_size = radio.getDynamicPayloadSize()
+        payload = radio.read(payload_size)
 
-        if payloadSize == 22:
+        if payload_size == 22:
             print("The remote RF24 address is")
 
             first = payload[7]-1

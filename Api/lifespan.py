@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from Api import logger
 from DbManager.DbManager import create_db_and_tables
 from Hub.Hub import Hub
-from ZeroconfManager.ZeroconfManager import ZeroconfManager
+from zeroconf_manager.zeroconf_manager import ZeroconfManager
 
 
 def _load_rf_addresses() -> list[bytes] | None:

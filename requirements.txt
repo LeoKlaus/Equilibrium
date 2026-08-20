@@ -11,4 +11,4 @@ python-multipart~=0.0.32
 httpx2~=2.12.0
 pillow~=12.3.0
 pyrf24~=0.6.0
-homeassistant_api~=5.0.1
+homeassistant_api~=6.0.1

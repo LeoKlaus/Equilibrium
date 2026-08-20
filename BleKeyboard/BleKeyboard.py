@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from random import randint
+from typing import ClassVar
 
 from bluez_peripheral.advert import Advertisement
 from bluez_peripheral.agent import NoIoAgent
@@ -45,7 +46,7 @@ class BleKeyboard(ActionExecutor):
     """
 
     name = "bluetooth"
-    capabilities = ["pairing", "device_list"]
+    capabilities: ClassVar[list[str]] = ["pairing", "device_list"]
 
     logger = logging.getLogger(__package__)
 

@@ -4,6 +4,7 @@ import logging
 import time
 from asyncio import Task
 from collections.abc import Awaitable, Callable
+from typing import ClassVar
 
 import pigpio
 from fastapi import APIRouter
@@ -32,7 +33,7 @@ FREQ = 38
 class IrManager(ActionExecutor):
 
     name = "ir"
-    capabilities = ["command_recording"]
+    capabilities: ClassVar[list[str]] = ["command_recording"]
 
     logger = logging.getLogger(__package__)
     recording_task: Task|None = None

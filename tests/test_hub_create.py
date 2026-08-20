@@ -1,4 +1,5 @@
 import json
+from typing import ClassVar
 
 import pytest
 
@@ -8,7 +9,7 @@ from Hub.Hub import Hub
 class FakeRfInput:
     name = "rf"
     router = None
-    capabilities = []
+    capabilities: ClassVar[list[str]] = []
 
     def __init__(self, addresses, config_dir="config"):
         self.addresses = addresses
@@ -21,7 +22,7 @@ class FakeRfInput:
 class FakeBleKeyboard:
     name = "bluetooth"
     router = None
-    capabilities = []
+    capabilities: ClassVar[list[str]] = []
 
     def __init__(self):
         pass
@@ -37,7 +38,7 @@ class FakeBleKeyboard:
 class FakeIrManager:
     name = "ir"
     router = None
-    capabilities = []
+    capabilities: ClassVar[list[str]] = []
 
     async def execute(self, directive, command) -> None:
         pass
@@ -46,7 +47,7 @@ class FakeIrManager:
 class FakeHaManager:
     name = "integration"
     router = None
-    capabilities = []
+    capabilities: ClassVar[list[str]] = []
 
     def __init__(self, url, token):
         self.url = url
@@ -59,7 +60,7 @@ class FakeHaManager:
 class FakeNetworkExecutor:
     name = "network"
     router = None
-    capabilities = []
+    capabilities: ClassVar[list[str]] = []
 
     async def execute(self, directive, command) -> None:
         pass
@@ -68,7 +69,7 @@ class FakeNetworkExecutor:
 class FakeScriptExecutor:
     name = "script"
     router = None
-    capabilities = []
+    capabilities: ClassVar[list[str]] = []
 
     def __init__(self, scripts_dir):
         self.scripts_dir = scripts_dir

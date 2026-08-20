@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import ClassVar
 
 from fastapi import APIRouter
 
@@ -16,7 +17,7 @@ class InputSource(ABC):
 
     name: str
     router: APIRouter | None = None
-    capabilities: list[str] = []
+    capabilities: ClassVar[list[str]] = []
 
     @abstractmethod
     async def start(self, bus: EventBus) -> None:
@@ -28,7 +29,7 @@ class ActionExecutor(ABC):
 
     name: str
     router: APIRouter | None = None
-    capabilities: list[str] = []
+    capabilities: ClassVar[list[str]] = []
 
     @abstractmethod
     async def execute(self, directive: Directive, command: Command) -> None:

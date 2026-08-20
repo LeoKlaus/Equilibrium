@@ -1,5 +1,6 @@
 import asyncio
 import json
+from typing import ClassVar
 
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
@@ -15,7 +16,7 @@ from Hub.Hub import Hub
 
 class FakeInputSource:
     router = None
-    capabilities = []
+    capabilities: ClassVar[list[str]] = []
 
     def __init__(self, name: str = "fake"):
         self.name = name
@@ -36,7 +37,7 @@ class FakeInputSourceWithoutStop:
     """No stop() - only asyncio cancellation can end its task."""
 
     router = None
-    capabilities = []
+    capabilities: ClassVar[list[str]] = []
 
     def __init__(self, name: str = "fake-no-stop"):
         self.name = name
@@ -49,7 +50,7 @@ class FakeInputSourceWithoutStop:
 
 class FakeExecutor:
     router = None
-    capabilities = []
+    capabilities: ClassVar[list[str]] = []
 
     def __init__(self, name: str):
         self.name = name
@@ -64,7 +65,7 @@ class FakeBleExecutor:
     need beyond the plain ActionExecutor interface."""
 
     router = None
-    capabilities = []
+    capabilities: ClassVar[list[str]] = []
 
     def __init__(self):
         self.name = "bluetooth"
@@ -94,7 +95,7 @@ class FakeBleExecutor:
 
 class FakeIrExecutor:
     router = None
-    capabilities = []
+    capabilities: ClassVar[list[str]] = []
 
     def __init__(self):
         self.name = "ir"
@@ -304,7 +305,7 @@ async def test_full_pipeline_from_bus_event_to_executor(db_engine, tmp_path, mon
 
 
 class FakeModuleWithRouter:
-    capabilities = []
+    capabilities: ClassVar[list[str]] = []
 
     def __init__(self, name: str = "with-router", path: str = "/fake-ping"):
         self.name = name

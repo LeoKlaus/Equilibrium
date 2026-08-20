@@ -1,4 +1,5 @@
 import json
+from typing import ClassVar
 
 from fastapi import FastAPI
 
@@ -6,7 +7,7 @@ from Api.lifespan import _lifespan, _load_ha_credentials, _load_rf_addresses
 
 
 class FakeZeroconfManager:
-    instances = []
+    instances: ClassVar[list["FakeZeroconfManager"]] = []
 
     def __init__(self):
         self.registered_name = None
@@ -88,7 +89,7 @@ async def test_lifespan_mounts_module_routers_onto_the_app(tmp_path, monkeypatch
 
     class FakeExecutorWithRouter:
         name = "fake"
-        capabilities = []
+        capabilities: ClassVar[list[str]] = []
 
         def __init__(self):
             self.router = APIRouter()

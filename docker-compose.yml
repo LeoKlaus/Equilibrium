@@ -2,6 +2,10 @@ services:
   equilibrium:
     build: .
     restart: unless-stopped
+    environment:
+      # Same effect as passing --debug/--verbose on the command line -
+      # DEBUG, INFO, WARNING (default), ERROR or CRITICAL.
+      - LOG_LEVEL=INFO
     # Host networking so mDNS advertising (zeroconf) works without extra
     # plumbing - matches the app binding 0.0.0.0 directly. The port is
     # controlled by main.py's -p/--port (default 8000); override it via

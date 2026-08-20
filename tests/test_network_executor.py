@@ -7,7 +7,7 @@ from Api.models.CommandType import CommandType
 from Api.models.NetworkRequestType import NetworkRequestType
 from Api.models.RemoteButton import RemoteButton
 from Hub.EventBus import Directive
-from NetworkExecutor.NetworkExecutor import NetworkExecutor
+from network_executor.network_executor import NetworkExecutor
 
 
 def _command(**overrides) -> Command:

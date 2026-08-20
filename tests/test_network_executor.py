@@ -6,7 +6,7 @@ from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
 from Api.models.NetworkRequestType import NetworkRequestType
 from Api.models.RemoteButton import RemoteButton
-from Hub.EventBus import Directive
+from hub.event_bus import Directive
 from network_executor.network_executor import NetworkExecutor
 
 

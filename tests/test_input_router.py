@@ -1,8 +1,8 @@
 import asyncio
 
-from Hub.EventBus import Directive, Event, EventBus
-from Hub.InputRouter import InputRouter
-from Hub.KeymapResolver import SendDirective, StartScene, StopScene
+from hub.event_bus import Directive, Event, EventBus
+from hub.input_router import InputRouter
+from hub.keymap_resolver import SendDirective, StartScene, StopScene
 
 
 class FakeKeymapResolver:

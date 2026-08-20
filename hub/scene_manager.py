@@ -8,11 +8,11 @@ from Api.models.RemoteButton import RemoteButton
 from Api.models.Scene import Scene, SceneWithRelationships
 from Api.models.SceneStatus import SceneStatus
 from db_manager.db_manager import engine
-from Hub.CommandDispatcher import CommandDispatcher
-from Hub.EventBus import Directive
-from Hub.interfaces import BleKeyboardProtocol
-from Hub.KeymapResolver import KeymapResolver
-from Hub.StatusStore import StatusStore
+from hub.command_dispatcher import CommandDispatcher
+from hub.event_bus import Directive
+from hub.interfaces import BleKeyboardProtocol
+from hub.keymap_resolver import KeymapResolver
+from hub.status_store import StatusStore
 
 
 class SceneNotFoundError(Exception):

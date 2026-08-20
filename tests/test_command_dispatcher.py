@@ -6,11 +6,11 @@ from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
 from Api.models.Macro import Macro
 from Api.models.RemoteButton import RemoteButton
-from Hub.CommandDispatcher import CommandDispatcher
-from Hub.EventBus import Directive
-from Hub.interfaces import ActionExecutor
-from Hub.KeymapResolver import KeymapResolver
-from Hub.StatusStore import StatusStore
+from hub.command_dispatcher import CommandDispatcher
+from hub.event_bus import Directive
+from hub.interfaces import ActionExecutor
+from hub.keymap_resolver import KeymapResolver
+from hub.status_store import StatusStore
 
 
 class FakeExecutor(ActionExecutor):
@@ -25,7 +25,7 @@ class FakeExecutor(ActionExecutor):
 
 @pytest.fixture
 def keymap_resolver(db_engine, monkeypatch):
-    monkeypatch.setattr("Hub.KeymapResolver.engine", db_engine)
+    monkeypatch.setattr("hub.keymap_resolver.engine", db_engine)
     return KeymapResolver()
 
 

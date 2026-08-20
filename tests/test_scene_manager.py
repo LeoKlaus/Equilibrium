@@ -8,8 +8,8 @@ from Api.models.Macro import Macro
 from Api.models.RemoteButton import RemoteButton
 from Api.models.Scene import Scene
 from Api.models.SceneStatus import SceneStatus
-from Hub.SceneManager import NoActiveSceneError, SceneManager, SceneNotFoundError
-from Hub.StatusStore import StatusStore
+from hub.scene_manager import NoActiveSceneError, SceneManager, SceneNotFoundError
+from hub.status_store import StatusStore
 
 
 class FakeKeymapResolver:
@@ -55,7 +55,7 @@ class FakeBleKeyboard:
 
 @pytest.fixture
 def deps(db_engine, monkeypatch):
-    monkeypatch.setattr("Hub.SceneManager.engine", db_engine)
+    monkeypatch.setattr("hub.scene_manager.engine", db_engine)
     return StatusStore(), FakeKeymapResolver(), FakeCommandDispatcher(), FakeBleKeyboard()
 
 
@@ -164,7 +164,7 @@ async def test_start_scene_broadcasts_full_relationship_data(db_engine, deps):
 
 
 async def test_start_scene_without_ble_keyboard_does_not_raise(db_engine, monkeypatch):
-    monkeypatch.setattr("Hub.SceneManager.engine", db_engine)
+    monkeypatch.setattr("hub.scene_manager.engine", db_engine)
     scene_id = _create_scene(db_engine, bluetooth_address="AA:BB:CC:DD:EE:FF")
     status_store = StatusStore()
     manager = SceneManager(status_store, FakeKeymapResolver(), FakeCommandDispatcher(), ble_keyboard=None)

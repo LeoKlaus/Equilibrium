@@ -11,7 +11,7 @@ from Api.models.Device import Device
 from Api.models.DeviceType import DeviceType
 from Api.models.RemoteButton import RemoteButton
 from Api.models.WebsocketResponses import WebsocketIrResponse
-from Hub.EventBus import Directive
+from hub.event_bus import Directive
 from ir_manager.ir_manager import IrManager
 
 

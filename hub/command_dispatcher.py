@@ -5,10 +5,10 @@ from Api.models.Command import Command
 from Api.models.CommandGroupType import CommandGroupType
 from Api.models.Macro import Macro
 from Api.models.RemoteButton import RemoteButton
-from Hub.EventBus import Directive
-from Hub.interfaces import ActionExecutor
-from Hub.KeymapResolver import KeymapResolver
-from Hub.StatusStore import StatusStore
+from hub.event_bus import Directive
+from hub.interfaces import ActionExecutor
+from hub.keymap_resolver import KeymapResolver
+from hub.status_store import StatusStore
 
 
 class CommandDispatcher:

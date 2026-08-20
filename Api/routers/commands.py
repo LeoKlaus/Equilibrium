@@ -9,7 +9,7 @@ from Api.models.CommandType import CommandType
 from Api.models.Device import Device
 from Api.models.IntegrationAction import IntegrationAction
 from db_manager.db_manager import SessionDep
-from Hub.EventBus import Directive
+from hub.event_bus import Directive
 
 router = APIRouter(
     prefix="/commands",

@@ -7,7 +7,7 @@ from Api.models.CommandType import CommandType
 from Api.models.IntegrationAction import IntegrationAction
 from Api.models.RemoteButton import RemoteButton
 from ha_manager.ha_manager import HaManager
-from Hub.EventBus import Directive
+from hub.event_bus import Directive
 
 
 class FakeDomain:

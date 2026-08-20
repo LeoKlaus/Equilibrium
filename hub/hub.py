@@ -6,13 +6,13 @@ from fastapi import FastAPI
 
 from ble_keyboard.ble_keyboard import BleKeyboard
 from ha_manager.ha_manager import HaManager
-from Hub.CommandDispatcher import CommandDispatcher
-from Hub.EventBus import EventBus
-from Hub.InputRouter import InputRouter
-from Hub.interfaces import ActionExecutor, BleKeyboardProtocol, InputSource, IrManagerProtocol
-from Hub.KeymapResolver import KeymapResolver
-from Hub.SceneManager import SceneManager
-from Hub.StatusStore import StatusStore
+from hub.command_dispatcher import CommandDispatcher
+from hub.event_bus import EventBus
+from hub.input_router import InputRouter
+from hub.interfaces import ActionExecutor, BleKeyboardProtocol, InputSource, IrManagerProtocol
+from hub.keymap_resolver import KeymapResolver
+from hub.scene_manager import SceneManager
+from hub.status_store import StatusStore
 from ir_manager.ir_manager import IrManager
 from network_executor.network_executor import NetworkExecutor
 from rf_manager.rf_manager import RfInput

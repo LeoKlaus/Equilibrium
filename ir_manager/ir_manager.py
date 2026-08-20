@@ -15,8 +15,8 @@ from Api.models.Command import Command, CommandBase
 from Api.models.Device import Device
 from Api.models.WebsocketResponses import WebsocketIrResponse
 from db_manager.db_manager import engine
-from Hub.EventBus import Directive
-from Hub.interfaces import ActionExecutor
+from hub.event_bus import Directive
+from hub.interfaces import ActionExecutor
 
 AsyncCallback = Callable[[str], Awaitable[None]]
 

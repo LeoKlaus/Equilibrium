@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from Hub.EventBus import Event, EventBus
+from hub.event_bus import Event, EventBus
 from rf_manager.rf_manager import RfInput, _Signal
 
 

@@ -4,8 +4,8 @@ import httpx
 
 from Api.models.Command import Command
 from Api.models.NetworkRequestType import NetworkRequestType
-from Hub.EventBus import Directive
-from Hub.interfaces import ActionExecutor
+from hub.event_bus import Directive
+from hub.interfaces import ActionExecutor
 
 _METHODS_WITH_BODY = {NetworkRequestType.POST, NetworkRequestType.PATCH, NetworkRequestType.PUT}
 

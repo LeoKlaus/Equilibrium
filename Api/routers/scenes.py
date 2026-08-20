@@ -9,7 +9,7 @@ from Api.models.Device import Device
 from Api.models.Scene import Scene, ScenePost, SceneWithRelationships, SceneWithRelationshipsAndFullDevices
 from Api.models.UserImage import UserImage
 from db_manager.db_manager import SessionDep
-from Hub.SceneManager import NoActiveSceneError, SceneNotFoundError
+from hub.scene_manager import NoActiveSceneError, SceneNotFoundError
 
 router = APIRouter(
     prefix="/scenes",

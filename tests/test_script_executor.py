@@ -4,8 +4,8 @@ from Api.models.Command import Command
 from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
 from Api.models.RemoteButton import RemoteButton
-from Hub.EventBus import Directive
-from Hub.interfaces import ActionExecutor
+from hub.event_bus import Directive
+from hub.interfaces import ActionExecutor
 from script_executor.script_executor import ScriptExecutor
 
 

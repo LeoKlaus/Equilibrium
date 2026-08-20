@@ -3,10 +3,10 @@ from typing import Annotated
 from fastapi import Depends, Request
 from starlette.websockets import WebSocket
 
-from Hub.CommandDispatcher import CommandDispatcher
-from Hub.KeymapResolver import KeymapResolver
-from Hub.SceneManager import SceneManager
-from Hub.StatusStore import StatusStore
+from hub.command_dispatcher import CommandDispatcher
+from hub.keymap_resolver import KeymapResolver
+from hub.scene_manager import SceneManager
+from hub.status_store import StatusStore
 
 # Mirrors DbManager.SessionDep's Annotated[..., Depends(...)] pattern. The
 # underlying values still come from Api.lifespan's yielded state - these are

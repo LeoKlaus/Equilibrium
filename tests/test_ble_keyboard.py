@@ -6,7 +6,7 @@ from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
 from Api.models.RemoteButton import RemoteButton
 from ble_keyboard.ble_keyboard import BleKeyboard
-from Hub.EventBus import Directive
+from hub.event_bus import Directive
 
 
 class FakeHidService:

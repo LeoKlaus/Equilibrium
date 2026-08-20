@@ -4,7 +4,7 @@ from typing import ClassVar, Protocol, runtime_checkable
 from fastapi import APIRouter
 
 from Api.models.Command import Command
-from Hub.EventBus import Directive, EventBus
+from hub.event_bus import Directive, EventBus
 
 
 class InputSource(ABC):

@@ -1,7 +1,7 @@
 import asyncio
 import gc
 
-from Hub.EventBus import Directive, Event, EventBus
+from hub.event_bus import Directive, Event, EventBus
 
 
 async def test_dispatch_calls_subscribed_handlers():

@@ -1,5 +1,5 @@
 from Api.models.SceneStatus import SceneStatus
-from Hub.StatusStore import StatusStore
+from hub.status_store import StatusStore
 
 
 async def test_set_device_state_notifies_and_powering_off_clears_input():

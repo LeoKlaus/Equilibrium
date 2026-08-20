@@ -5,8 +5,8 @@ import time
 from dataclasses import dataclass
 from sys import platform
 
-from Hub.EventBus import Event, EventBus
-from Hub.interfaces import InputSource
+from hub.event_bus import Event, EventBus
+from hub.interfaces import InputSource
 
 # pyrf24 only has precompiled binaries for linux. If you install it via pip on another os, the import will fail,
 # even though the package seems to be installed. For development setups, this is not an issue, as this class is

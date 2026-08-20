@@ -5,8 +5,8 @@ from homeassistant_api import Client, Domain
 
 from Api.models.Command import Command
 from Api.models.IntegrationAction import IntegrationAction
-from Hub.EventBus import Directive
-from Hub.interfaces import ActionExecutor
+from hub.event_bus import Directive
+from hub.interfaces import ActionExecutor
 
 
 class HaManager(ActionExecutor):

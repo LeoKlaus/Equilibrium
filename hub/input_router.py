@@ -1,10 +1,10 @@
 import logging
 
-from Hub.CommandDispatcher import CommandDispatcher
-from Hub.EventBus import Event, EventBus
-from Hub.interfaces import BleKeyboardProtocol, IrManagerProtocol
-from Hub.KeymapResolver import KeymapResolver, SendDirective, StartScene, StopScene
-from Hub.SceneManager import SceneManager
+from hub.command_dispatcher import CommandDispatcher
+from hub.event_bus import Event, EventBus
+from hub.interfaces import BleKeyboardProtocol, IrManagerProtocol
+from hub.keymap_resolver import KeymapResolver, SendDirective, StartScene, StopScene
+from hub.scene_manager import SceneManager
 
 
 class InputRouter:

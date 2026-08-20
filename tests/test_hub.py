@@ -10,8 +10,8 @@ from Api.models.Command import Command
 from Api.models.CommandGroupType import CommandGroupType
 from Api.models.CommandType import CommandType
 from Api.models.RemoteButton import RemoteButton
-from Hub.EventBus import Event
-from Hub.Hub import Hub
+from hub.event_bus import Event
+from hub.hub import Hub
 
 
 class FakeInputSource:
@@ -268,7 +268,7 @@ async def test_full_pipeline_from_bus_event_to_executor(db_engine, tmp_path, mon
     # key_pressed event reaches the right executor via the real
     # KeymapResolver/CommandDispatcher/InputRouter, not just that the
     # right objects got constructed.
-    monkeypatch.setattr("Hub.KeymapResolver.engine", db_engine)
+    monkeypatch.setattr("hub.keymap_resolver.engine", db_engine)
     (tmp_path / "keymap_scenes.json").write_text(json.dumps({}))
     (tmp_path / "keymap_default.json").write_text(json.dumps({"Play": 1}))
 

@@ -3,7 +3,7 @@ from typing import ClassVar
 
 import pytest
 
-from Hub.Hub import Hub
+from hub.hub import Hub
 
 
 class FakeRfInput:
@@ -101,12 +101,12 @@ class FakeScriptExecutor:
 
 @pytest.fixture
 def patched_modules(monkeypatch):
-    monkeypatch.setattr("Hub.Hub.RfInput", FakeRfInput)
-    monkeypatch.setattr("Hub.Hub.BleKeyboard", FakeBleKeyboard)
-    monkeypatch.setattr("Hub.Hub.IrManager", FakeIrManager)
-    monkeypatch.setattr("Hub.Hub.HaManager", FakeHaManager)
-    monkeypatch.setattr("Hub.Hub.NetworkExecutor", FakeNetworkExecutor)
-    monkeypatch.setattr("Hub.Hub.ScriptExecutor", FakeScriptExecutor)
+    monkeypatch.setattr("hub.hub.RfInput", FakeRfInput)
+    monkeypatch.setattr("hub.hub.BleKeyboard", FakeBleKeyboard)
+    monkeypatch.setattr("hub.hub.IrManager", FakeIrManager)
+    monkeypatch.setattr("hub.hub.HaManager", FakeHaManager)
+    monkeypatch.setattr("hub.hub.NetworkExecutor", FakeNetworkExecutor)
+    monkeypatch.setattr("hub.hub.ScriptExecutor", FakeScriptExecutor)
 
 
 @pytest.fixture
@@ -172,13 +172,13 @@ async def test_create_warns_when_scripts_enabled(patched_modules, empty_config_d
 
 
 async def test_create_loads_the_default_keymap_when_present(patched_modules, tmp_path, db_engine, monkeypatch):
-    monkeypatch.setattr("Hub.KeymapResolver.engine", db_engine)
+    monkeypatch.setattr("hub.keymap_resolver.engine", db_engine)
     (tmp_path / "keymap_scenes.json").write_text(json.dumps({}))
     (tmp_path / "keymap_default.json").write_text(json.dumps({"Play": 1}))
 
     hub = await Hub.create(dev=True, config_dir=str(tmp_path))
 
-    from Hub.KeymapResolver import SendDirective
+    from hub.keymap_resolver import SendDirective
     resolution = hub.keymap_resolver.resolve("Play")
     assert isinstance(resolution, SendDirective)
 

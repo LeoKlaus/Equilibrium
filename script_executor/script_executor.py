@@ -4,8 +4,8 @@ import os
 from pathlib import Path
 
 from Api.models.Command import Command
-from Hub.EventBus import Directive
-from Hub.interfaces import ActionExecutor
+from hub.event_bus import Directive
+from hub.interfaces import ActionExecutor
 
 _DEFAULT_TIMEOUT_SECONDS = 30
 

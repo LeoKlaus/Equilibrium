@@ -19,8 +19,8 @@ from ble_keyboard.battery_service import BatteryService
 from ble_keyboard.device_information_service import DeviceInformationService
 from ble_keyboard.hid_service import HidService
 from ble_keyboard.keymap_helper import create_keycode, create_media_keycode
-from Hub.EventBus import Directive
-from Hub.interfaces import ActionExecutor
+from hub.event_bus import Directive
+from hub.interfaces import ActionExecutor
 
 # For Apple TV:
 # 1. Advertise

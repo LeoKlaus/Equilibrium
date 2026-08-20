@@ -10,7 +10,7 @@ from Api.models.Device import Device
 from Api.models.DeviceType import DeviceType
 from Api.models.RemoteButton import RemoteButton
 from Api.models.Scene import Scene
-from Hub.KeymapResolver import KeymapResolver, SendDirective, StartScene, StopScene
+from hub.keymap_resolver import KeymapResolver, SendDirective, StartScene, StopScene
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def keymap_dir(tmp_path):
 
 @pytest.fixture
 def resolver(db_engine, keymap_dir, monkeypatch):
-    monkeypatch.setattr("Hub.KeymapResolver.engine", db_engine)
+    monkeypatch.setattr("hub.keymap_resolver.engine", db_engine)
 
     with Session(db_engine) as session:
         session.add(Command(
@@ -73,7 +73,7 @@ def test_get_command_missing_returns_none(resolver):
 
 
 def test_suggest_keymap_matches_player_commands(db_engine, keymap_dir, monkeypatch):
-    monkeypatch.setattr("Hub.KeymapResolver.engine", db_engine)
+    monkeypatch.setattr("hub.keymap_resolver.engine", db_engine)
 
     with Session(db_engine) as session:
         device = Device(name="Player", type=DeviceType.PLAYER)
@@ -107,7 +107,7 @@ def test_suggest_keymap_matches_player_commands(db_engine, keymap_dir, monkeypat
 
 
 def test_suggest_keymap_missing_remote_keymap_file_returns_empty(db_engine, tmp_path, monkeypatch):
-    monkeypatch.setattr("Hub.KeymapResolver.engine", db_engine)
+    monkeypatch.setattr("hub.keymap_resolver.engine", db_engine)
 
     resolver = KeymapResolver(config_dir=str(tmp_path))
     scene = Scene(name="Empty Scene", devices=[])

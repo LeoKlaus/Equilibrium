@@ -9,7 +9,7 @@ from Api.models.DeviceType import DeviceType
 from Api.models.RemoteButton import RemoteButton
 from Api.models.Scene import Scene
 from db_manager.db_manager import engine
-from Hub.EventBus import Directive
+from hub.event_bus import Directive
 
 
 @dataclass(frozen=True)

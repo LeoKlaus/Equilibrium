@@ -1,6 +1,6 @@
 import logging
 
-import httpx
+import httpx2
 
 from api.models.command import Command
 from api.models.network_request_type import NetworkRequestType
@@ -16,8 +16,8 @@ class NetworkExecutor(ActionExecutor):
 
     logger = logging.getLogger(__package__)
 
-    def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
-        # transport is a testing hook - None means httpx's real network transport.
+    def __init__(self, transport: httpx2.AsyncBaseTransport | None = None) -> None:
+        # transport is a testing hook - None means httpx2's real network transport.
         self._transport = transport
 
     async def execute(self, directive: Directive, command: Command) -> None:
@@ -26,16 +26,16 @@ class NetworkExecutor(ActionExecutor):
             return
 
         try:
-            async with httpx.AsyncClient(headers=command.headers, transport=self._transport) as client:
+            async with httpx2.AsyncClient(headers=command.headers, transport=self._transport) as client:
                 request = getattr(client, command.method.value)
                 if command.method in _METHODS_WITH_BODY:
                     response = await request(command.host, content=command.body)
                 else:
                     response = await request(command.host)
-        except httpx.ReadTimeout:
+        except httpx2.ReadTimeout:
             self.logger.error(f"Network command {command.name} timed out")
             return
-        except httpx.ConnectError:
+        except httpx2.ConnectError:
             self.logger.error(f"Network command {command.name}: all connection attempts failed")
             return
 

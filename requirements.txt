@@ -1,14 +1,14 @@
 fastapi[standard]~=0.141.1
 sqlmodel~=0.0.39
 uvicorn~=0.52.4
-starlette~=0.46.2
+starlette~=1.6.0
 pigpio~=1.78
 bluez_peripheral~=0.2.0a3
 zeroconf~=0.150.0
 SQLAlchemy~=2.0.52
 alembic~=1.19.1
 python-multipart~=0.0.32
-httpx~=0.27
+httpx2~=2.12.0
 pillow~=11.2.1
 pyrf24~=0.6.0
 homeassistant_api~=5.0.1

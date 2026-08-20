@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 
 from api.models.command import Command
@@ -24,15 +24,15 @@ def _command(**overrides) -> Command:
 
 
 def _executor(handler) -> NetworkExecutor:
-    return NetworkExecutor(transport=httpx.MockTransport(handler))
+    return NetworkExecutor(transport=httpx2.MockTransport(handler))
 
 
 async def test_execute_get_sends_request_with_headers():
     requests = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         requests.append(request)
-        return httpx.Response(200, content=b"ok")
+        return httpx2.Response(200, content=b"ok")
 
     executor = _executor(handler)
     command = _command(headers={"X-Test": "1"})
@@ -56,9 +56,9 @@ async def test_execute_get_sends_request_with_headers():
 async def test_execute_uses_the_correct_http_method(method):
     requests = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         requests.append(request)
-        return httpx.Response(200)
+        return httpx2.Response(200)
 
     executor = _executor(handler)
     command = _command(method=method)
@@ -71,9 +71,9 @@ async def test_execute_uses_the_correct_http_method(method):
 async def test_execute_post_sends_the_body():
     requests = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         requests.append(request)
-        return httpx.Response(200)
+        return httpx2.Response(200)
 
     executor = _executor(handler)
     command = _command(method=NetworkRequestType.POST, body="hello")
@@ -86,9 +86,9 @@ async def test_execute_post_sends_the_body():
 async def test_execute_get_sends_no_body():
     requests = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         requests.append(request)
-        return httpx.Response(200)
+        return httpx2.Response(200)
 
     executor = _executor(handler)
     command = _command(method=NetworkRequestType.GET)
@@ -101,9 +101,9 @@ async def test_execute_get_sends_no_body():
 async def test_execute_without_host_makes_no_request():
     calls = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         calls.append(request)
-        return httpx.Response(200)
+        return httpx2.Response(200)
 
     executor = _executor(handler)
     command = _command(host=None)
@@ -116,9 +116,9 @@ async def test_execute_without_host_makes_no_request():
 async def test_execute_without_method_makes_no_request():
     calls = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         calls.append(request)
-        return httpx.Response(200)
+        return httpx2.Response(200)
 
     executor = _executor(handler)
     command = _command(method=None)
@@ -129,8 +129,8 @@ async def test_execute_without_method_makes_no_request():
 
 
 async def test_execute_handles_read_timeout():
-    def handler(request: httpx.Request) -> httpx.Response:
-        raise httpx.ReadTimeout("timed out", request=request)
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ReadTimeout("timed out", request=request)
 
     executor = _executor(handler)
 
@@ -138,8 +138,8 @@ async def test_execute_handles_read_timeout():
 
 
 async def test_execute_handles_connect_error():
-    def handler(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("connection refused", request=request)
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("connection refused", request=request)
 
     executor = _executor(handler)
 

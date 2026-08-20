@@ -3,11 +3,11 @@ from collections.abc import Sequence
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
-from Api.dependencies import CommandDispatcherDep
-from Api.models.Command import Command, CommandBase, CommandWithRelationships
-from Api.models.CommandType import CommandType
-from Api.models.Device import Device
-from Api.models.IntegrationAction import IntegrationAction
+from api.dependencies import CommandDispatcherDep
+from api.models.command import Command, CommandBase, CommandWithRelationships
+from api.models.command_type import CommandType
+from api.models.device import Device
+from api.models.integration_action import IntegrationAction
 from db_manager.db_manager import SessionDep
 from hub.event_bus import Directive
 

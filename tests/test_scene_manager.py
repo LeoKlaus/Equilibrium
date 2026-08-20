@@ -1,13 +1,13 @@
 import pytest
 from sqlmodel import Session
 
-from Api.models.Command import Command
-from Api.models.CommandGroupType import CommandGroupType
-from Api.models.CommandType import CommandType
-from Api.models.Macro import Macro
-from Api.models.RemoteButton import RemoteButton
-from Api.models.Scene import Scene
-from Api.models.SceneStatus import SceneStatus
+from api.models.command import Command
+from api.models.command_group_type import CommandGroupType
+from api.models.command_type import CommandType
+from api.models.macro import Macro
+from api.models.remote_button import RemoteButton
+from api.models.scene import Scene
+from api.models.scene_status import SceneStatus
 from hub.scene_manager import NoActiveSceneError, SceneManager, SceneNotFoundError
 from hub.status_store import StatusStore
 

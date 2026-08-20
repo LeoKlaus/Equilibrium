@@ -2,13 +2,13 @@ from typing import TYPE_CHECKING
 
 from sqlmodel import Field, Relationship, SQLModel
 
-from Api.models.DeviceType import DeviceType
-from Api.models.Macro import DeviceMacroLink, Macro
-from Api.models.Scene import Scene, SceneDeviceLink
-from Api.models.UserImage import UserImage
+from api.models.device_type import DeviceType
+from api.models.macro import DeviceMacroLink, Macro
+from api.models.scene import Scene, SceneDeviceLink
+from api.models.user_image import UserImage
 
 if TYPE_CHECKING:
-    from Api.models.Command import Command
+    from api.models.command import Command
 
 class DeviceBase(SQLModel):
     name: str = Field(index=True)

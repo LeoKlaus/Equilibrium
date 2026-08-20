@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
-from Api.dependencies import CommandDispatcherDep
-from Api.models import Command, Device, Scene
-from Api.models.Macro import Macro, MacroPost, MacroWithRelationships
+from api.dependencies import CommandDispatcherDep
+from api.models import Command, Device, Scene
+from api.models.macro import Macro, MacroPost, MacroWithRelationships
 from db_manager.db_manager import SessionDep
 
 router = APIRouter(

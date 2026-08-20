@@ -3,8 +3,8 @@ import logging
 
 from homeassistant_api import Client, Domain
 
-from Api.models.Command import Command
-from Api.models.IntegrationAction import IntegrationAction
+from api.models.command import Command
+from api.models.integration_action import IntegrationAction
 from hub.event_bus import Directive
 from hub.interfaces import ActionExecutor
 

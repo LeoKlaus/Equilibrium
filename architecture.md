@@ -117,7 +117,7 @@ carries over today's `NotImplementedError` until scripting is implemented.
 ## `RemoteController` decomposition
 
 `RemoteController` is retired; its responsibilities split into focused
-components living under a renamed `Hub/` package.
+components living under a renamed `hub/` package.
 
 | Component | Owns                                                                                          | Depends on                                                                                                                                                                                                                                          |
 |---|-----------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -155,7 +155,7 @@ for module in [*hub.sources, *hub.executors.values()]:
 
 `BleKeyboard` defines pairing/device-list endpoints on its own router;
 `IrManager` defines the command-recording endpoint (websocket) on its own
-router. Neither lives in `Api/routers/` anymore as a generic
+router. Neither lives in `api/routers/` anymore as a generic
 controller-forwarding function. They live next to the code that implements
 them.
 
@@ -198,18 +198,18 @@ Routers depend on the specific component(s) they need instead of a single
 facade object, so a reader can tell what a router touches from its imports
 alone:
 
-- `Api/routers/system.py` → `StatusStore`
-- `Api/routers/scenes.py` → `SceneManager` (+ `KeymapResolver` for
+- `api/routers/system.py` → `StatusStore`
+- `api/routers/scenes.py` → `SceneManager` (+ `KeymapResolver` for
   `suggest_keymap`)
-- `Api/routers/commands.py`, `Api/routers/macros.py` → `CommandDispatcher`
-- `Api/routers/bluetooth.py` and the `/ws/bt_pairing` websocket → `BleKeyboard`
+- `api/routers/commands.py`, `api/routers/macros.py` → `CommandDispatcher`
+- `api/routers/bluetooth.py` and the `/ws/bt_pairing` websocket → `BleKeyboard`
   directly (its pairing methods were pure passthroughs; no wrapper needed)
 - `/ws/commands` (IR recording) → moves into `IrManager`'s own router,
-  removed from `Api/routers/websockets.py`
+  removed from `api/routers/websockets.py`
 - `/ws/status` → `StatusStore` (registers `manager.broadcast_json` as its
   callback)
 
-`Api/lifespan.py` builds `StatusStore`, `KeymapResolver`, `CommandDispatcher`,
+`api/lifespan.py` builds `StatusStore`, `KeymapResolver`, `CommandDispatcher`,
 `SceneManager`, and `Hub` (which owns `RfInput`, `BleKeyboard`, `IrManager`,
 `HaManager`, `NetworkExecutor`, `ScriptExecutor`), and hands the relevant
 pieces off via app/websocket state replacing the single `controller`
@@ -218,26 +218,26 @@ object used today.
 ## Proposed file layout
 
 ```
-Hub/                          # renamed from RemoteController/
-  Hub.py                      # composition root, module registries
-  EventBus.py                 # Event, Directive, EventBus
-  StatusStore.py
-  KeymapResolver.py
-  CommandDispatcher.py
-  SceneManager.py
-  InputRouter.py
-BleKeyboard/
-  BleKeyboard.py              # implements ActionExecutor; owns pairing router
-IrManager/
-  IrManager.py                # implements ActionExecutor; owns recording router
-HaManager/
-  HaManager.py                # implements ActionExecutor
-RfManager/
-  RfManager.py                # implements InputSource (async, run_in_executor)
-NetworkExecutor/
-  NetworkExecutor.py          # implements ActionExecutor
-ScriptExecutor/
-  ScriptExecutor.py           # implements ActionExecutor (stub)
+hub/                          # renamed from RemoteController/
+  hub.py                      # composition root, module registries
+  event_bus.py                # Event, Directive, EventBus
+  status_store.py
+  keymap_resolver.py
+  command_dispatcher.py
+  scene_manager.py
+  input_router.py
+ble_keyboard/
+  ble_keyboard.py              # implements ActionExecutor; owns pairing router
+ir_manager/
+  ir_manager.py                # implements ActionExecutor; owns recording router
+ha_manager/
+  ha_manager.py                # implements ActionExecutor
+rf_manager/
+  rf_manager.py                # implements InputSource (async, run_in_executor)
+network_executor/
+  network_executor.py          # implements ActionExecutor
+script_executor/
+  script_executor.py           # implements ActionExecutor (stub)
 ```
 
 ## Explicitly deferred (unchanged from prior direction)

@@ -4,18 +4,18 @@ from sqlalchemy import JSON, Column, event
 from sqlmodel import Field, Relationship, Session, SQLModel
 from sqlmodel.main import SQLModelConfig
 
-from Api import logger
-from Api.models.CommandGroupType import CommandGroupType
-from Api.models.CommandType import CommandType
-from Api.models.IntegrationAction import IntegrationAction
-from Api.models.Macro import CommandMacroLink
-from Api.models.NetworkRequestType import NetworkRequestType
-from Api.models.RemoteButton import RemoteButton
+from api import logger
+from api.models.command_group_type import CommandGroupType
+from api.models.command_type import CommandType
+from api.models.integration_action import IntegrationAction
+from api.models.macro import CommandMacroLink
+from api.models.network_request_type import NetworkRequestType
+from api.models.remote_button import RemoteButton
 from db_manager.db_manager import engine
 
 if TYPE_CHECKING:
-    from Api.models.Device import Device
-    from Api.models.Macro import Macro
+    from api.models.device import Device
+    from api.models.macro import Macro
 
 class CommandBase(SQLModel):
     name: str

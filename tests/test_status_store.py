@@ -1,4 +1,4 @@
-from Api.models.SceneStatus import SceneStatus
+from api.models.scene_status import SceneStatus
 from hub.status_store import StatusStore
 
 

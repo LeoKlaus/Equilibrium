@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
-from Api.routers import system
+from api.routers import system
 
 
 def _client_with_state(**state) -> TestClient:

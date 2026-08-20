@@ -6,10 +6,10 @@ from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from Api.models.Command import Command
-from Api.models.CommandGroupType import CommandGroupType
-from Api.models.CommandType import CommandType
-from Api.models.RemoteButton import RemoteButton
+from api.models.command import Command
+from api.models.command_group_type import CommandGroupType
+from api.models.command_type import CommandType
+from api.models.remote_button import RemoteButton
 from hub.event_bus import Event
 from hub.hub import Hub
 

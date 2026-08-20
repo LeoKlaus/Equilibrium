@@ -9,7 +9,7 @@ from hub.scene_manager import SceneManager
 from hub.status_store import StatusStore
 
 # Mirrors DbManager.SessionDep's Annotated[..., Depends(...)] pattern. The
-# underlying values still come from Api.lifespan's yielded state - these are
+# underlying values still come from api.lifespan's yielded state - these are
 # just typed accessors for it, one per HTTP/websocket connection type since
 # FastAPI's Depends() distinguishes Request from WebSocket.
 

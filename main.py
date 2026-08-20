@@ -3,7 +3,7 @@ import logging
 
 import uvicorn
 
-from Api.app import app_generator
+from api.app import app_generator
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Equilibrium")

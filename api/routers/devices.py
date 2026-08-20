@@ -3,8 +3,8 @@ from collections.abc import Sequence
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
-from Api.models.Device import Device, DevicePost, DeviceWithRelationships
-from Api.models.UserImage import UserImage
+from api.models.device import Device, DevicePost, DeviceWithRelationships
+from api.models.user_image import UserImage
 from db_manager.db_manager import SessionDep
 
 router = APIRouter(

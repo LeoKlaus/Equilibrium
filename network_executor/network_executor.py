@@ -2,8 +2,8 @@ import logging
 
 import httpx
 
-from Api.models.Command import Command
-from Api.models.NetworkRequestType import NetworkRequestType
+from api.models.command import Command
+from api.models.network_request_type import NetworkRequestType
 from hub.event_bus import Directive
 from hub.interfaces import ActionExecutor
 

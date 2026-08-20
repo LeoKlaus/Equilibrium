@@ -3,10 +3,10 @@ import logging
 
 from sqlmodel import Session
 
-from Api.models.Command import Command
-from Api.models.RemoteButton import RemoteButton
-from Api.models.Scene import Scene, SceneWithRelationships
-from Api.models.SceneStatus import SceneStatus
+from api.models.command import Command
+from api.models.remote_button import RemoteButton
+from api.models.scene import Scene, SceneWithRelationships
+from api.models.scene_status import SceneStatus
 from db_manager.db_manager import engine
 from hub.command_dispatcher import CommandDispatcher
 from hub.event_bus import Directive

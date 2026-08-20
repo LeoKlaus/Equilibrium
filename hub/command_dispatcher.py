@@ -1,10 +1,10 @@
 import asyncio
 import logging
 
-from Api.models.Command import Command
-from Api.models.CommandGroupType import CommandGroupType
-from Api.models.Macro import Macro
-from Api.models.RemoteButton import RemoteButton
+from api.models.command import Command
+from api.models.command_group_type import CommandGroupType
+from api.models.macro import Macro
+from api.models.remote_button import RemoteButton
 from hub.event_bus import Directive
 from hub.interfaces import ActionExecutor
 from hub.keymap_resolver import KeymapResolver

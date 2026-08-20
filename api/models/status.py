@@ -1,7 +1,7 @@
 from sqlmodel import Field, SQLModel
 
-from Api.models import SceneWithRelationships
-from Api.models.SceneStatus import SceneStatus
+from api.models import SceneWithRelationships
+from api.models.scene_status import SceneStatus
 
 
 class DeviceState(SQLModel):

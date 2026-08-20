@@ -3,11 +3,11 @@ from collections.abc import Sequence
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
-from Api.dependencies import KeymapResolverDep, SceneManagerDep
-from Api.models import Macro
-from Api.models.Device import Device
-from Api.models.Scene import Scene, ScenePost, SceneWithRelationships, SceneWithRelationshipsAndFullDevices
-from Api.models.UserImage import UserImage
+from api.dependencies import KeymapResolverDep, SceneManagerDep
+from api.models import Macro
+from api.models.device import Device
+from api.models.scene import Scene, ScenePost, SceneWithRelationships, SceneWithRelationshipsAndFullDevices
+from api.models.user_image import UserImage
 from db_manager.db_manager import SessionDep
 from hub.scene_manager import NoActiveSceneError, SceneNotFoundError
 

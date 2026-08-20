@@ -3,7 +3,7 @@ from typing import ClassVar, Protocol, runtime_checkable
 
 from fastapi import APIRouter
 
-from Api.models.Command import Command
+from api.models.command import Command
 from hub.event_bus import Directive, EventBus
 
 

@@ -3,7 +3,7 @@ from typing import ClassVar
 
 from fastapi import FastAPI
 
-from Api.lifespan import _lifespan, _load_ha_credentials, _load_rf_addresses
+from api.lifespan import _lifespan, _load_ha_credentials, _load_rf_addresses
 
 
 class FakeZeroconfManager:
@@ -60,8 +60,8 @@ def test_load_ha_credentials_missing_key_returns_none_pair(tmp_path, monkeypatch
 async def test_lifespan_dev_yields_the_hub_pieces(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config").mkdir()
-    monkeypatch.setattr("Api.lifespan.ZeroconfManager", FakeZeroconfManager)
-    monkeypatch.setattr("Api.lifespan.create_db_and_tables", lambda: None)
+    monkeypatch.setattr("api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("api.lifespan.create_db_and_tables", lambda: None)
 
     async with _lifespan(FastAPI(), dev=True) as state:
         assert set(state.keys()) == {
@@ -84,8 +84,8 @@ async def test_lifespan_mounts_module_routers_onto_the_app(tmp_path, monkeypatch
 
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config").mkdir()
-    monkeypatch.setattr("Api.lifespan.ZeroconfManager", FakeZeroconfManager)
-    monkeypatch.setattr("Api.lifespan.create_db_and_tables", lambda: None)
+    monkeypatch.setattr("api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("api.lifespan.create_db_and_tables", lambda: None)
 
     class FakeExecutorWithRouter:
         name = "fake"
@@ -106,7 +106,7 @@ async def test_lifespan_mounts_module_routers_onto_the_app(tmp_path, monkeypatch
         hub.register_executor(FakeExecutorWithRouter())
         return hub
 
-    monkeypatch.setattr("Api.lifespan.Hub.create", classmethod(fake_create))
+    monkeypatch.setattr("api.lifespan.Hub.create", classmethod(fake_create))
 
     app = FastAPI()
     async with _lifespan(app, dev=True):
@@ -119,13 +119,13 @@ async def test_lifespan_non_dev_uses_the_non_dev_service_name(tmp_path, monkeypa
     # only lifespan.py's own service-naming logic is under test here.
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config").mkdir()
-    monkeypatch.setattr("Api.lifespan.ZeroconfManager", FakeZeroconfManager)
-    monkeypatch.setattr("Api.lifespan.create_db_and_tables", lambda: None)
+    monkeypatch.setattr("api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("api.lifespan.create_db_and_tables", lambda: None)
 
     async def fake_create(cls, **kwargs):
         return cls()
 
-    monkeypatch.setattr("Api.lifespan.Hub.create", classmethod(fake_create))
+    monkeypatch.setattr("api.lifespan.Hub.create", classmethod(fake_create))
 
     async with _lifespan(FastAPI(), dev=False) as _:
         pass

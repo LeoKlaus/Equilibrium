@@ -1,9 +1,9 @@
 from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from Api import logger
-from Api.dependencies import StatusStoreWsDep
-from Api.WebsocketConnectionManager.WebsocketConnectionManager import WebsocketConnectionManager
+from api import logger
+from api.dependencies import StatusStoreWsDep
+from api.websocket_connection_manager.websocket_connection_manager import WebsocketConnectionManager
 
 router = APIRouter(
     prefix="/ws",

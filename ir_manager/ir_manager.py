@@ -11,9 +11,9 @@ from fastapi import APIRouter
 from sqlmodel import Session
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
-from Api.models.Command import Command, CommandBase
-from Api.models.Device import Device
-from Api.models.WebsocketResponses import WebsocketIrResponse
+from api.models.command import Command, CommandBase
+from api.models.device import Device
+from api.models.websocket_responses import WebsocketIrResponse
 from db_manager.db_manager import engine
 from hub.event_bus import Directive
 from hub.interfaces import ActionExecutor

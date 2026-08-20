@@ -3,7 +3,7 @@ import logging
 import os
 from pathlib import Path
 
-from Api.models.Command import Command
+from api.models.command import Command
 from hub.event_bus import Directive
 from hub.interfaces import ActionExecutor
 

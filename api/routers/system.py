@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
-from Api.dependencies import ModulesManifestDep, StatusStoreDep
-from Api.models.ModuleManifest import ModulesManifestResponse
-from Api.models.Status import StatusReport
+from api.dependencies import ModulesManifestDep, StatusStoreDep
+from api.models.module_manifest import ModulesManifestResponse
+from api.models.status import StatusReport
 
 router = APIRouter(
     prefix="/system",

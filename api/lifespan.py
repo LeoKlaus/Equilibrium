@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from Api import logger
+from api import logger
 from db_manager.db_manager import create_db_and_tables
 from hub.hub import Hub
 from zeroconf_manager.zeroconf_manager import ZeroconfManager

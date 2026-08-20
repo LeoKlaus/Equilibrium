@@ -2,9 +2,9 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import RedirectResponse
 
-from Api.lifespan import lifespan, lifespan_dev
-from Api.models.ServerInfo import ServerInfo
-from Api.routers import commands, devices, images, macros, scenes, system, websockets
+from api.lifespan import lifespan, lifespan_dev
+from api.models.server_info import ServerInfo
+from api.routers import commands, devices, images, macros, scenes, system, websockets
 
 
 def app_generator(dev: bool = False):

@@ -5,9 +5,9 @@ from sqlmodel import Field, Relationship, SQLModel
 from sqlmodel.main import SQLModelConfig
 
 if TYPE_CHECKING:
-    from Api.models.Command import Command
-    from Api.models.Device import Device
-    from Api.models.Scene import Scene
+    from api.models.command import Command
+    from api.models.device import Device
+    from api.models.scene import Scene
 
 class CommandMacroLink(SQLModel, table=True):
     command_id: int | None = Field(default=None, foreign_key="command.id", primary_key=True)

@@ -1,8 +1,8 @@
 from collections.abc import Awaitable, Callable
 
-from Api.models.Scene import SceneWithRelationships
-from Api.models.SceneStatus import SceneStatus
-from Api.models.Status import StatusReport
+from api.models.scene import SceneWithRelationships
+from api.models.scene_status import SceneStatus
+from api.models.status import StatusReport
 
 StatusCallback = Callable[[StatusReport], Awaitable[None]]
 

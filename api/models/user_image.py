@@ -3,8 +3,8 @@ from typing import TYPE_CHECKING
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
-    from Api.models.Device import Device
-    from Api.models.Scene import Scene
+    from api.models.device import Device
+    from api.models.scene import Scene
 
 class UserImage(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)

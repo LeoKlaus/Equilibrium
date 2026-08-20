@@ -3,10 +3,10 @@
 # of imports and rebuilds needed for the API to function. Removing any
 # of these will cause very weird and hard to diagnose errors to pop up
 
-from .Command import Command, CommandWithRelationships
-from .Device import Device, DeviceWithRelationships
-from .Macro import Macro, MacroWithRelationships
-from .Scene import Scene, ScenePost, SceneWithRelationships, SceneWithRelationshipsAndFullDevices
+from api.models.command import Command, CommandWithRelationships
+from api.models.device import Device, DeviceWithRelationships
+from api.models.macro import Macro, MacroWithRelationships
+from api.models.scene import Scene, ScenePost, SceneWithRelationships, SceneWithRelationshipsAndFullDevices
 
 __all__ = [
     "Command",

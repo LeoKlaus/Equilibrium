@@ -3,20 +3,21 @@ line-length = 120
 
 [tool.ruff.lint]
 # Deliberately curated rather than "ALL" - ruff's own guidance advises
-# against ALL for ongoing use, it's too broad/noisy. N (pep8-naming) is
-# intentionally left out for now: this codebase uses PascalCase module/
-# package names deliberately (one exported class per file, matching the
-# class name). Renaming to snake_case is planned as its own dedicated
-# final phase, not mixed into ongoing lint enforcement yet.
+# against ALL for ongoing use, it's too broad/noisy. Only N999 from
+# pep8-naming is enabled (module/package names are now snake_case
+# throughout); the rest of the N family (N802 function naming, N816
+# mixed-case globals, etc.) surfaces ~40 pre-existing findings of its
+# own and hasn't been reviewed as its own phase yet.
 select = [
-    "E",    # pycodestyle errors
-    "F",    # pyflakes
-    "I",    # isort
-    "UP",   # pyupgrade
-    "B",    # flake8-bugbear
-    "C4",   # flake8-comprehensions
-    "SIM",  # flake8-simplify
-    "RUF",  # ruff-specific rules
+    "E",     # pycodestyle errors
+    "F",     # pyflakes
+    "I",     # isort
+    "UP",    # pyupgrade
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "SIM",   # flake8-simplify
+    "RUF",   # ruff-specific rules
+    "N999",  # invalid-module-name
 ]
 ignore = [
     "E501",  # line-too-long - no auto-formatter is adopted here, and

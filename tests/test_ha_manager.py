@@ -1,11 +1,11 @@
 import asyncio
 import time
 
-from Api.models.Command import Command
-from Api.models.CommandGroupType import CommandGroupType
-from Api.models.CommandType import CommandType
-from Api.models.IntegrationAction import IntegrationAction
-from Api.models.RemoteButton import RemoteButton
+from api.models.command import Command
+from api.models.command_group_type import CommandGroupType
+from api.models.command_type import CommandType
+from api.models.integration_action import IntegrationAction
+from api.models.remote_button import RemoteButton
 from ha_manager.ha_manager import HaManager
 from hub.event_bus import Directive
 

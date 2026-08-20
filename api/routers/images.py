@@ -7,7 +7,7 @@ from PIL import Image
 from sqlmodel import select
 from starlette.responses import FileResponse
 
-from Api.models.UserImage import UserImage
+from api.models.user_image import UserImage
 from db_manager.db_manager import SessionDep
 
 router = APIRouter(

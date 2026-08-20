@@ -8,8 +8,8 @@ from bluez_peripheral.util import Adapter, get_message_bus
 from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
-from Api.models.Command import Command
-from Api.models.WebsocketResponses import (
+from api.models.command import Command
+from api.models.websocket_responses import (
     BleDevice,
     WebsocketBleCommand,
     WebsocketBleDeviceResponse,

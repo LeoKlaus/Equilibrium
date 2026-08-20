@@ -4,13 +4,13 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
-from Api.models.Command import Command
-from Api.models.CommandGroupType import CommandGroupType
-from Api.models.CommandType import CommandType
-from Api.models.Device import Device
-from Api.models.DeviceType import DeviceType
-from Api.models.RemoteButton import RemoteButton
-from Api.models.WebsocketResponses import WebsocketIrResponse
+from api.models.command import Command
+from api.models.command_group_type import CommandGroupType
+from api.models.command_type import CommandType
+from api.models.device import Device
+from api.models.device_type import DeviceType
+from api.models.remote_button import RemoteButton
+from api.models.websocket_responses import WebsocketIrResponse
 from hub.event_bus import Directive
 from ir_manager.ir_manager import IrManager
 

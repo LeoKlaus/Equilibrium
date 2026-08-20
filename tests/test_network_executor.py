@@ -1,11 +1,11 @@
 import httpx
 import pytest
 
-from Api.models.Command import Command
-from Api.models.CommandGroupType import CommandGroupType
-from Api.models.CommandType import CommandType
-from Api.models.NetworkRequestType import NetworkRequestType
-from Api.models.RemoteButton import RemoteButton
+from api.models.command import Command
+from api.models.command_group_type import CommandGroupType
+from api.models.command_type import CommandType
+from api.models.network_request_type import NetworkRequestType
+from api.models.remote_button import RemoteButton
 from hub.event_bus import Directive
 from network_executor.network_executor import NetworkExecutor
 

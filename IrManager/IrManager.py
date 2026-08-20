@@ -3,12 +3,12 @@ import atexit
 import logging
 import time
 from asyncio import Task
-from typing import Callable, Awaitable
+from collections.abc import Awaitable, Callable
 
 import pigpio
 from fastapi import APIRouter
 from sqlmodel import Session
-from starlette.websockets import WebSocketDisconnect, WebSocket, WebSocketState
+from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from Api.models.Command import Command, CommandBase
 from Api.models.Device import Device

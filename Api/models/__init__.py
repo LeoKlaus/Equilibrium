@@ -6,7 +6,7 @@
 from .Command import Command, CommandWithRelationships
 from .Device import Device, DeviceWithRelationships
 from .Macro import Macro, MacroWithRelationships
-from .Scene import SceneWithRelationships, ScenePost, Scene, SceneWithRelationshipsAndFullDevices
+from .Scene import Scene, ScenePost, SceneWithRelationships, SceneWithRelationshipsAndFullDevices
 
 Command.model_rebuild()
 CommandWithRelationships.model_rebuild()

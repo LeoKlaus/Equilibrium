@@ -11,7 +11,7 @@ from ZeroconfManager.ZeroconfManager import ZeroconfManager
 
 def _load_rf_addresses() -> list[bytes] | None:
     try:
-        with open("config/rf_addresses.json", "r") as file:
+        with open("config/rf_addresses.json") as file:
             address_strings = json.loads(file.read())
         return [bytes.fromhex(address) for address in address_strings]
     except FileNotFoundError:
@@ -21,7 +21,7 @@ def _load_rf_addresses() -> list[bytes] | None:
 
 def _load_ha_credentials() -> tuple[str | None, str | None]:
     try:
-        with open("config/ha_credentials.json", "r") as file:
+        with open("config/ha_credentials.json") as file:
             ha_credentials = json.loads(file.read())
         return ha_credentials["url"], ha_credentials["token"]
     except FileNotFoundError:

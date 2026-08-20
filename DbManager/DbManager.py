@@ -1,10 +1,10 @@
 import logging
 import subprocess
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends
 from sqlmodel import Session, SQLModel, create_engine
-from pathlib import Path
 
 Path("config").mkdir(parents=True, exist_ok=True)
 

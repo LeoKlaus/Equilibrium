@@ -1,8 +1,9 @@
 import asyncio
 import logging
 from collections import defaultdict
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, DefaultDict
+from typing import Any
 
 
 @dataclass
@@ -34,7 +35,7 @@ class EventBus:
 
     def __init__(self) -> None:
         self._queue: asyncio.Queue[Event] = asyncio.Queue()
-        self._subscribers: DefaultDict[str, list[EventHandler]] = defaultdict(list)
+        self._subscribers: defaultdict[str, list[EventHandler]] = defaultdict(list)
 
     def subscribe(self, event_type: str, handler: EventHandler) -> None:
         self._subscribers[event_type].append(handler)

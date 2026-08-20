@@ -1,7 +1,8 @@
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field, SQLModel
 
-from Api.models import Scene, SceneWithRelationships
+from Api.models import SceneWithRelationships
 from Api.models.SceneStatus import SceneStatus
+
 
 class DeviceState(SQLModel):
     powered: bool = False

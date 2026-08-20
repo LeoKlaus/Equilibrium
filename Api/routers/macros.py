@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
 from Api.dependencies import CommandDispatcherDep
-from Api.models import Command, Scene, Device
+from Api.models import Command, Device, Scene
 from Api.models.Macro import Macro, MacroPost, MacroWithRelationships
 from DbManager.DbManager import SessionDep
 

@@ -4,7 +4,7 @@ from starlette.responses import RedirectResponse
 
 from Api.lifespan import lifespan, lifespan_dev
 from Api.models.ServerInfo import ServerInfo
-from Api.routers import commands, devices, images, scenes, websockets, macros, system
+from Api.routers import commands, devices, images, macros, scenes, system, websockets
 
 
 def app_generator(dev: bool = False):

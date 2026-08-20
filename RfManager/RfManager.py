@@ -54,7 +54,7 @@ class RfInput(InputSource):
     def __init__(self, addresses: list[bytes], config_dir: str = "config") -> None:
         self._addresses = addresses
         self._known_commands = self._load_known_commands(config_dir)
-        self._rf: "RF24 | None" = None
+        self._rf: RF24 | None = None
         self._last_key: str | None = None
         self._running = True
 

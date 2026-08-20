@@ -1,10 +1,9 @@
 from typing import TYPE_CHECKING
 
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import Field, Relationship, SQLModel
 
+from Api.models.Macro import Macro, MacroWithCommands, SceneMacroLink
 from Api.models.UserImage import UserImage
-
-from Api.models.Macro import Macro, SceneMacroLink, MacroWithCommands
 
 if TYPE_CHECKING:
     from Api.models import DeviceWithRelationships

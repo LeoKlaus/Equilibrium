@@ -1,6 +1,6 @@
+from bluez_peripheral.gatt.characteristic import CharacteristicFlags as CharFlags
+from bluez_peripheral.gatt.characteristic import characteristic
 from bluez_peripheral.gatt.service import Service
-from bluez_peripheral.gatt.characteristic import characteristic, CharacteristicFlags as CharFlags
-
 
 # device info service: type="primary" uuid="180A"
 # Could also include manufacturer , device and version:

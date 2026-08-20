@@ -4,7 +4,7 @@ from sqlmodel import select
 from Api.dependencies import KeymapResolverDep, SceneManagerDep
 from Api.models import Macro
 from Api.models.Device import Device
-from Api.models.Scene import SceneWithRelationships, ScenePost, Scene, SceneWithRelationshipsAndFullDevices
+from Api.models.Scene import Scene, ScenePost, SceneWithRelationships, SceneWithRelationshipsAndFullDevices
 from Api.models.UserImage import UserImage
 from DbManager.DbManager import SessionDep
 from Hub.SceneManager import NoActiveSceneError, SceneNotFoundError

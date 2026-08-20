@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
-from Api.models.Device import DeviceWithRelationships, DevicePost, Device, DeviceBase
+from Api.models.Device import Device, DevicePost, DeviceWithRelationships
 from Api.models.UserImage import UserImage
 from DbManager.DbManager import SessionDep
 

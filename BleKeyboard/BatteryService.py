@@ -1,9 +1,9 @@
 import logging
-
-from bluez_peripheral.gatt.service import Service
-from bluez_peripheral.gatt.characteristic import characteristic, CharacteristicFlags as CharFlags
-
 import struct
+
+from bluez_peripheral.gatt.characteristic import CharacteristicFlags as CharFlags
+from bluez_peripheral.gatt.characteristic import characteristic
+from bluez_peripheral.gatt.service import Service
 
 
 # battery service: type="primary" uuid="180F"

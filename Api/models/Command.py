@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Annotated
 
-from sqlalchemy import Column, JSON, event
-from sqlmodel import SQLModel, Field, Relationship, Session
+from sqlalchemy import JSON, Column, event
+from sqlmodel import Field, Relationship, Session, SQLModel
 
 from Api import logger
 from Api.models.CommandGroupType import CommandGroupType

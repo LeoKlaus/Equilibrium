@@ -1,12 +1,13 @@
 import asyncio
+import logging
 
 from homeassistant_api import Client, Domain
-import logging
 
 from Api.models.Command import Command
 from Api.models.IntegrationAction import IntegrationAction
 from Hub.EventBus import Directive
 from Hub.interfaces import ActionExecutor
+
 
 class HaManager(ActionExecutor):
 

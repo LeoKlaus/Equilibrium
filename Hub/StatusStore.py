@@ -1,4 +1,4 @@
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from Api.models.Scene import SceneWithRelationships
 from Api.models.SceneStatus import SceneStatus

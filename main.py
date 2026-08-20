@@ -2,6 +2,7 @@ import argparse
 import logging
 
 import uvicorn
+
 from Api.app import app_generator
 
 if __name__ == '__main__':

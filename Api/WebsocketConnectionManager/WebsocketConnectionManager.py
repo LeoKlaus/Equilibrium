@@ -1,4 +1,4 @@
-from typing import Callable, Awaitable
+from collections.abc import Awaitable, Callable
 
 from sqlmodel import SQLModel
 from starlette.websockets import WebSocket

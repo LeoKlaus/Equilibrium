@@ -253,10 +253,9 @@ def test_ws_bt_pairing_advertise():
 
     keyboard.advertise = fake_advertise
 
-    with _client_for(keyboard) as client:
-        with client.websocket_connect("/ws/bt_pairing") as websocket:
-            websocket.send_text("advertise")
-            response = websocket.receive_json()
+    with _client_for(keyboard) as client, client.websocket_connect("/ws/bt_pairing") as websocket:
+        websocket.send_text("advertise")
+        response = websocket.receive_json()
 
     assert response == {"success": True}
     assert calls == ["advertise"]
@@ -270,10 +269,9 @@ def test_ws_bt_pairing_devices(monkeypatch):
 
     monkeypatch.setattr(BleKeyboard, "devices", property(fake_devices))
 
-    with _client_for(keyboard) as client:
-        with client.websocket_connect("/ws/bt_pairing") as websocket:
-            websocket.send_text("devices")
-            response = websocket.receive_json()
+    with _client_for(keyboard) as client, client.websocket_connect("/ws/bt_pairing") as websocket:
+        websocket.send_text("devices")
+        response = websocket.receive_json()
 
     assert response["devices"][0]["address"] == "AA:BB"
 
@@ -292,11 +290,10 @@ def test_ws_bt_pairing_connect_sends_devices_then_connects_to_the_chosen_address
 
     keyboard.connect = fake_connect
 
-    with _client_for(keyboard) as client:
-        with client.websocket_connect("/ws/bt_pairing") as websocket:
-            websocket.send_text("connect")
-            devices_response = websocket.receive_json()
-            websocket.send_text("AA:BB")
+    with _client_for(keyboard) as client, client.websocket_connect("/ws/bt_pairing") as websocket:
+        websocket.send_text("connect")
+        devices_response = websocket.receive_json()
+        websocket.send_text("AA:BB")
 
     assert devices_response["devices"][0]["address"] == "AA:BB"
     assert calls == ["AA:BB"]
@@ -311,10 +308,9 @@ def test_ws_bt_pairing_disconnect():
 
     keyboard.disconnect = fake_disconnect
 
-    with _client_for(keyboard) as client:
-        with client.websocket_connect("/ws/bt_pairing") as websocket:
-            websocket.send_text("disconnect")
-            response = websocket.receive_json()
+    with _client_for(keyboard) as client, client.websocket_connect("/ws/bt_pairing") as websocket:
+        websocket.send_text("disconnect")
+        response = websocket.receive_json()
 
     assert response == {"success": True}
     assert calls == ["disconnect"]

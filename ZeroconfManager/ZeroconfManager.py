@@ -1,8 +1,8 @@
-import logging
 import socket
 
-from zeroconf.asyncio import AsyncServiceInfo, AsyncZeroconf
 from zeroconf import IPVersion
+from zeroconf.asyncio import AsyncServiceInfo, AsyncZeroconf
+
 
 class ZeroconfManager:
 

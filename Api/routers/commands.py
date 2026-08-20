@@ -3,8 +3,8 @@ from sqlmodel import select
 
 from Api.dependencies import CommandDispatcherDep
 from Api.models.Command import Command, CommandBase, CommandWithRelationships
-from Api.models.Device import Device
 from Api.models.CommandType import CommandType
+from Api.models.Device import Device
 from Api.models.IntegrationAction import IntegrationAction
 from DbManager.DbManager import SessionDep
 from Hub.EventBus import Directive

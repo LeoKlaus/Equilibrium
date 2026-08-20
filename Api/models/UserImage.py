@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from Api.models.Device import Device

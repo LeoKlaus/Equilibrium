@@ -4,7 +4,7 @@ from random import randint
 
 from bluez_peripheral.advert import Advertisement
 from bluez_peripheral.agent import NoIoAgent
-from bluez_peripheral.util import get_message_bus, Adapter
+from bluez_peripheral.util import Adapter, get_message_bus
 from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
@@ -21,7 +21,6 @@ from BleKeyboard.HidService import HidService
 from BleKeyboard.KeymapHelper import create_keycode, create_media_keycode
 from Hub.EventBus import Directive
 from Hub.interfaces import ActionExecutor
-
 
 # For Apple TV:
 # 1. Advertise

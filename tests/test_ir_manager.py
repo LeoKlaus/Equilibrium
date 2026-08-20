@@ -1,6 +1,5 @@
 import asyncio
 
-import pigpio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
@@ -199,10 +198,9 @@ def test_ws_commands_records_and_persists_a_command(db_engine, monkeypatch):
 
     payload = {"name": "Play", "button": "play", "type": "ir", "command_group": "transport"}
 
-    with _client_for(manager) as client:
-        with client.websocket_connect("/ws/commands") as websocket:
-            websocket.send_json(payload)
-            response = websocket.receive_json()
+    with _client_for(manager) as client, client.websocket_connect("/ws/commands") as websocket:
+        websocket.send_json(payload)
+        response = websocket.receive_json()
 
     assert response == WebsocketIrResponse.DONE.value
 
@@ -232,10 +230,9 @@ def test_ws_commands_links_the_device_when_device_id_is_given(db_engine, monkeyp
         "command_group": "power", "device_id": device_id,
     }
 
-    with _client_for(manager) as client:
-        with client.websocket_connect("/ws/commands") as websocket:
-            websocket.send_json(payload)
-            websocket.receive_json()
+    with _client_for(manager) as client, client.websocket_connect("/ws/commands") as websocket:
+        websocket.send_json(payload)
+        websocket.receive_json()
 
     with Session(db_engine) as session:
         saved = session.exec(select(Command).where(Command.name == "Power")).one()
@@ -253,10 +250,9 @@ def test_ws_commands_cancelled_recording_sends_cancelled_and_closes_cleanly(db_e
 
     payload = {"name": "Play", "button": "play", "type": "ir", "command_group": "transport"}
 
-    with _client_for(manager) as client:
-        with client.websocket_connect("/ws/commands") as websocket:
-            websocket.send_json(payload)
-            response = websocket.receive_json()
+    with _client_for(manager) as client, client.websocket_connect("/ws/commands") as websocket:
+        websocket.send_json(payload)
+        response = websocket.receive_json()
 
     assert response == WebsocketIrResponse.CANCELLED.value
 

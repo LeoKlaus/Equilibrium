@@ -1,4 +1,5 @@
 import time
+
 from pyrf24 import RF24, RF24_2MBPS, RF24_CRC_16
 
 address = bytearray([0x75, 0xA5, 0xDC, 0x0A, 0xBB])
@@ -56,8 +57,8 @@ while True:
             fourth = payload[4]
             fifth = payload[3]
 
-            print("{:02x}{:02x}{:02x}{:02x}{:02x}".format(first, second, third, fourth, fifth))
-            print("{:02x}{:02x}{:02x}{:02x}{:02x}".format(0, second, third, fourth, fifth))
+            print(f"{first:02x}{second:02x}{third:02x}{fourth:02x}{fifth:02x}")
+            print(f"{0:02x}{second:02x}{third:02x}{fourth:02x}{fifth:02x}")
 
             print("Done")
             break

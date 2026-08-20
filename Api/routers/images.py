@@ -2,14 +2,13 @@ from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, UploadFile, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile
+from PIL import Image
 from sqlmodel import select
 from starlette.responses import FileResponse
 
 from Api.models.UserImage import UserImage
 from DbManager.DbManager import SessionDep
-
-from PIL import Image
 
 router = APIRouter(
     prefix="/images",

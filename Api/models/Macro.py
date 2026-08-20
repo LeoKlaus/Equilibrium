@@ -1,12 +1,12 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, JSON
-from sqlmodel import SQLModel, Field, Relationship
+from sqlalchemy import JSON, Column
+from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
+    from Api.models.Command import Command
     from Api.models.Device import Device
     from Api.models.Scene import Scene
-    from Api.models.Command import Command
 
 class CommandMacroLink(SQLModel, table=True):
     command_id: int | None = Field(default=None, foreign_key="command.id", primary_key=True)

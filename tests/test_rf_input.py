@@ -4,7 +4,7 @@ import json
 import pytest
 
 from Hub.EventBus import Event, EventBus
-from RfManager.RfManager import RfInput, _Signal
+from rf_manager.rf_manager import RfInput, _Signal
 
 
 def _payload_for(command: int) -> bytes:

@@ -15,7 +15,7 @@ from Hub.SceneManager import SceneManager
 from Hub.StatusStore import StatusStore
 from IrManager.IrManager import IrManager
 from NetworkExecutor.NetworkExecutor import NetworkExecutor
-from RfManager.RfManager import RfInput
+from rf_manager.rf_manager import RfInput
 from ScriptExecutor.ScriptExecutor import ScriptExecutor
 
 

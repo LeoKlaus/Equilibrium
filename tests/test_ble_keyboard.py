@@ -28,12 +28,12 @@ def _keyboard() -> BleKeyboard:
 
 
 def _command(**overrides) -> Command:
-    defaults = dict(
-        name="cmd",
-        button=RemoteButton.PLAY,
-        type=CommandType.BLUETOOTH,
-        command_group=CommandGroupType.TRANSPORT,
-    )
+    defaults = {
+        "name": "cmd",
+        "button": RemoteButton.PLAY,
+        "type": CommandType.BLUETOOTH,
+        "command_group": CommandGroupType.TRANSPORT,
+    }
     defaults.update(overrides)
     return Command(**defaults)
 

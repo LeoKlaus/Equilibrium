@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 
 from fastapi import FastAPI
@@ -183,7 +184,5 @@ class Hub:
         for task in tasks:
             task.cancel()
         for task in tasks:
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass

@@ -51,7 +51,7 @@ class CommandWithRelationships(CommandBase):
 
 @event.listens_for(Session, "deleted_to_detached")
 def after_delete_command(emitting_session, instance):
-    if type(instance) == Command:
+    if type(instance) is Command:
         command: Command = instance
         for macro in command.macros:
             with Session(engine) as session:

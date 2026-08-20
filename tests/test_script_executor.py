@@ -10,12 +10,12 @@ from ScriptExecutor.ScriptExecutor import ScriptExecutor
 
 
 def _command(**overrides) -> Command:
-    defaults = dict(
-        name="cmd",
-        button=RemoteButton.SELECT,
-        type=CommandType.SCRIPT,
-        command_group=CommandGroupType.OTHER,
-    )
+    defaults = {
+        "name": "cmd",
+        "button": RemoteButton.SELECT,
+        "type": CommandType.SCRIPT,
+        "command_group": CommandGroupType.OTHER,
+    }
     defaults.update(overrides)
     return Command(**defaults)
 

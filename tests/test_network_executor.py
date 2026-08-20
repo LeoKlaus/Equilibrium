@@ -11,14 +11,14 @@ from NetworkExecutor.NetworkExecutor import NetworkExecutor
 
 
 def _command(**overrides) -> Command:
-    defaults = dict(
-        name="cmd",
-        button=RemoteButton.SELECT,
-        type=CommandType.NETWORK,
-        command_group=CommandGroupType.OTHER,
-        host="https://device.local/api",
-        method=NetworkRequestType.GET,
-    )
+    defaults = {
+        "name": "cmd",
+        "button": RemoteButton.SELECT,
+        "type": CommandType.NETWORK,
+        "command_group": CommandGroupType.OTHER,
+        "host": "https://device.local/api",
+        "method": NetworkRequestType.GET,
+    }
     defaults.update(overrides)
     return Command(**defaults)
 

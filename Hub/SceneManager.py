@@ -93,9 +93,12 @@ class SceneManager:
             await self._connect_ble_for_scene(scene)
 
             previous_scene = self._status_store.status.current_scene
-            if previous_scene is not None and previous_scene.stop_macro is not None:
-                if previous_scene.stop_macro.commands:
-                    await self._command_dispatcher.update_states_for_commands(previous_scene.stop_macro.commands)
+            if (
+                previous_scene is not None
+                and previous_scene.stop_macro is not None
+                and previous_scene.stop_macro.commands
+            ):
+                await self._command_dispatcher.update_states_for_commands(previous_scene.stop_macro.commands)
 
             if scene.start_macro is not None and scene.start_macro.commands:
                 await self._command_dispatcher.update_states_for_commands(scene.start_macro.commands)

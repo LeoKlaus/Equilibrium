@@ -60,13 +60,13 @@ def deps(db_engine, monkeypatch):
 
 
 def _create_command(db_engine, **overrides) -> int:
-    defaults = dict(
-        name="cmd",
-        button=RemoteButton.POWER_OFF,
-        type=CommandType.IR,
-        command_group=CommandGroupType.POWER,
-        ir_action="ff",
-    )
+    defaults = {
+        "name": "cmd",
+        "button": RemoteButton.POWER_OFF,
+        "type": CommandType.IR,
+        "command_group": CommandGroupType.POWER,
+        "ir_action": "ff",
+    }
     defaults.update(overrides)
     with Session(db_engine) as session:
         command = Command(**defaults)

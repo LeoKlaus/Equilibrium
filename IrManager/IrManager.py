@@ -161,11 +161,11 @@ class IrManager(ActionExecutor):
             nonlocal wf
             wf = []
             cycle = 1000.0 / frequency
-            cycles = int(round(micros / cycle))
-            on = int(round(cycle * dutycycle))
+            cycles = round(micros / cycle)
+            on = round(cycle * dutycycle)
             sofar = 0
             for c in range(cycles):
-                target = int(round((c + 1) * cycle))
+                target = round((c + 1) * cycle)
                 sofar += on
                 off = target - sofar
                 sofar += off
@@ -248,17 +248,15 @@ class IrManager(ActionExecutor):
                     tot = v
                     similar = 1.0
                     for j in range(i + 2, entries, 2):  # Find unprocessed similar.
-                        if not p[j]:  # Unprocessed.
-                            if c[j] * 0.8 < v < c[j] * 1.2:  # Similar.
-                                tot = tot + c[j]
-                                similar += 1.0
+                        if not p[j] and c[j] * 0.8 < v < c[j] * 1.2:  # Unprocessed and similar.
+                            tot = tot + c[j]
+                            similar += 1.0
                     newv = tot / similar
                     c[i] = newv
                     for j in range(i + 2, entries, 2):  # Normalise similar.
-                        if not p[j]:  # Unprocessed.
-                            if c[j] * 0.8 < v < c[j] * 1.2:  # Similar.
-                                c[j] = newv
-                                p[j] = 1
+                        if not p[j] and c[j] * 0.8 < v < c[j] * 1.2:  # Unprocessed and similar.
+                            c[j] = newv
+                            p[j] = 1
 
         def end_of_code():
             nonlocal code, code_done
@@ -305,7 +303,7 @@ class IrManager(ActionExecutor):
                 if (v < 0.8) or (v > 1.2):
                     return False
             for i in range(len(p1)):
-                p1[i] = int(round((p1[i] + p2[i]) / 2.0))
+                p1[i] = round((p1[i] + p2[i]) / 2.0)
             return True
 
         self.pi.set_mode(RXGPIO, pigpio.INPUT) # IR RX connected to this GPIO.

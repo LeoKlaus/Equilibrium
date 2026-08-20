@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from random import randint
 from typing import ClassVar
 
 from bluez_peripheral.advert import Advertisement
@@ -277,7 +276,7 @@ class BleKeyboard(ActionExecutor):
         self.release_media_keys()
 
 
-    def update_battery_state(self, new_level=randint(1, 100)):
+    def update_battery_state(self, new_level: int = 100):
         """
         Update the reported battery state of the keyboard. I don't think this has any practical use
         :param new_level: Battery level to set (0-100)
@@ -310,12 +309,11 @@ class BleKeyboard(ActionExecutor):
             paired = device.get("Paired", False)
             connected = device.get("Connected", False)
 
-            if address and paired and connected:
-                if not paired.value and connected.value:
-                    self.logger.info(f"Trying to pair with {address.value}")
-                    interface = await self._get_device_interface(path)
-                    self.logger.info("Trying to pair, confirm pairing on your device...")
-                    await interface.call_pair()
+            if address and paired and connected and not paired.value and connected.value:
+                self.logger.info(f"Trying to pair with {address.value}")
+                interface = await self._get_device_interface(path)
+                self.logger.info("Trying to pair, confirm pairing on your device...")
+                await interface.call_pair()
 
     @property
     async def devices(self):
@@ -338,12 +336,11 @@ class BleKeyboard(ActionExecutor):
             connected = device.get("Connected", False)
 
             # My ATV 4K doesn't pair automatically after connecting...
-            if address and paired and connected:
-                if not paired.value and connected.value:
-                    self.logger.info(f"Trying to pair with {address.value}")
-                    interface = await self._get_device_interface(path)
-                    self.logger.info("Trying to pair, confirm pairing on your device...")
-                    await interface.call_pair()
+            if address and paired and connected and not paired.value and connected.value:
+                self.logger.info(f"Trying to pair with {address.value}")
+                interface = await self._get_device_interface(path)
+                self.logger.info("Trying to pair, confirm pairing on your device...")
+                await interface.call_pair()
 
             if address and alias and (paired or connected):
                 connected_devices.append({
@@ -364,10 +361,7 @@ class BleKeyboard(ActionExecutor):
         :return: `True` if a device is currently connected and paired, `False` else
         """
         devices = await self.devices
-        for device in devices:
-            if device.get("paired") and device.get("connected"):
-                return True
-        return False
+        return any(device.get("paired") and device.get("connected") for device in devices)
 
 
     async def connect(self, address: str):

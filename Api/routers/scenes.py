@@ -36,14 +36,14 @@ def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
         if not start_macro:
             raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
         db_scene.start_macro = start_macro
-        device_ids += list(map(lambda x: x.id, start_macro.devices))
+        device_ids += [x.id for x in start_macro.devices]
 
     if scene.stop_macro_id is not None:
         stop_macro = session.get(Macro, scene.stop_macro_id)
         if not stop_macro:
             raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
         db_scene.stop_macro = stop_macro
-        device_ids += list(map(lambda x: x.id, stop_macro.devices))
+        device_ids += [x.id for x in stop_macro.devices]
 
     if scene.bluetooth_address is not None:
         statement = select(Device).where(Device.bluetooth_address == scene.bluetooth_address)
@@ -93,14 +93,14 @@ def update_scene(scene_id: int, scene: ScenePost, session: SessionDep):
         if not start_macro:
             raise HTTPException(status_code=400, detail=f"Start macro {scene.start_macro_id} not found")
         scene_db.start_macro = start_macro
-        device_ids += list(map(lambda x: x.id, start_macro.devices))
+        device_ids += [x.id for x in start_macro.devices]
 
     if scene.stop_macro_id is not None:
         stop_macro = session.get(Macro, scene.stop_macro_id)
         if not stop_macro:
             raise HTTPException(status_code=400, detail=f"Stop macro {scene.stop_macro_id} not found")
         scene_db.stop_macro = stop_macro
-        device_ids += list(map(lambda x: x.id, stop_macro.devices))
+        device_ids += [x.id for x in stop_macro.devices]
 
     if scene.bluetooth_address is not None:
         statement = select(Device).where(Device.bluetooth_address == scene.bluetooth_address)

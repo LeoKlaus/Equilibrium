@@ -63,12 +63,12 @@ def _ir_manager(pi=None) -> IrManager:
 
 
 def _command(**overrides) -> Command:
-    defaults = dict(
-        name="cmd",
-        button=RemoteButton.PLAY,
-        type=CommandType.IR,
-        command_group=CommandGroupType.TRANSPORT,
-    )
+    defaults = {
+        "name": "cmd",
+        "button": RemoteButton.PLAY,
+        "type": CommandType.IR,
+        "command_group": CommandGroupType.TRANSPORT,
+    }
     defaults.update(overrides)
     return Command(**defaults)
 

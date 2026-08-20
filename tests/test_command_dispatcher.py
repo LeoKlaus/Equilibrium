@@ -30,13 +30,13 @@ def keymap_resolver(db_engine, monkeypatch):
 
 
 def _add_command(db_engine, **overrides) -> int:
-    defaults = dict(
-        name="Play",
-        button=RemoteButton.PLAY,
-        type=CommandType.IR,
-        command_group=CommandGroupType.TRANSPORT,
-        ir_action="deadbeef",
-    )
+    defaults = {
+        "name": "Play",
+        "button": RemoteButton.PLAY,
+        "type": CommandType.IR,
+        "command_group": CommandGroupType.TRANSPORT,
+        "ir_action": "deadbeef",
+    }
     defaults.update(overrides)
     with Session(db_engine) as session:
         command = Command(**defaults)

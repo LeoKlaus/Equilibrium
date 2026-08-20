@@ -225,6 +225,15 @@ def test_create_command_toggle_light_with_entity_is_happy(db_engine):
     assert response.status_code == 200
 
 
+def test_create_command_toggle_light_check_applies_regardless_of_type(db_engine):
+    client = _client_for(db_engine)
+
+    response = client.post("/commands/", json=_payload(type="network", integration_action="toggle_light"))
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "A toggle_light command requires an entity."}
+
+
 def test_create_command_brightness_up_without_entity_is_happy(db_engine):
     # Proves the entity requirement is specific to toggle_light, not every
     # integration action.

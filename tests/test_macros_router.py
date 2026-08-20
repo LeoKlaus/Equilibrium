@@ -212,6 +212,20 @@ def test_update_macro_with_no_commands_returns_400(db_engine):
     assert response.json() == {"detail": "You have to include at least one command."}
 
 
+def test_update_macro_with_nonexistent_scene_id_returns_404(db_engine):
+    command_id = _create_command(db_engine)
+    macro_id = _create_macro(db_engine)
+    client = _client_for(db_engine)
+
+    response = client.patch(
+        f"/macros/{macro_id}",
+        json={"name": "x", "command_ids": [command_id], "delays": [], "scene_ids": [999]},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Scene 999 not found"}
+
+
 def test_update_macro_replaces_commands_and_delays(db_engine):
     old_command = _create_command(db_engine)
     new_command_1 = _create_command(db_engine)

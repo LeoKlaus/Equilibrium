@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from api import logger
-from db_manager.db_manager import create_db_and_tables
+from db_manager.db_manager import run_migrations
 from hub.hub import Hub
 from zeroconf_manager.zeroconf_manager import ZeroconfManager
 
@@ -39,7 +39,7 @@ def _load_ha_credentials() -> tuple[str | None, str | None]:
 async def _lifespan(app: FastAPI, dev: bool):
     logger.info("Starting up...")
 
-    create_db_and_tables()
+    run_migrations()
     logger.info("Database initialized")
 
     addresses = _load_rf_addresses()

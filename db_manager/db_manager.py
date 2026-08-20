@@ -1,8 +1,9 @@
 import logging
-import subprocess
 from pathlib import Path
 from typing import Annotated
 
+from alembic import command
+from alembic.config import Config
 from fastapi import Depends
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -14,31 +15,35 @@ sqlite_url = f"sqlite:///{sqlite_file_name}"
 connect_args = {"check_same_thread": False}
 engine = create_engine(sqlite_url, connect_args=connect_args)
 
+logger = logging.getLogger(__package__)
 
-# from https://github.com/sqlalchemy/alembic/discussions/1483
-def run_migrations(logger: logging.Logger):
-    if not Path(sqlite_file_name).exists():
-        logger.info("No database found, skipping migrations...")
-        return
-    try:
-        logger.info("Starting database migrations")
-
-        # Run the Alembic upgrade command using subprocess
-        result = subprocess.run(["alembic", "upgrade", "head"], capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.error(f"Alembic upgrade failed: {result.stderr}")
-            raise RuntimeError(f"Alembic upgrade failed: {result.stderr}")
-
-        logger.info("Database migrations completed successfully")
-    except Exception as e:
-        logger.error(f"Migration failed: {e}")
-        raise
-    finally:
-        # Ensure the engine is disposed
-        engine.dispose()
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
+
+
+def run_migrations() -> None:
+    db_existed = Path(sqlite_file_name).exists()
+    cfg = Config("alembic.ini")
+
+    if db_existed:
+        try:
+            logger.info("Running database migrations...")
+            command.upgrade(cfg, "head")
+            logger.info("Database migrations complete")
+        except Exception:
+            logger.exception("Database migration failed")
+            raise
+        finally:
+            engine.dispose()
+    else:
+        logger.info("No database found, creating one...")
+
+    create_db_and_tables()
+
+    if not db_existed:
+        command.stamp(cfg, "head")
+        logger.info("New database stamped as up to date")
 
 # Dependency Injection in FastAPI
 def get_session():

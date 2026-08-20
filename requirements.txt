@@ -6,6 +6,7 @@ pigpio~=1.78
 bluez_peripheral~=0.2.0a3
 zeroconf~=0.147.0
 SQLAlchemy~=2.0.41
+alembic~=1.19.1
 python-multipart~=0.0.20
 httpx~=0.27
 pillow~=11.2.1

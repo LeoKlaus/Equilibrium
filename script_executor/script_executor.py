@@ -11,15 +11,7 @@ _DEFAULT_TIMEOUT_SECONDS = 30
 
 
 class ScriptExecutor(ActionExecutor):
-    """Runs a shell script from a fixed, confined directory.
-
-    TODO(rewrite): Commands (including script_path) are created through the
-    HTTP API, so without the confinement below this would be arbitrary
-    remote code execution. When Hub wiring is built, this executor must be
-    disabled by default and require an explicit opt-in flag, with a clear
-    warning about the security implications surfaced at startup - do not
-    register it unconditionally alongside the other executors.
-    """
+    """Runs a shell script from a fixed, confined directory."""
 
     name = "script"
 

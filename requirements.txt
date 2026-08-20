@@ -1,4 +1,4 @@
-fastapi[standard]~=0.115.13
+fastapi[standard]~=0.141.1
 sqlmodel~=0.0.39
 uvicorn~=0.52.4
 starlette~=0.46.2

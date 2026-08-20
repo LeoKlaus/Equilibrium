@@ -2,6 +2,7 @@ import json
 from typing import ClassVar
 
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from api.lifespan import _lifespan, _load_ha_credentials, _load_rf_addresses
 
@@ -110,8 +111,8 @@ async def test_lifespan_mounts_module_routers_onto_the_app(tmp_path, monkeypatch
 
     app = FastAPI()
     async with _lifespan(app, dev=True):
-        paths = [route.path for route in app.routes]
-        assert "/fake-module-ping" in paths
+        client = TestClient(app)
+        assert client.get("/fake-module-ping").json() == {"ok": True}
 
 
 async def test_lifespan_non_dev_uses_the_non_dev_service_name(tmp_path, monkeypatch):

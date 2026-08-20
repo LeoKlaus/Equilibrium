@@ -153,7 +153,7 @@ def _client_for(keyboard: BleKeyboard) -> TestClient:
 def test_router_has_the_expected_routes():
     keyboard = _keyboard()
 
-    paths = {route.path for route in keyboard.router.routes}
+    paths = {route.path for route in keyboard.router.routes}  # type: ignore[attr-defined]
 
     assert paths == {
         "/bluetooth/devices",

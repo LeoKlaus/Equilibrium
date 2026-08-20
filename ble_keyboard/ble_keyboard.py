@@ -61,32 +61,24 @@ class BleKeyboard(ActionExecutor):
         self.router = self._build_router()
 
     def _build_router(self) -> APIRouter:
-        # Combines two differently-prefixed sub-routers into the one router
-        # this module exposes, so /bluetooth/* and /ws/bt_pairing both keep
-        # their existing paths despite now living in the same module.
-        router = APIRouter()
-        router.include_router(self._build_http_router())
-        router.include_router(self._build_websocket_router())
+        router = APIRouter(responses={404: {"description": "Not found"}})
+        self._add_http_routes(router)
+        self._add_websocket_routes(router)
         return router
 
-    def _build_http_router(self) -> APIRouter:
-        router = APIRouter(
-            prefix="/bluetooth",
-            tags=["Bluetooth Devices"],
-            responses={404: {"description": "Not found"}},
-        )
-
-        @router.get("/devices", response_model=list[BleDevice])
+    def _add_http_routes(self, router: APIRouter) -> None:
+        @router.get("/bluetooth/devices", tags=["Bluetooth Devices"], response_model=list[BleDevice])
         async def get_connected_ble_devices() -> list[BleDevice]:
             return await self.devices
 
-        @router.post("/start_advertisement")
+        @router.post("/bluetooth/start_advertisement", tags=["Bluetooth Devices"])
         async def start_ble_discovery():
             await self.advertise()
             return {"success": True}
 
         @router.post(
-            "/start_pairing",
+            "/bluetooth/start_pairing",
+            tags=["Bluetooth Devices"],
             description="Will initiate pairing with all connected bluetooth devices that are not currently "
                         "paired. This is may be necessary for some devices (notably Apple TVs).",
         )
@@ -94,25 +86,17 @@ class BleKeyboard(ActionExecutor):
             await self.initiate_pairing()
             return {"success": True}
 
-        @router.post("/connect/{mac_address}")
+        @router.post("/bluetooth/connect/{mac_address}", tags=["Bluetooth Devices"])
         async def connect_ble_device(mac_address: str):
             await self.connect(mac_address)
             return {"success": True}
 
-        @router.post("/disconnect")
+        @router.post("/bluetooth/disconnect", tags=["Bluetooth Devices"])
         async def disconnect_ble_devices():
             await self.disconnect()
             return {"success": True}
 
-        return router
-
-    def _build_websocket_router(self) -> APIRouter:
-        router = APIRouter(
-            prefix="/ws",
-            tags=["websockets"],
-            responses={404: {"description": "Not found"}},
-        )
-
+    def _add_websocket_routes(self, router: APIRouter) -> None:
         # Pairing flow (e.g. for an ATV 4K, where the pairing prompt only appears if triggered
         # manually within a short time after connecting for the first time - handled in the
         # `devices` property below):
@@ -120,7 +104,7 @@ class BleKeyboard(ActionExecutor):
         # 2. Select "Virtual Keyboard" in the target's bluetooth settings
         # 3. Send a devices query over this socket to trigger pairing (returns connected: True, paired: False)
         # 4. Confirm pairing on the target device
-        @router.websocket("/bt_pairing")
+        @router.websocket("/ws/bt_pairing")
         async def websocket_bt_pairing(websocket: WebSocket):
             await websocket.accept()
 
@@ -146,8 +130,6 @@ class BleKeyboard(ActionExecutor):
                         await websocket.send_json(WebsocketBleDeviceResponse(devices=devices).model_dump())
             except WebSocketDisconnect:
                 self.logger.debug("Client disconnected from bt_pairing websocket")
-
-        return router
 
     @classmethod
     async def create(cls):

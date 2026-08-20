@@ -331,10 +331,10 @@ def test_mount_routers_includes_routers_from_sources_and_executors():
 
     app = FastAPI()
     hub.mount_routers(app)
+    client = TestClient(app)
 
-    paths = [route.path for route in app.routes]
-    assert "/fake-source-ping" in paths
-    assert "/fake-executor-ping" in paths
+    assert client.get("/fake-source-ping").json() == {"ok": True}
+    assert client.get("/fake-executor-ping").json() == {"ok": True}
 
 
 def test_mount_routers_skips_modules_without_a_router():

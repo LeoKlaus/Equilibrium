@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel.main import SQLModelConfig
 
 if TYPE_CHECKING:
     from Api.models.Command import Command
@@ -45,8 +46,7 @@ class Macro(MacroBase, table=True):
     devices: list["Device"] = Relationship(back_populates="macros", link_model=DeviceMacroLink)
 
     # Needed for Column(JSON)
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = SQLModelConfig(arbitrary_types_allowed=True)
 
 class MacroWithCommands(MacroBase):
     id: int | None

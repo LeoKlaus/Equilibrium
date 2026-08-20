@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Annotated, Optional
 
 from sqlalchemy import JSON, Column, event
 from sqlmodel import Field, Relationship, Session, SQLModel
+from sqlmodel.main import SQLModelConfig
 
 from Api import logger
 from Api.models.CommandGroupType import CommandGroupType
@@ -41,8 +42,7 @@ class Command(CommandBase, table=True):
     macros: list["Macro"] = Relationship(back_populates="commands", link_model=CommandMacroLink)
 
     # Needed for Column(JSON)
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = SQLModelConfig(arbitrary_types_allowed=True)
 
 class CommandWithRelationships(CommandBase):
     id: int | None

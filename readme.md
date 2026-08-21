@@ -32,6 +32,24 @@ If you run into any issues, check the [Troubleshooting](#troubleshooting) sectio
 
 I've created a [Wiki in this repo](https://github.com/LeoKlaus/Equilibrium/wiki) to cover the basic setup and usage of Equilibrium.
 
+### Docker
+
+Equilibrium can also be run in Docker:
+
+```bash
+docker compose up -d
+```
+
+The container needs `pigpiod` already running on the host (same as a
+non-Docker setup) to access the IR blaster, and runs privileged with
+host networking to reach the RF24 radio (SPI/GPIO), Bluetooth (D-Bus)
+and mDNS. Your database, uploaded images and other settings are stored
+in `./config` on the host and persist across container recreation.
+
+Log verbosity is set via the `LOG_LEVEL` environment variable in
+`docker-compose.yml` (`DEBUG`, `INFO`, `WARNING`, `ERROR` or
+`CRITICAL`).
+
 ## Pictures
 
 ### The Hub

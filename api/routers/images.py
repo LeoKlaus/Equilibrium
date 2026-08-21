@@ -1,0 +1,70 @@
+from io import BytesIO
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, HTTPException, UploadFile
+from PIL import Image
+from sqlmodel import select
+from starlette.responses import FileResponse
+
+from api.models.user_image import UserImage
+from db_manager.db_manager import SessionDep
+
+router = APIRouter(
+    prefix="/images",
+    tags=["Images"],
+    responses={404: {"description": "Not found"}}
+)
+
+@router.get("/", tags=["Images"])
+def get_all_images(session: SessionDep):
+    images = session.exec(select(UserImage)).all()
+    return images
+
+@router.get("/{image_id}", tags=["Images"])
+def get_image(image_id: int, session: SessionDep):
+    image = session.get(UserImage, image_id)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(image.path)
+
+@router.post("/", tags=["Images"], response_model=UserImage)
+async def upload_image(file: UploadFile, session: SessionDep):
+    try:
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="File must have a filename")
+
+        contents = await file.read()
+        pil_img = Image.open(BytesIO(contents))
+        pil_img.thumbnail((512,512))
+        path = Path("./config/images/" + str(uuid4()) + ".png")
+        Path("./config/images").mkdir(exist_ok=True)
+        image = UserImage()
+        image.filename = file.filename
+        image.path = str(path)
+        pil_img.save(path, "PNG")
+        db_image = UserImage.model_validate(image)
+        session.add(db_image)
+        session.commit()
+        session.refresh(db_image)
+        return db_image
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Something went wrong: {e}') from e
+    finally:
+        file.file.close()
+
+@router.delete("/{image_id}", tags=["Images"])
+def delete_image(image_id: int, session: SessionDep):
+    image = session.get(UserImage, image_id)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    path = Path(image.path)
+    session.delete(image)
+    session.commit()
+    if path.is_file():
+        path.unlink()
+    return {"message": f"Successfully deleted {image.filename}"}
+

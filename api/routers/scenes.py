@@ -1,0 +1,201 @@
+from collections.abc import Sequence
+
+from fastapi import APIRouter, HTTPException
+from sqlmodel import select
+
+from api.dependencies import KeymapResolverDep, SceneManagerDep
+from api.models import Macro
+from api.models.device import Device
+from api.models.scene import Scene, ScenePost, SceneWithRelationships, SceneWithRelationshipsAndFullDevices
+from api.models.user_image import UserImage
+from db_manager.db_manager import SessionDep
+from hub.scene_manager import NoActiveSceneError, SceneNotFoundError
+
+router = APIRouter(
+    prefix="/scenes",
+    tags=["Scenes"],
+    responses={404: {"description": "Not found"}}
+)
+
+@router.post("/", tags=["Scenes"], response_model=SceneWithRelationships)
+def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
+    db_scene = Scene.model_validate(scene)
+    image_id = scene.image_id
+    session.add(db_scene)
+
+    db_scene.bluetooth_address = scene.bluetooth_address
+
+    if image_id is not None:
+        image_db = session.get(UserImage, image_id)
+        if not image_db:
+            raise HTTPException(status_code=404, detail=f"Image {image_id} not found")
+        db_scene.image = image_db
+
+    device_ids: list[int] = scene.device_ids
+
+    if scene.start_macro_id is not None:
+        start_macro = session.get(Macro, scene.start_macro_id)
+        if not start_macro:
+            raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
+        db_scene.start_macro = start_macro
+        device_ids += [x.id for x in start_macro.devices if x.id is not None]
+
+    if scene.stop_macro_id is not None:
+        stop_macro = session.get(Macro, scene.stop_macro_id)
+        if not stop_macro:
+            raise HTTPException(status_code=400, detail=f"Macro {scene.start_macro_id} not found")
+        db_scene.stop_macro = stop_macro
+        device_ids += [x.id for x in stop_macro.devices if x.id is not None]
+
+    if scene.bluetooth_address is not None:
+        statement = select(Device).where(Device.bluetooth_address == scene.bluetooth_address)
+        results = session.exec(statement)
+        bt_device = results.first()
+        if bt_device is not None and bt_device.id is not None:
+            device_ids.append(bt_device.id)
+
+    device_id_set = set(device_ids)
+
+    for device_id in device_id_set:
+        device_db = session.get(Device, device_id)
+        if not device_db:
+            raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+        db_scene.devices.append(device_db)
+
+    for macro_id in scene.macro_ids:
+        macro_db = session.get(Macro, macro_id)
+        if macro_db is None:
+            raise HTTPException(status_code=404, detail=f"Macro {macro_id} not found")
+        db_scene.macros.append(macro_db)
+
+    session.commit()
+    session.refresh(db_scene)
+    return db_scene
+
+
+@router.get("/", tags=["Scenes"], response_model=list[SceneWithRelationships])
+def list_scenes(session: SessionDep) -> Sequence[Scene]:
+    scenes = session.exec(select(Scene)).all()
+    return scenes
+
+
+@router.patch("/{scene_id}", tags=["Scenes"])
+def update_scene(scene_id: int, scene: ScenePost, session: SessionDep):
+    scene_db = session.get(Scene, scene_id)
+    if not scene_db:
+        raise HTTPException(status_code=404, detail="Scene not found")
+
+    if scene.bluetooth_address:
+        scene_db.bluetooth_address = scene.bluetooth_address
+
+    device_ids: list[int] = scene.device_ids
+
+    if scene.start_macro_id is not None:
+        start_macro = session.get(Macro, scene.start_macro_id)
+        if not start_macro:
+            raise HTTPException(status_code=400, detail=f"Start macro {scene.start_macro_id} not found")
+        scene_db.start_macro = start_macro
+        device_ids += [x.id for x in start_macro.devices if x.id is not None]
+
+    if scene.stop_macro_id is not None:
+        stop_macro = session.get(Macro, scene.stop_macro_id)
+        if not stop_macro:
+            raise HTTPException(status_code=400, detail=f"Stop macro {scene.stop_macro_id} not found")
+        scene_db.stop_macro = stop_macro
+        device_ids += [x.id for x in stop_macro.devices if x.id is not None]
+
+    if scene.bluetooth_address is not None:
+        statement = select(Device).where(Device.bluetooth_address == scene.bluetooth_address)
+        results = session.exec(statement)
+        bt_device = results.first()
+        if bt_device is not None and bt_device.id is not None:
+            device_ids.append(bt_device.id)
+
+    device_id_set = set(device_ids)
+
+    scene_db.devices = []
+
+    for device_id in device_id_set:
+        device_db = session.get(Device, device_id)
+        if not device_db:
+            raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+        scene_db.devices.append(device_db)
+
+    for macro_id in scene.macro_ids:
+        macro_db = session.get(Macro, macro_id)
+        if macro_db is None:
+            raise HTTPException(status_code=404, detail=f"Macro {macro_id} not found")
+        scene_db.macros.append(macro_db)
+
+    if scene.image_id is not None:
+        image_db = session.get(UserImage, scene.image_id)
+        if not image_db:
+            raise HTTPException(status_code=404, detail=f"Image {scene.image_id} not found")
+        scene_db.image = image_db
+
+    scene_data = scene.model_dump(exclude_unset=True)
+    scene_db.sqlmodel_update(scene_data)
+    session.add(scene_db)
+    session.commit()
+    session.refresh(scene_db)
+    return scene_db
+
+
+@router.delete("/{scene_id}", tags=["Scenes"])
+def delete_scene(scene_id: int, session: SessionDep):
+    scene = session.get(Scene, scene_id)
+    if not scene:
+        raise HTTPException(status_code=404, detail="Scene not found")
+
+    session.delete(scene)
+    session.commit()
+
+    return {"message": f"Successfully deleted {scene.name}"}
+
+
+@router.get("/{scene_id}", tags=["Scenes"], response_model=SceneWithRelationshipsAndFullDevices)
+def get_scene(scene_id: int, session: SessionDep) -> Scene:
+    scene = session.get(Scene, scene_id)
+    if not scene:
+        raise HTTPException(status_code=404, detail="Scene not found")
+    return scene
+
+
+@router.post("/{scene_id}/start", tags=["Scenes"])
+async def start_scene(scene_id: int, scene_manager: SceneManagerDep):
+    try:
+        await scene_manager.start_scene(scene_id)
+    except SceneNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Scene not found") from e
+
+    return f"Started scene {scene_id}"
+
+
+@router.post("/{scene_id}/set_current", tags=["Scenes"], description="Sets the given scene as current scene **without** executing its start macro.")
+async def set_current_scene(scene_id: int, scene_manager: SceneManagerDep):
+    try:
+        await scene_manager.set_current_scene(scene_id)
+    except SceneNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Scene not found") from e
+
+    return f"Set scene {scene_id} as current scene."
+
+@router.get("/{scene_id}/keymap_suggestions", tags=["Scenes"], description="Generates a suggested keymap based on the associated devices and remote.")
+async def suggest_keymap(scene_id: int, session: SessionDep, keymap_resolver: KeymapResolverDep):
+    scene = session.get(Scene, scene_id)
+
+    if not scene:
+        raise HTTPException(status_code=404, detail="Scene not found")
+
+    return keymap_resolver.suggest_keymap(scene)
+
+@router.post("/stop", tags=["Scenes"])
+async def stop_current_scene(scene_manager: SceneManagerDep):
+    try:
+        await scene_manager.stop_current_scene()
+    except NoActiveSceneError as e:
+        raise HTTPException(status_code=404, detail="No scene active") from e
+    except SceneNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+    return "Stopped current scene."

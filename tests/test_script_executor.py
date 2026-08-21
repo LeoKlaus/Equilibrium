@@ -1,0 +1,89 @@
+import stat
+
+from api.models.command import Command
+from api.models.command_group_type import CommandGroupType
+from api.models.command_type import CommandType
+from api.models.remote_button import RemoteButton
+from hub.event_bus import Directive
+from hub.interfaces import ActionExecutor
+from script_executor.script_executor import ScriptExecutor
+
+
+def _command(**overrides) -> Command:
+    defaults = {
+        "name": "cmd",
+        "button": RemoteButton.SELECT,
+        "type": CommandType.SCRIPT,
+        "command_group": CommandGroupType.OTHER,
+    }
+    defaults.update(overrides)
+    return Command(**defaults)
+
+
+def _write_script(tmp_path, name: str, body: str, executable: bool = True):
+    script = tmp_path / name
+    script.write_text(f"#!/bin/sh\n{body}\n")
+    if executable:
+        script.chmod(script.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return script
+
+
+def test_is_an_action_executor():
+    assert issubclass(ScriptExecutor, ActionExecutor)
+    assert ScriptExecutor.name == "script"
+
+
+async def test_execute_runs_the_script(tmp_path):
+    marker = tmp_path / "ran"
+    _write_script(tmp_path, "touch_marker.sh", f"touch {marker}")
+    executor = ScriptExecutor(scripts_dir=str(tmp_path))
+
+    await executor.execute(Directive(command_id=1), _command(script_path="touch_marker.sh"))
+
+    assert marker.exists()
+
+
+async def test_execute_without_script_path_runs_nothing(tmp_path):
+    executor = ScriptExecutor(scripts_dir=str(tmp_path))
+
+    await executor.execute(Directive(command_id=1), _command(script_path=None))
+
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_execute_rejects_path_traversal_outside_scripts_dir(tmp_path):
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir()
+    marker = tmp_path / "escaped"
+    _write_script(tmp_path, "evil.sh", f"touch {marker}")
+    executor = ScriptExecutor(scripts_dir=str(scripts_dir))
+
+    await executor.execute(Directive(command_id=1), _command(script_path="../evil.sh"))
+
+    assert not marker.exists()
+
+
+async def test_execute_rejects_missing_script(tmp_path):
+    executor = ScriptExecutor(scripts_dir=str(tmp_path))
+
+    await executor.execute(Directive(command_id=1), _command(script_path="does_not_exist.sh"))  # should not raise
+
+
+async def test_execute_rejects_non_executable_script(tmp_path):
+    marker = tmp_path / "ran"
+    _write_script(tmp_path, "not_executable.sh", f"touch {marker}", executable=False)
+    executor = ScriptExecutor(scripts_dir=str(tmp_path))
+
+    await executor.execute(Directive(command_id=1), _command(script_path="not_executable.sh"))
+
+    assert not marker.exists()
+
+
+async def test_execute_kills_the_process_on_timeout(tmp_path):
+    marker = tmp_path / "finished"
+    _write_script(tmp_path, "slow.sh", f"sleep 5 && touch {marker}")
+    executor = ScriptExecutor(scripts_dir=str(tmp_path), timeout_seconds=0.2)
+
+    await executor.execute(Directive(command_id=1), _command(script_path="slow.sh"))
+
+    assert not marker.exists()  # killed before the sleep completed

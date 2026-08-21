@@ -1,0 +1,62 @@
+name: CD
+
+on:
+  push:
+    tags:
+      - 'v?[0-9]+.[0-9]+.[0-9]+'
+      - 'v?[0-9]+.[0-9]+.[0-9]+-*'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Tags aren't inherently "on" a branch - this only builds/pushes an
+      # image when the tagged commit is actually reachable from main, so
+      # tagging some other branch (e.g. for local testing) doesn't publish.
+      - name: Check tag is on main
+        id: check
+        run: |
+          git fetch origin main
+          if git merge-base --is-ancestor "${{ github.sha }}" origin/main; then
+            echo "on_main=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "on_main=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Tag ${{ github.ref_name }} is not on main - skipping image build/push."
+          fi
+
+      - name: Compute image name
+        if: steps.check.outputs.on_main == 'true'
+        id: image
+        run: echo "name=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v4
+        if: steps.check.outputs.on_main == 'true'
+
+      - uses: docker/setup-buildx-action@v4
+        if: steps.check.outputs.on_main == 'true'
+
+      - uses: docker/login-action@v4
+        if: steps.check.outputs.on_main == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        if: steps.check.outputs.on_main == 'true'
+        with:
+          context: .
+          # linux/arm/v6 for the original Pi Zero/W (ARMv6), linux/arm64
+          # for the Pi Zero 2 W (64-bit Raspberry Pi OS).
+          platforms: linux/arm/v6,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:${{ github.ref_name }}

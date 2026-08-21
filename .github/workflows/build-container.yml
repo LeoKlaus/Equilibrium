@@ -17,9 +17,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Tags aren't inherently "on" a branch - this only builds/pushes an
-      # image when the tagged commit is actually reachable from main, so
-      # tagging some other branch (e.g. for local testing) doesn't publish.
       - name: Check tag is on main
         id: check
         run: |
@@ -53,10 +50,11 @@ jobs:
         if: steps.check.outputs.on_main == 'true'
         with:
           context: .
-          # linux/arm/v6 for the original Pi Zero/W (ARMv6), linux/arm64
-          # for the Pi Zero 2 W (64-bit Raspberry Pi OS).
           platforms: linux/arm/v6,linux/arm64
           push: true
           tags: |
             ${{ steps.image.outputs.name }}:latest
             ${{ steps.image.outputs.name }}:${{ github.ref_name }}
+
+          cache-from: type=registry,ref=${{ steps.image.outputs.name }}:buildcache
+          cache-to: type=registry,ref=${{ steps.image.outputs.name }}:buildcache,mode=max

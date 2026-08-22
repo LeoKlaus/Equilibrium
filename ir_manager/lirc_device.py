@@ -31,13 +31,32 @@ def _ioc(direction: int, nr: int, size: int = 4) -> int:
 
 LIRC_GET_FEATURES = _ioc(_IOC_READ, 0x00)
 LIRC_SET_SEND_MODE = _ioc(_IOC_WRITE, 0x11)
+LIRC_SET_REC_MODE = _ioc(_IOC_WRITE, 0x12)
 LIRC_SET_SEND_CARRIER = _ioc(_IOC_WRITE, 0x13)
 LIRC_SET_SEND_DUTY_CYCLE = _ioc(_IOC_WRITE, 0x15)
+LIRC_SET_REC_TIMEOUT = _ioc(_IOC_WRITE, 0x18)
 
 LIRC_MODE_PULSE = 0x00000002
+LIRC_MODE_MODE2 = 0x00000004
 
 # LIRC_CAN_SEND(features) == features & LIRC_CAN_SEND_MASK
 LIRC_CAN_SEND_MASK = 0x0000003F
+# LIRC_CAN_REC(features) == features & LIRC_CAN_REC_MASK
+LIRC_CAN_REC_MASK = 0x003F0000
+
+# MODE2 read records pack a type tag into the top byte and a duration
+# (microseconds) into the low 24 bits.
+LIRC_MODE2_SPACE = 0x00000000
+LIRC_MODE2_PULSE = 0x01000000
+LIRC_MODE2_TIMEOUT = 0x03000000
+LIRC_MODE2_MASK = 0xFF000000
+LIRC_VALUE_MASK = 0x00FFFFFF
+
+# Matches the previous pigpio-based recorder's PRE_US: a gap this long
+# (or longer) means "no more signal, this press is done". Also doubles
+# as the driver-level idle timeout, replacing pigpio's separate
+# set_watchdog() call with one kernel-driven mechanism.
+_DEFAULT_TIMEOUT_US = 20_000
 
 
 def _get_features(fd: int) -> int:
@@ -83,3 +102,60 @@ class LircTransmitter:
         if not pulses or len(pulses) % 2 == 0:
             raise ValueError("pulses must have an odd length (LIRC_MODE_PULSE starts and ends on a pulse)")
         os.write(self._fd, struct.pack(f"{len(pulses)}I", *pulses))
+
+
+def find_rec_device() -> str:
+    """Same idea as find_send_device(), but for receive capability."""
+    for path in sorted(glob.glob("/dev/lirc*")):
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            features = _get_features(fd)
+        finally:
+            os.close(fd)
+        if features & LIRC_CAN_REC_MASK:
+            return path
+    raise OSError("No /dev/lircX device with receive capability found")
+
+
+class LircReceiver:
+    """Captures a raw pulse/space sequence from a gpio-ir-backed
+    /dev/lircX device, in the same alternating microsecond format
+    Command.ir_action already uses. Replaces pigpio's edge callback +
+    tickDiff() + set_watchdog() with the kernel driver's own MODE2
+    timeout record - one mechanism instead of two."""
+
+    def __init__(self, device: str | None = None, timeout_us: int = _DEFAULT_TIMEOUT_US) -> None:
+        self.path = device if device is not None else find_rec_device()
+        self._fd = os.open(self.path, os.O_RDONLY)
+        fcntl.ioctl(self._fd, LIRC_SET_REC_MODE, struct.pack("I", LIRC_MODE_MODE2))
+        fcntl.ioctl(self._fd, LIRC_SET_REC_TIMEOUT, struct.pack("I", timeout_us))
+
+    def close(self) -> None:
+        os.close(self._fd)
+
+    def receive_code(self) -> list[int]:
+        """Blocks until a full code is captured - ended by the driver's
+        own timeout record once the line goes idle - and returns it.
+        Leading noise before the first real pulse is dropped, since our
+        stored format (like LIRC_MODE_PULSE) always starts on a pulse.
+        A trailing space, if the driver reports one explicitly before
+        the timeout rather than just going quiet, is dropped too, so
+        the result always ends on a pulse - matching what
+        LircTransmitter.transmit() (and our stored format) requires."""
+        code: list[int] = []
+        while True:
+            (value,) = struct.unpack("I", os.read(self._fd, 4))
+            kind = value & LIRC_MODE2_MASK
+            duration = value & LIRC_VALUE_MASK
+
+            if kind == LIRC_MODE2_TIMEOUT:
+                if not code:
+                    continue  # idle before anything real arrived - keep waiting
+                if len(code) % 2 == 0:
+                    code.pop()  # drop a trailing space so we end on a pulse
+                return code
+
+            if not code and kind == LIRC_MODE2_SPACE:
+                continue  # drop leading noise/space before the first pulse
+
+            code.append(duration)

@@ -1,7 +1,6 @@
 import asyncio
 import atexit
 import logging
-import time
 from asyncio import Task
 from collections.abc import Awaitable, Callable
 from typing import ClassVar
@@ -17,17 +16,19 @@ from api.models.websocket_responses import WebsocketIrResponse
 from db_manager.db_manager import engine
 from hub.event_bus import Directive
 from hub.interfaces import ActionExecutor
+from ir_manager.lirc_device import LircTransmitter
 
 AsyncCallback = Callable[[str], Awaitable[None]]
 
+# RX is still pigpio-based for now (see _record_command) - migrating to
+# /dev/lircX is a separate, later step. TX below is already fully on
+# the new backend; TXGPIO/FREQ aren't needed here anymore since
+# LircTransmitter owns device selection and the carrier frequency.
 PRE = 20
 POST = 20
 RXGPIO = 17
 GLIT = 100
 PRE_US = PRE * 1000
-
-TXGPIO = 18
-FREQ = 38
 
 
 class IrManager(ActionExecutor):
@@ -42,6 +43,7 @@ class IrManager(ActionExecutor):
     def __init__(self):
         self.logger.info("Connecting...")
         self.pi = pigpio.pi()
+        self.tx = LircTransmitter()
         self.logger.info("Done")
 
         self.repeating = False
@@ -53,6 +55,7 @@ class IrManager(ActionExecutor):
     def cleanup(self):
         self.logger.info("Disconnecting from GPIO...")
         self.pi.stop()
+        self.tx.close()
 
     def _build_router(self) -> APIRouter:
         router = APIRouter(
@@ -147,76 +150,11 @@ class IrManager(ActionExecutor):
 
 
     async def send_command(self, code: list[int]):
-        # pigpio's socket API is blocking - every call in _blocking_send must
-        # run off the event loop, or a send stalls whatever else is pending
+        # transmit() is a blocking write() syscall - offload it, or a
+        # send stalls whatever else is pending on the event loop.
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._blocking_send, code)
+        await loop.run_in_executor(None, self.tx.transmit, code)
         self.logger.debug("Sent IR command")
-
-    def _blocking_send(self, code: list[int]):
-        def carrier(gpio, frequency, micros, dutycycle=0.5):
-            """
-            Generate cycles of carrier on gpio with frequency and dutycycle.
-            """
-            nonlocal wf
-            wf = []
-            cycle = 1000.0 / frequency
-            cycles = round(micros / cycle)
-            on = round(cycle * dutycycle)
-            sofar = 0
-            for c in range(cycles):
-                target = round((c + 1) * cycle)
-                sofar += on
-                off = target - sofar
-                sofar += off
-                wf.append(pigpio.pulse(1 << gpio, 0, on))
-                wf.append(pigpio.pulse(0, 1 << gpio, off))
-            return wf
-
-        self.pi.set_mode(TXGPIO, pigpio.OUTPUT)  # IR TX connected to this GPIO.
-
-        self.pi.wave_add_new()
-
-        # Check marks
-        marks = {}
-        for i in range(0, len(code), 2):
-            if code[i] not in marks:
-                marks[code[i]] = -1
-
-        for i in marks:
-            wf = carrier(TXGPIO, FREQ, i)
-            self.pi.wave_add_generic(wf)
-            wid = self.pi.wave_create()
-            marks[i] = wid
-
-        # Check spaces
-        spaces = {}
-        for i in range(1, len(code), 2):
-            if code[i] not in spaces:
-                spaces[code[i]] = -1
-
-        for i in spaces:
-            self.pi.wave_add_generic([pigpio.pulse(0, 0, i)])
-            wid = self.pi.wave_create()
-            spaces[i] = wid
-
-        # Create wave
-        wave = [0] * len(code)
-        for i in range(0, len(code)):
-            if i & 1:  # Space
-                wave[i] = spaces[code[i]]
-            else:  # Mark
-                wave[i] = marks[code[i]]
-
-        self.pi.wave_chain(wave)
-
-        while self.pi.wave_tx_busy():
-            time.sleep(0.05)
-
-        for i in marks:
-            self.pi.wave_delete(marks[i])
-        for i in spaces:
-            self.pi.wave_delete(spaces[i])
 
 
     async def record_command(self, name: str, websocket: WebSocket | None = None) -> list[int] | None:

@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -50,11 +51,31 @@ class FakePigpio:
         self.calls.append(("wave_delete", wave_id))
 
 
-def _ir_manager(pi=None) -> IrManager:
-    # Bypasses __init__ (which calls pigpio.pi() and registers an atexit
-    # hook) so tests never need a real pigpiod daemon.
+class FakeLircTransmitter:
+    """Stands in for LircTransmitter - avoids needing a real /dev/lircX
+    device. `delay` simulates transmit()'s blocking write() syscall
+    taking real time, for the offloading test."""
+
+    def __init__(self, delay: float = 0.0):
+        self.calls: list[list[int]] = []
+        self._delay = delay
+
+    def transmit(self, pulses):
+        if self._delay:
+            time.sleep(self._delay)
+        self.calls.append(list(pulses))
+
+    def close(self):
+        pass
+
+
+def _ir_manager(pi=None, tx=None) -> IrManager:
+    # Bypasses __init__ (which calls pigpio.pi()/opens a real /dev/lircX
+    # device and registers an atexit hook) so tests never need real
+    # hardware.
     manager = IrManager.__new__(IrManager)
     manager.pi = pi if pi is not None else FakePigpio()
+    manager.tx = tx if tx is not None else FakeLircTransmitter()
     manager.repeating = False
     manager.recording_task = None
     manager.sending_task = None
@@ -73,25 +94,22 @@ def _command(**overrides) -> Command:
     return Command(**defaults)
 
 
-async def test_send_command_builds_and_chains_a_wave_then_cleans_up():
-    pi = FakePigpio(busy_ticks=2)
-    manager = _ir_manager(pi)
+async def test_send_command_transmits_the_code_as_is():
+    tx = FakeLircTransmitter()
+    manager = _ir_manager(tx=tx)
 
     await manager.send_command([100, 200, 100, 200])
 
-    call_names = [call[0] for call in pi.calls]
-    assert call_names[0] == "set_mode"
-    assert "wave_chain" in call_names
-    assert call_names.count("wave_delete") == 2  # one mark wave, one space wave
+    assert tx.calls == [[100, 200, 100, 200]]
 
 
 async def test_send_command_offloads_the_blocking_work():
-    # ~200ms of pigpio.wave_tx_busy() polling via time.sleep - if that ran
-    # on the event loop thread instead of an executor, ticker()'s sleeps
-    # would get delayed too, pushing total elapsed time toward the SUM of
-    # both durations instead of their MAX.
-    pi = FakePigpio(busy_ticks=4)
-    manager = _ir_manager(pi)
+    # ~200ms simulating transmit()'s blocking write() syscall - if that
+    # ran on the event loop thread instead of an executor, ticker()'s
+    # sleeps would get delayed too, pushing total elapsed time toward
+    # the SUM of both durations instead of their MAX.
+    tx = FakeLircTransmitter(delay=0.2)
+    manager = _ir_manager(tx=tx)
 
     async def ticker() -> int:
         ticks = 0
@@ -110,16 +128,16 @@ async def test_send_command_offloads_the_blocking_work():
 
 
 async def test_send_and_repeat_sends_at_least_once_then_can_be_cancelled():
-    pi = FakePigpio()
-    manager = _ir_manager(pi)
+    tx = FakeLircTransmitter()
+    manager = _ir_manager(tx=tx)
 
     await manager.send_and_repeat([100, 200])
     for _ in range(20):
-        if any(call[0] == "wave_chain" for call in pi.calls):
+        if tx.calls:
             break
         await asyncio.sleep(0.01)
 
-    assert any(call[0] == "wave_chain" for call in pi.calls)
+    assert tx.calls
 
     manager.stop_repeating()
 

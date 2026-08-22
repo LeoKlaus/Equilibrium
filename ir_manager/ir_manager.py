@@ -5,7 +5,6 @@ from asyncio import Task
 from collections.abc import Awaitable, Callable
 from typing import ClassVar
 
-import pigpio
 from fastapi import APIRouter
 from sqlmodel import Session
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
@@ -16,19 +15,14 @@ from api.models.websocket_responses import WebsocketIrResponse
 from db_manager.db_manager import engine
 from hub.event_bus import Directive
 from hub.interfaces import ActionExecutor
-from ir_manager.lirc_device import LircTransmitter
+from ir_manager.lirc_device import LircReceiver, LircTransmitter
 
 AsyncCallback = Callable[[str], Awaitable[None]]
 
-# RX is still pigpio-based for now (see _record_command) - migrating to
-# /dev/lircX is a separate, later step. TX below is already fully on
-# the new backend; TXGPIO/FREQ aren't needed here anymore since
-# LircTransmitter owns device selection and the carrier frequency.
-PRE = 20
-POST = 20
-RXGPIO = 17
-GLIT = 100
-PRE_US = PRE * 1000
+# A captured code shorter than this many edges is treated as noise/a
+# repeat rather than a real press - matches the old pigpio-based
+# recorder's threshold.
+_MIN_CODE_LENGTH = 8
 
 
 class IrManager(ActionExecutor):
@@ -42,8 +36,8 @@ class IrManager(ActionExecutor):
 
     def __init__(self):
         self.logger.info("Connecting...")
-        self.pi = pigpio.pi()
         self.tx = LircTransmitter()
+        self.rx = LircReceiver()
         self.logger.info("Done")
 
         self.repeating = False
@@ -54,8 +48,8 @@ class IrManager(ActionExecutor):
 
     def cleanup(self):
         self.logger.info("Disconnecting from GPIO...")
-        self.pi.stop()
         self.tx.close()
+        self.rx.close()
 
     def _build_router(self) -> APIRouter:
         router = APIRouter(
@@ -164,11 +158,6 @@ class IrManager(ActionExecutor):
 
     async def _record_command(self, name: str, websocket: WebSocket | None = None) -> list[int] | None:
 
-        last_tick = None
-        in_code = False
-        code: list[int] = []
-        code_done = False
-
         async def send_message(msg: str):
             self.logger.debug(msg)
             if websocket is not None and websocket.client_state == WebSocketState.CONNECTED:
@@ -196,41 +185,6 @@ class IrManager(ActionExecutor):
                             c[j] = newv
                             p[j] = 1
 
-        def end_of_code():
-            nonlocal code, code_done
-            if len(code) > 8:
-                normalise(code)
-                code_done = True
-            else:
-                code = []
-                asyncio.run(send_message(WebsocketIrResponse.SHORT_CODE))
-                # send_websocket_message("Short code, probably a repeat. Please try again.")
-
-        def cbf(_, level, tick):
-            nonlocal last_tick, in_code, code, code_done
-            if last_tick is not None:
-                if level != pigpio.TIMEOUT:
-                    edge = pigpio.tickDiff(last_tick, tick)
-                    if edge > PRE_US:  # Start or stop of a code.
-                        if in_code:
-                            in_code = False
-                            self.pi.set_watchdog(RXGPIO, 0)  # Cancel watchdog.
-                            end_of_code()
-                        else:
-                            if not code_done:
-                                in_code = True
-                                self.pi.set_watchdog(RXGPIO, POST)  # Start watchdog.
-                    else:
-                        if in_code:
-                            code.append(edge)
-                else:  # Timeout.
-                    self.pi.set_watchdog(RXGPIO, 0)  # Cancel watchdog.
-                    if in_code:
-                        in_code = False
-                        end_of_code()
-            if level != pigpio.TIMEOUT:
-                last_tick = tick
-
         def compare(p1, p2):
             if len(p1) != len(p2):
                 return False
@@ -244,36 +198,32 @@ class IrManager(ActionExecutor):
                 p1[i] = round((p1[i] + p2[i]) / 2.0)
             return True
 
-        self.pi.set_mode(RXGPIO, pigpio.INPUT) # IR RX connected to this GPIO.
-        self.pi.set_glitch_filter(RXGPIO, GLIT) # Ignore glitches.
-
-        _ = self.pi.callback(RXGPIO, pigpio.EITHER_EDGE, cbf)
-
-        code = []
-        code_done = False
+        async def receive_valid_code() -> list[int]:
+            """Blocks until a code long enough to be a real press (not
+            noise/a repeat) is captured, notifying the client and
+            retrying on anything shorter."""
+            loop = asyncio.get_running_loop()
+            while True:
+                code = await loop.run_in_executor(None, self.rx.receive_code)
+                if len(code) > _MIN_CODE_LENGTH:
+                    normalise(code)
+                    return code
+                await send_message(WebsocketIrResponse.SHORT_CODE)
 
         await send_message(WebsocketIrResponse.PRESS_KEY)
+        press_1 = await receive_valid_code()
 
-        while not code_done:
-            await asyncio.sleep(0.1)
-
-        press_1 = code[:]
         match = False
         tries = 0
 
         while not match:
-            code = []
-            code_done = False
             if tries > 4:
                 await send_message(WebsocketIrResponse.TOO_MANY_RETRIES)
                 return None
 
             await send_message(WebsocketIrResponse.REPEAT_KEY)
+            press_2 = await receive_valid_code()
 
-            while not code_done:
-                await asyncio.sleep(0.1)
-
-            press_2 = code[:]
             the_same = compare(press_1, press_2)
 
             if the_same:

@@ -16,41 +16,6 @@ from hub.event_bus import Directive
 from ir_manager.ir_manager import IrManager
 
 
-class FakePigpio:
-    """Stands in for pigpio.pi() - avoids needing a real pigpiod daemon."""
-
-    def __init__(self, busy_ticks: int = 0):
-        self.calls: list[tuple] = []
-        self._busy_ticks = busy_ticks
-        self._next_wave_id = 0
-
-    def set_mode(self, gpio, mode):
-        self.calls.append(("set_mode", gpio, mode))
-
-    def wave_add_new(self):
-        self.calls.append(("wave_add_new",))
-
-    def wave_add_generic(self, pulses):
-        self.calls.append(("wave_add_generic", len(pulses)))
-
-    def wave_create(self):
-        self._next_wave_id += 1
-        self.calls.append(("wave_create",))
-        return self._next_wave_id
-
-    def wave_chain(self, wave):
-        self.calls.append(("wave_chain", list(wave)))
-
-    def wave_tx_busy(self):
-        if self._busy_ticks > 0:
-            self._busy_ticks -= 1
-            return True
-        return False
-
-    def wave_delete(self, wave_id):
-        self.calls.append(("wave_delete", wave_id))
-
-
 class FakeLircTransmitter:
     """Stands in for LircTransmitter - avoids needing a real /dev/lircX
     device. `delay` simulates transmit()'s blocking write() syscall
@@ -69,13 +34,28 @@ class FakeLircTransmitter:
         pass
 
 
-def _ir_manager(pi=None, tx=None) -> IrManager:
-    # Bypasses __init__ (which calls pigpio.pi()/opens a real /dev/lircX
-    # device and registers an atexit hook) so tests never need real
-    # hardware.
+class FakeLircReceiver:
+    """Stands in for LircReceiver - avoids needing a real /dev/lircX
+    device. Feed it a sequence of pre-baked codes via `codes`; each
+    receive_code() call (as run_in_executor would call it - synchronously,
+    off the event loop) pops the next one."""
+
+    def __init__(self, codes: list[list[int]] | None = None):
+        self._codes = list(codes) if codes is not None else []
+
+    def receive_code(self) -> list[int]:
+        return self._codes.pop(0)
+
+    def close(self):
+        pass
+
+
+def _ir_manager(tx=None, rx=None) -> IrManager:
+    # Bypasses __init__ (which opens real /dev/lircX devices and
+    # registers an atexit hook) so tests never need real hardware.
     manager = IrManager.__new__(IrManager)
-    manager.pi = pi if pi is not None else FakePigpio()
     manager.tx = tx if tx is not None else FakeLircTransmitter()
+    manager.rx = rx if rx is not None else FakeLircReceiver()
     manager.repeating = False
     manager.recording_task = None
     manager.sending_task = None
@@ -189,6 +169,50 @@ async def test_execute_without_ir_action_does_not_send_anything():
     await manager.execute(Directive(command_id=1), _command(ir_action=[]))
 
     assert calls == []
+
+
+_CODE_A = [9000, 4500, 560, 560, 560, 1690, 560, 560, 560, 1690, 560]
+_CODE_B = [1000, 2000, 300, 300, 300, 400, 300, 300, 300, 400, 300]  # nothing like _CODE_A
+_SHORT_CODE = [100, 200, 100]  # shorter than _MIN_CODE_LENGTH (8)
+
+
+async def test_record_command_returns_the_code_when_two_presses_match():
+    manager = _ir_manager(rx=FakeLircReceiver(codes=[_CODE_A, _CODE_A]))
+
+    result = await manager.record_command("Power")
+
+    assert result == _CODE_A
+
+
+async def test_record_command_retries_on_a_short_code():
+    rx = FakeLircReceiver(codes=[_SHORT_CODE, _CODE_A, _CODE_A])
+    manager = _ir_manager(rx=rx)
+
+    result = await manager.record_command("Power")
+
+    assert result == _CODE_A
+    assert rx._codes == []  # all three fed codes were consumed, none left over
+
+
+async def test_record_command_retries_when_presses_dont_match_then_succeeds():
+    rx = FakeLircReceiver(codes=[_CODE_A, _CODE_B, _CODE_A])
+    manager = _ir_manager(rx=rx)
+
+    result = await manager.record_command("Power")
+
+    assert result is not None
+    assert rx._codes == []
+
+
+async def test_record_command_gives_up_after_too_many_mismatched_tries():
+    # 1 initial press + 5 mismatched repeat attempts before giving up.
+    rx = FakeLircReceiver(codes=[_CODE_A, _CODE_B, _CODE_B, _CODE_B, _CODE_B, _CODE_B])
+    manager = _ir_manager(rx=rx)
+
+    result = await manager.record_command("Power")
+
+    assert result is None
+    assert rx._codes == []
 
 
 def test_router_has_the_expected_routes():

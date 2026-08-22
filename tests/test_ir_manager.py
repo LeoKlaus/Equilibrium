@@ -301,3 +301,28 @@ def test_ws_commands_cancelled_recording_sends_cancelled_and_closes_cleanly(db_e
 
     with Session(db_engine) as session:
         assert session.exec(select(Command).where(Command.name == "Play")).first() is None
+
+
+def test_ws_commands_cancelled_after_socket_already_closed_does_not_raise(db_engine, monkeypatch):
+    """Regression test: if the connection was already closed by the time
+    the CancelledError handler runs (e.g. a message send earlier in the
+    recording flow found the socket dead and triggered cancel_recording()),
+    the handler must not try to send/close again - that used to raise
+    RuntimeError('Cannot call "send" once a close message has been sent.')
+    because it checked client_state instead of application_state."""
+    monkeypatch.setattr("ir_manager.ir_manager.engine", db_engine)
+    manager = _ir_manager()
+
+    async def fake_record_command(name, websocket):
+        await websocket.close()
+        raise asyncio.CancelledError()
+
+    manager.record_command = fake_record_command
+
+    payload = {"name": "Play", "button": "play", "type": "ir", "command_group": "transport"}
+
+    with _client_for(manager) as client, client.websocket_connect("/ws/commands") as websocket:
+        websocket.send_json(payload)
+
+    with Session(db_engine) as session:
+        assert session.exec(select(Command).where(Command.name == "Play")).first() is None

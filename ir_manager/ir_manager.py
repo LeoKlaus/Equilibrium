@@ -104,9 +104,12 @@ class IrManager(ActionExecutor):
                         await websocket.send_json(WebsocketIrResponse.DONE)
 
                 except asyncio.CancelledError:
-                    if websocket.client_state == WebSocketState.CONNECTED:
-                        await websocket.send_json(WebsocketIrResponse.CANCELLED)
-                        await websocket.close()
+                    if websocket.application_state == WebSocketState.CONNECTED:
+                        try:
+                            await websocket.send_json(WebsocketIrResponse.CANCELLED)
+                            await websocket.close()
+                        except (WebSocketDisconnect, RuntimeError):
+                            pass
                     return True
 
         return False

@@ -34,8 +34,8 @@ ignore = [
 [tool.mypy]
 python_version = "3.14"
 
-# bluez_peripheral and pigpio ship no type stubs and no py.typed marker,
-# so every import of them is otherwise flagged as import-untyped.
+# bluez_peripheral ships no type stubs and no py.typed marker, so every
+# import of it is otherwise flagged as import-untyped.
 [[tool.mypy.overrides]]
-module = ["bluez_peripheral.*", "pigpio"]
+module = ["bluez_peripheral.*"]
 ignore_missing_imports = true

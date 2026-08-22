@@ -40,11 +40,11 @@ Equilibrium can also be run in Docker:
 docker compose up -d
 ```
 
-The container needs `pigpiod` already running on the host (same as a
-non-Docker setup) to access the IR blaster, and runs privileged with
-host networking to reach the RF24 radio (SPI/GPIO), Bluetooth (D-Bus)
-and mDNS. Your database, uploaded images and other settings are stored
-in `./config` on the host and persist across container recreation.
+The container runs privileged with host networking to reach the RF24
+radio (SPI/GPIO), the IR blaster/receiver (`/dev/lircX`), Bluetooth
+(D-Bus) and mDNS. Your database, uploaded images and other settings are
+stored in `./config` on the host and persist across container
+recreation.
 
 Log verbosity is set via the `LOG_LEVEL` environment variable in
 `docker-compose.yml` (`DEBUG`, `INFO`, `WARNING`, `ERROR` or

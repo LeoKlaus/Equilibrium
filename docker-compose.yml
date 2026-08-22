@@ -1,6 +1,6 @@
 services:
   equilibrium:
-    build: .
+    image: ghcr.io/leoklaus/equilibrium:latest
     restart: unless-stopped
     environment:
       # DEBUG, INFO, WARNING (default), ERROR or CRITICAL.

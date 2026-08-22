@@ -72,10 +72,11 @@ complexity for a single-device hobby project.
 
 ### Golden rule
 
-Any call into a blocking C-backed library (`pyrf24`, `pigpio`'s socket API,
-etc.) **must** go through `loop.run_in_executor(...)`. An `async def`
-function that internally calls a blocking function still blocks the whole
-event loop.
+Any call into a blocking C-backed library or syscall (`pyrf24`, the raw
+`os.write()`/`os.read()` calls `ir_manager/lirc_device.py` makes against
+`/dev/lircX`, etc.) **must** go through `loop.run_in_executor(...)`. An
+`async def` function that internally calls a blocking function still
+blocks the whole event loop.
 
 ## `RfManager` → async `InputSource`
 

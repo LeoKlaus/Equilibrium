@@ -177,6 +177,9 @@ class Hub:
         self._source_tasks = [asyncio.create_task(source.start(self.bus)) for source in self._sources]
 
     async def shutdown(self) -> None:
+        if self.command_dispatcher is not None:
+            await self.command_dispatcher.shutdown()
+
         for source in self._sources:
             stop = getattr(source, "stop", None)
             if stop is not None:

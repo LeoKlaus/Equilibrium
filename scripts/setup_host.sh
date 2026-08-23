@@ -7,13 +7,51 @@
 # integration, and the script execution module.
 # Idempotent - safe to re-run.
 #
-# Usage: ./scripts/setup_host.sh
+# Usage (fresh Pi, no repo needed - sets up ~/Equilibrium for you):
+#   curl -fsSL https://raw.githubusercontent.com/LeoKlaus/Equilibrium/main/scripts/setup_host.sh | bash
+#
+# Usage (already have the repo cloned):
+#   ./scripts/setup_host.sh
 
 set -uo pipefail
 
-# Run from the repo root regardless of the caller's cwd, since everything
-# below refers to config/, docker-compose.yml and Extras/ by relative path.
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Everything lives inside main(), called only at the very end. This
+# matters specifically for `curl ... | bash`: in that invocation bash
+# reads the *script itself* from stdin as it goes, so any top-level
+# command that redirects stdin (the exec below) would make bash lose
+# its place reading the rest of the script. A function body, by
+# contrast, is always fully read (to its closing brace) before any of
+# it executes - so by the time the exec actually runs, bash is already
+# done reading the script from the pipe, and redirecting stdin at that
+# point is safe.
+main() {
+
+# When piped into bash, the script's own stdin *is* the pipe and is
+# already drained by the time we get here - every `read` below would
+# silently see EOF instead of prompting. Reattach to the controlling
+# terminal so prompts still work; no-op when stdin is already a real
+# terminal (i.e. run directly, not piped).
+if [ ! -t 0 ]; then
+    exec < /dev/tty
+fi
+
+# Running from inside a real checkout (clone or downloaded ZIP - hence
+# checking for docker-compose.yml itself, not .git) operates on that
+# repo root, matching a developer's own working copy exactly as
+# before. Otherwise (fetched standalone, e.g. via curl | bash), set up
+# ~/Equilibrium instead - the only files ever needed to run Equilibrium
+# via Docker are docker-compose.yml and config/, since the compose file
+# pulls the published image rather than building from source.
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-.}")" 2>/dev/null && pwd)"
+if [ -n "$script_dir" ] && [ -f "$script_dir/../docker-compose.yml" ]; then
+    repo_root="$(cd "$script_dir/.." && pwd)"
+else
+    repo_root=""
+fi
+
+install_dir="${repo_root:-$HOME/Equilibrium}"
+mkdir -p "$install_dir"
+cd "$install_dir"
 
 _ok()   { printf '  [ok]      %s\n' "$1"; }
 _do()   { printf '  [action]  %s\n' "$1"; }
@@ -29,6 +67,21 @@ _json_escape() {
     printf '%s' "$s"
 }
 
+_RAW_BASE="https://raw.githubusercontent.com/LeoKlaus/Equilibrium/main"
+
+# Copies from the local checkout if we're running inside one
+# ($repo_root set), otherwise fetches from GitHub - so a developer's
+# own working copy is always used as-is, never silently overwritten by
+# a fetched one.
+_fetch_repo_file() {
+    local repo_path="$1" dest="$2"
+    if [ -n "${repo_root:-}" ] && [ -f "$repo_root/$repo_path" ]; then
+        cp "$repo_root/$repo_path" "$dest"
+    else
+        curl -fsSL "$_RAW_BASE/${repo_path// /%20}" -o "$dest"
+    fi
+}
+
 # Sets KEY=VALUE in .env, creating the file or updating an existing key
 # in place. Compose auto-loads .env for ${VAR} substitution in
 # docker-compose.yml.
@@ -41,6 +94,14 @@ _write_env_var() {
         echo "${key}=${value}" >> .env
     fi
 }
+
+mkdir -p config
+if [ -f docker-compose.yml ]; then
+    _ok "docker-compose.yml already exists in $install_dir."
+else
+    _do "Fetching docker-compose.yml into $install_dir..."
+    _fetch_repo_file "docker-compose.yml" docker-compose.yml
+fi
 
 needs_reboot=0
 needs_relogin=0
@@ -144,8 +205,8 @@ if [[ "$setup_harmony" =~ ^[Yy]$ ]]; then
     if [ -f config/remote_keymap.json ]; then
         _ok "config/remote_keymap.json already exists."
     else
-        _do "Copying the Harmony Companion remote keymap to config/remote_keymap.json..."
-        cp "Extras/Config Examples/remote_keymap.json" config/remote_keymap.json
+        _do "Fetching the Harmony Companion remote keymap to config/remote_keymap.json..."
+        _fetch_repo_file "Extras/Config Examples/remote_keymap.json" config/remote_keymap.json
     fi
 else
     _ok "Skipping Harmony Companion remote setup."
@@ -223,3 +284,7 @@ fi
 if [ "$needs_reboot" -eq 0 ] && [ "$needs_relogin" -eq 0 ]; then
     echo "  All checked dependencies are already in place."
 fi
+
+}
+
+main "$@"

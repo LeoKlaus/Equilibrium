@@ -34,7 +34,15 @@ I've created a [Wiki in this repo](https://github.com/LeoKlaus/Equilibrium/wiki)
 
 ### Docker
 
-Equilibrium can also be run in Docker:
+Equilibrium can also be run in Docker.
+`scripts/setup_host.sh` sets up the host (Docker, SPI, IR overlays) and
+creates a ready-to-use `~/Equilibrium/` directory for you:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/LeoKlaus/Equilibrium/main/scripts/setup_host.sh | bash
+```
+
+Or, if you already have `docker-compose.yml` (e.g. from a clone):
 
 ```bash
 docker compose up -d

@@ -1,4 +1,6 @@
+import json
 import time
+from pathlib import Path
 
 from pyrf24 import RF24, RF24_2MBPS, RF24_CRC_16
 
@@ -57,8 +59,15 @@ while True:
             fourth = payload[4]
             fifth = payload[3]
 
-            print(f"{first:02x}{second:02x}{third:02x}{fourth:02x}{fifth:02x}")
-            print(f"{0:02x}{second:02x}{third:02x}{fourth:02x}{fifth:02x}")
+            exact = f"{first:02x}{second:02x}{third:02x}{fourth:02x}{fifth:02x}"
+            zeroed = f"{0:02x}{second:02x}{third:02x}{fourth:02x}{fifth:02x}"
+            print(exact)
+            print(zeroed)
 
+            Path("config").mkdir(parents=True, exist_ok=True)
+            with open("config/rf_addresses.json", "w") as file:
+                json.dump([exact, zeroed], file, indent=4)
+
+            print("Wrote config/rf_addresses.json")
             print("Done")
             break

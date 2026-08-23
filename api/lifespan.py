@@ -1,4 +1,5 @@
 import json
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -35,6 +36,14 @@ def _load_ha_credentials() -> tuple[str | None, str | None]:
         return None, None
 
 
+def _scripts_dir_from_env() -> str | None:
+    """ENABLE_SCRIPTS is the explicit opt-in for the script module - set
+    via setup_host.sh (writes it to .env) or by hand. Absent/false keeps
+    script commands disabled, matching Hub.create()'s own default."""
+    enabled = os.environ.get("ENABLE_SCRIPTS", "").strip().lower() in ("1", "true", "yes")
+    return "config/scripts" if enabled else None
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI, dev: bool):
     logger.info("Starting up...")
@@ -44,8 +53,11 @@ async def _lifespan(app: FastAPI, dev: bool):
 
     addresses = _load_rf_addresses()
     ha_url, ha_token = _load_ha_credentials()
+    scripts_dir = _scripts_dir_from_env()
 
-    hub = await Hub.create(rf_addresses=addresses, ha_url=ha_url, ha_token=ha_token, dev=dev)
+    hub = await Hub.create(
+        rf_addresses=addresses, ha_url=ha_url, ha_token=ha_token, scripts_dir=scripts_dir, dev=dev
+    )
     await hub.start()
     hub.mount_routers(app)
     logger.info("Hub initialized")

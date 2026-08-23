@@ -4,7 +4,7 @@ from typing import ClassVar
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api.lifespan import _lifespan, _load_ha_credentials, _load_rf_addresses
+from api.lifespan import _lifespan, _load_ha_credentials, _load_rf_addresses, _scripts_dir_from_env
 
 
 class FakeZeroconfManager:
@@ -56,6 +56,29 @@ def test_load_ha_credentials_missing_key_returns_none_pair(tmp_path, monkeypatch
     (tmp_path / "config" / "ha_credentials.json").write_text(json.dumps({"url": "http://ha.local"}))
 
     assert _load_ha_credentials() == (None, None)
+
+
+def test_scripts_dir_from_env_missing_var_is_disabled(monkeypatch):
+    monkeypatch.delenv("ENABLE_SCRIPTS", raising=False)
+    assert _scripts_dir_from_env() is None
+
+
+def test_scripts_dir_from_env_false_is_disabled(monkeypatch):
+    monkeypatch.setenv("ENABLE_SCRIPTS", "false")
+    assert _scripts_dir_from_env() is None
+
+
+def test_scripts_dir_from_env_true_enables_the_scripts_dir(monkeypatch):
+    monkeypatch.setenv("ENABLE_SCRIPTS", "true")
+    assert _scripts_dir_from_env() == "config/scripts"
+
+
+def test_scripts_dir_from_env_accepts_1_and_yes(monkeypatch):
+    monkeypatch.setenv("ENABLE_SCRIPTS", "1")
+    assert _scripts_dir_from_env() == "config/scripts"
+
+    monkeypatch.setenv("ENABLE_SCRIPTS", "YES")
+    assert _scripts_dir_from_env() == "config/scripts"
 
 
 async def test_lifespan_dev_yields_the_hub_pieces(tmp_path, monkeypatch):

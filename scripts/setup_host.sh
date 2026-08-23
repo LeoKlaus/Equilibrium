@@ -162,9 +162,12 @@ fi
 
 if [[ "${setup_ha:-}" =~ ^[Yy]$ ]]; then
     read -rp "  Home Assistant URL (e.g. http://homeassistant.local:8123): " ha_url
+    ha_url="${ha_url%/}"
+
+    echo "  Create a long-lived access token under your HA profile's Security"
+    echo "  tab, then paste it below: ${ha_url}/profile/security"
     read -rsp "  Long-lived access token (input hidden): " ha_token
     echo
-    ha_url="${ha_url%/}"
 
     if command -v curl >/dev/null 2>&1; then
         status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \

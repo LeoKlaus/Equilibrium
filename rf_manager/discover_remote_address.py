@@ -32,6 +32,7 @@ Usage:
 """
 import argparse
 import json
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -490,21 +491,21 @@ def main() -> None:
             if shared is None:
                 print("\nCouldn't find the remote. Make sure it is awake and close to the Pi, "
                       "then run this again.")
-                return
+                sys.exit(1)
 
         assigned = _find_assigned_byte(radio, shared, args.timeout, args.dwell)
         if assigned is None:
             print(f"\nGave up. Nothing was saved, so {_ADDRESSES_PATH} is unchanged.")
-            return
+            sys.exit(1)
 
         zeroed = bytes([0x00]) + shared
         if not _check_pair(radio, assigned, zeroed, keymap):
             print(f"\nNothing was saved, so {_ADDRESSES_PATH} is unchanged. Try again with the "
                   "remote awake and close by.")
-            return
+            sys.exit(1)
     except KeyboardInterrupt:
         print("\nStopped. Nothing was saved.")
-        return
+        sys.exit(130)  # 128 + SIGINT, the conventional exit code for Ctrl+C
 
     addresses = [assigned.hex(), zeroed.hex()]
     Path("config").mkdir(parents=True, exist_ok=True)

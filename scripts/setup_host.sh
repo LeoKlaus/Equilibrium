@@ -191,17 +191,36 @@ if [[ "$setup_harmony" =~ ^[Yy]$ ]]; then
             if [ -z "$image" ]; then
                 _warn "Couldn't find an image reference in docker-compose.yml - skipping RF pairing."
             else
-                _do "Pairing with the remote - this needs the RF24 hardware and the physical remote."
-                echo "  Press and hold the pair/reset button on the back of the hub when prompted."
-                docker run --rm -it --privileged -v /dev:/dev \
-                    -v "$(pwd)/config:/app/config" \
-                    --entrypoint python "$image" -m rf_manager.get_remote_address
+                # discover_remote_address needs only the RF24 hardware and the
+                # remote itself, so it's the default; get_remote_address needs
+                # a genuine Harmony Hub to pair against, offered as a fallback
+                # for anyone who'd rather use one (or whose remote it can't find).
+                read -rp "  Do you have a Harmony Hub to pair against instead? [y/N] " use_hub
+                if [[ "$use_hub" =~ ^[Yy]$ ]]; then
+                    _do "Pairing with the remote via the Harmony Hub."
+                    echo "  Press and hold the pair/reset button on the back of the hub when prompted."
+                    docker run --rm -it --privileged -v /dev:/dev \
+                        -v "$(pwd)/config:/app/config" \
+                        --entrypoint python "$image" -m rf_manager.get_remote_address
+                else
+                    _do "Finding the remote's addresses - no hub needed, just the remote."
+                    echo "  You'll be asked to press a few buttons on it as this runs."
+                    if ! docker run --rm -it --privileged -v /dev:/dev \
+                        -v "$(pwd)/config:/app/config" \
+                        --entrypoint python "$image" -m rf_manager.discover_remote_address
+                    then
+                        _warn "Didn't finish - config/rf_addresses.json is unchanged. Re-run this script to try again, or with a Harmony Hub to hand, pair against that instead."
+                    fi
+                fi
             fi
         else
             _warn "Docker (and/or docker-compose.yml) isn't available - can't run the RF pairing helper."
         fi
     fi
 
+    # discover_remote_address already fetches the keymap itself when it
+    # runs; this only fills the gap for the get_remote_address (hub)
+    # path above, or when pairing was skipped or failed.
     if [ -f config/remote_keymap.json ]; then
         _ok "config/remote_keymap.json already exists."
     else

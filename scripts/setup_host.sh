@@ -304,6 +304,25 @@ if [ "$needs_reboot" -eq 0 ] && [ "$needs_relogin" -eq 0 ]; then
     echo "  All checked dependencies are already in place."
 fi
 
+echo
+if [ "$needs_reboot" -eq 1 ] || [ "$needs_relogin" -eq 1 ]; then
+    _warn "Not offering to start Equilibrium yet - do the step(s) above first, then: cd $install_dir && docker compose up -d"
+elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 && [ -f docker-compose.yml ]; then
+    read -rp "  Start Equilibrium now (docker compose up -d)? [y/N] " start_now
+    if [[ "$start_now" =~ ^[Yy]$ ]]; then
+        _do "Starting Equilibrium..."
+        if docker compose up -d; then
+            _ok "Equilibrium is up. Check on it with: cd $install_dir && docker compose logs -f"
+        else
+            _warn "docker compose up -d failed - see the output above. Retry with: cd $install_dir && docker compose up -d"
+        fi
+    else
+        _ok "Not starting it now. When you're ready: cd $install_dir && docker compose up -d"
+    fi
+else
+    _warn "Docker (and/or docker-compose.yml) isn't available - can't offer to start Equilibrium."
+fi
+
 }
 
 main "$@"

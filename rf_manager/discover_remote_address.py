@@ -1,53 +1,40 @@
 """Discovers a Companion remote's rf_addresses.json pair without a
-genuine Harmony Hub - the no-hub counterpart to get_remote_address.py,
-which gets the same result by pairing against a real one.
+genuine Harmony Hub.
+As a fallback, get_remote_address.py can be used
+which gets the same result by pairing against the real Harmony hub.
 
-NOTE: what follows is for whoever maintains this. Everything the
-script prints is deliberately free of it - see the strings below.
 
 The pair is two addresses differing in exactly one byte: an arbitrary,
 hub-assigned byte and 0x00, over an otherwise shared 4-byte remainder
-- e.g. 1e9c9bc1c6 / 009c9bc1c6. Nothing is assumed; both halves are
-found, then the result is proven before it is written.
+- e.g. 1e9c9bc1c6 / 009c9bc1c6.
 
-Step 1 finds the shared bytes by promiscuous sniffing: address_width
+Step 1 finds the shared bytes by sniffing: address_width
 set to an "illegal" 2 bytes matching 0x00AA (or 0x0055 - the polarity
 is unit-specific), CRC and auto-ack off, so the radio latches onto a
-preamble followed by a literal 0x00 first address byte. That is not a
-general-purpose sniffer, and usefully so: the only address it can
-catch is the 0x00-prefixed one, which is precisely the one carrying
-the shared bytes. Captures are noise apart from those, so each is
-searched at every bit offset for a framing whose real nRF24 CRC-16
-validates - the address is 49 bits with the packet control field and
-never byte-aligned. Recovered addresses must start with 0x00 and be
-seen twice to count, which is what separates them from the occasional
-CRC fluke.
+preamble followed by a literal 0x00 first address byte.
 
 Step 2 finds the hub-assigned byte using real 5-byte addressing with
 hardware CRC-16, the way RfInput does, so anything received has
 matched a full address and passed CRC. The remote hands the byte over
 directly: every packet carries its counterpart address's leading byte
 in payload[0], so a packet on the known 0x00 address names the
-hub-assigned one. (rf_manager's _decode() reads payload[1:4] and
-ignores payload[0], which is why this sat unnoticed.) That is still
+hub-assigned one. That is still
 inferred from payload structure, so it is treated as a hint and proven
 before use, with a sweep of all 255 candidates alongside as the
 backstop - the nRF24 requires pipes 1-5 to share their top 4 bytes and
 differ only in the byte at array index 0, exactly the unknown byte, so
 four are tested per round.
 
-Step 3 is rf_pipe_logger's check, folded in: both addresses open on
-the two pipes exactly as RfInput opens them, decoding payload[1:4] the
-way its _decode() does. Nothing is written unless real traffic arrives
-and decodes there, so a wrong or stale config cannot be saved.
+Step 3 simulates RfInput to validate the captured addresses.
 
 Usage:
     python -m rf_manager.discover_remote_address
-    python -m rf_manager.discover_remote_address --shared 9c9bc1c6
 """
 import argparse
 import json
 import time
+import urllib.error
+import urllib.request
 from collections import Counter, deque
 from datetime import datetime
 from pathlib import Path
@@ -59,6 +46,16 @@ CE_PIN = 1
 CHANNEL = 5  # matches RfInput's fixed regular-operation channel - see rf_manager.py
 
 _ADDRESSES_PATH = "config/rf_addresses.json"
+_KEYMAP_PATH = "config/remote_keymap.json"
+# Checked in order before falling back to the download - setup_host.sh
+# can run without cloning, so the repo copy may not be there.
+_KEYMAP_LOCAL_PATHS = (_KEYMAP_PATH, "Extras/Config Examples/remote_keymap.json")
+_KEYMAP_URL = ("https://raw.githubusercontent.com/LeoKlaus/Equilibrium/main/"
+               "Extras/Config%20Examples/remote_keymap.json")
+_KEYMAP_TIMEOUT = 15.0
+# Button to ask for at the end, if the keymap has it; otherwise the
+# keymap's first entry is used.
+_PREFERRED_BUTTON = "ok"
 
 _CONFIRMATIONS_NEEDED = 2
 _DEFAULT_TIMEOUT = 120.0
@@ -72,9 +69,7 @@ _PCF_BITS = 9  # 6-bit length + 2-bit PID + 1-bit NO_ACK
 _PREFIX_BITS = _ADDRESS_BITS + _PCF_BITS
 _CRC_POLY = 0x1021
 _CRC_INIT = 0xFFFF
-# Every confirmed real capture in this protocol has used payload_len
-# 10. Searching a tight window instead of all lengths cuts both the
-# per-packet cost and the CRC fluke rate by roughly 9x.
+# The remote always seems to use a payload length of 10
 _MIN_PAYLOAD_LEN = 9
 _MAX_PAYLOAD_LEN = 11
 _MAX_START_BIT = 192
@@ -85,10 +80,9 @@ _CANDIDATE_PIPES = (2, 3, 4, 5)
 _DEFAULT_DWELL = 1.5  # seconds per sweep round - the idle heartbeat is ~1/s
 _PROVE_SECONDS = 15.0
 
-# Step 3
-_CHECK_SECONDS = 20.0
-_MESSAGES_WANTED = 3
+_REMINDER_SECONDS = 15.0
 _MAX_LINES_SHOWN = 10
+_MESSAGES_WANTED = 3  # only used when there is no keymap to name a button from
 
 # rf_manager.py's _decode() protocol-level status codes, enough to name
 # what arrives without needing remote_keymap.json.
@@ -103,15 +97,68 @@ _PROTOCOL_NAMES: dict[int, str] = {
 }
 
 
-def _describe(payload: bytes) -> str:
+def _command_of(payload: bytes) -> int | None:
+    """The 3-byte command rf_manager's _decode() reads from a payload."""
     if len(payload) < 4:
+        return None
+    return int.from_bytes(payload[1:4], "big")
+
+
+def _describe(payload: bytes, names: dict[int, str]) -> str:
+    command = _command_of(payload)
+    if command is None:
         return "unrecognised message"
-    command = int.from_bytes(payload[1:4], "big")
-    return _PROTOCOL_NAMES.get(command, "button press")
+    return names.get(command, "button press")
 
 
-def _is_known(payload: bytes) -> bool:
-    return len(payload) >= 4 and int.from_bytes(payload[1:4], "big") in _PROTOCOL_NAMES
+def _read_keymap(text: str) -> dict[str, int]:
+    """{button name: command} from a remote_keymap.json, keeping file
+    order so "the first button" means what it looks like in the file."""
+    keymap = {}
+    for name, entry in json.loads(text).items():
+        command = entry.get("rf_command")
+        if command:
+            keymap[name] = int(command, 16)
+    return keymap
+
+
+def _load_keymap() -> dict[str, int]:
+    """Uses a local remote_keymap.json if there is one, otherwise
+    fetches the stock one from the project repo and saves it to
+    config/ - the app needs it there anyway. Returns {} if it cannot
+    be had, which only costs the button prompt in step 3."""
+    for candidate in _KEYMAP_LOCAL_PATHS:
+        path = Path(candidate)
+        if path.is_file():
+            try:
+                return _read_keymap(path.read_text())
+            except (ValueError, AttributeError):
+                print(f"  {candidate} is not readable as a keymap - ignoring it.")
+
+    print(f"  No {_KEYMAP_PATH} yet - downloading the standard one for the Harmony Companion remote...")
+    try:
+        with urllib.request.urlopen(_KEYMAP_URL, timeout=_KEYMAP_TIMEOUT) as response:
+            text = response.read().decode("utf-8")
+        keymap = _read_keymap(text)
+    except (urllib.error.URLError, ValueError, UnicodeDecodeError, OSError) as error:
+        print(f"  Couldn't download it ({error}). Carrying on without it.")
+        return {}
+
+    Path("config").mkdir(parents=True, exist_ok=True)
+    Path(_KEYMAP_PATH).write_text(text)
+    print(f"  Saved {_KEYMAP_PATH} ({len(keymap)} buttons).")
+    return keymap
+
+
+def _pick_button(keymap: dict[str, int]) -> tuple[str, int] | None:
+    """The button to ask the user to press: OK if the keymap has one,
+    otherwise whichever comes first in the file."""
+    for name in keymap:
+        if name.strip().lower() == _PREFERRED_BUTTON:
+            return name, keymap[name]
+    for name in keymap:
+        return name, keymap[name]
+    return None
 
 
 def _bytes_to_bits(data: bytes) -> list[int]:
@@ -187,7 +234,7 @@ def _find_shared_bytes(radio: RF24, timeout: float) -> bytes | None:
     bytes. Alternates preamble polarity until something validates -
     the wrong one captures nothing from a given remote at all."""
     print("\nStep 1 of 3: looking for your remote.")
-    print("  Press and release buttons on the remote, over and over, until this step finishes.")
+    print("  Press and release a button on the remote. If it isn't recognized, press the button again every 5-10s.")
 
     sightings: Counter[bytes] = Counter()
     pending: deque[bytes] = deque()
@@ -304,7 +351,7 @@ def _find_assigned_byte(radio: RF24, shared: bytes, timeout: float, dwell: float
     _init_matched(radio)
     candidates = list(range(1, 256))  # 0x00 is the control, not a candidate
     rounds = (len(candidates) + len(_CANDIDATE_PIPES) - 1) // len(_CANDIDATE_PIPES)
-    print("\nStep 2 of 3: working out the second address.")
+    print("\nStep 2 of 3: confirming remote addresses.")
     print("  Press and release a button on the remote - one press is usually enough.")
 
     control_total = 0
@@ -339,54 +386,70 @@ def _find_assigned_byte(radio: RF24, shared: bytes, timeout: float, dwell: float
                     return address
 
     if control_total:
-        print("\n  Heard the remote, but only ever on one address. If it has never been paired "
-              "with a real hub, it may not have a second one yet.")
+        print("\n  Heard the remote, but only ever on one address.")
     else:
         print("\n  Heard nothing from the remote. Make sure it is awake and close to the Pi.")
     return None
 
 
-def _check_pair(radio: RF24, assigned: bytes, zeroed: bytes) -> bool:
+def _check_pair(radio: RF24, assigned: bytes, zeroed: bytes, keymap: dict[str, int]) -> bool:
     """Final check: both addresses open on the two pipes exactly as
     RfInput opens them, decoding payload[1:4] the way its _decode()
     does. This is what the app will do, so passing here means the
-    config is usable - and nothing is written if it fails."""
+    config is usable - and nothing is written if it fails.
+
+    Waits for one specific button, so the check ends on a deliberate
+    press rather than on whatever happened to be in the air. Without a
+    keymap there is no button to name, so it settles for a few
+    messages including one recognised status message."""
     _init_matched(radio)
     radio.openReadingPipe(1, assigned)
     radio.openReadingPipe(2, zeroed)
     radio.startListening()
 
+    names = dict(_PROTOCOL_NAMES)
+    names.update({command: name for name, command in keymap.items()})
+    wanted = _pick_button(keymap)
+
     print("\nStep 3 of 3: checking the addresses actually work.")
-    print("  Press a few buttons on the remote.")
+    if wanted:
+        print(f"  Press the {wanted[0]} button on the remote. Ctrl+C to give up.")
+    else:
+        print("  Press a few buttons on the remote. Ctrl+C to give up.")
 
     seen: Counter[bytes] = Counter()
     recognised = 0
-    deadline = time.monotonic() + _CHECK_SECONDS
-    while time.monotonic() < deadline:
+    started = time.monotonic()
+    last_reminder = time.monotonic()
+
+    while True:
         has_payload, pipe_number = radio.available_pipe()
         if not has_payload:
+            if time.monotonic() - last_reminder >= _REMINDER_SECONDS:
+                last_reminder = time.monotonic()
+                if not seen:
+                    print("  Nothing is coming through at all. Wake the remote and hold it near "
+                          "the Pi - Ctrl+C to give up.")
+                elif wanted:
+                    print(f"  Still waiting for {wanted[0]} ({time.monotonic() - started:.0f}s).")
             time.sleep(0.001)
             continue
+
         payload = bytes(radio.read(radio.getDynamicPayloadSize()))
+        command = _command_of(payload)
         address = assigned if pipe_number == 1 else zeroed
         seen[address] += 1
-        recognised += _is_known(payload)
+        recognised += command in _PROTOCOL_NAMES
         if sum(seen.values()) <= _MAX_LINES_SHOWN:  # a wrong address can flood this
             timestamp = datetime.now().strftime("%H:%M:%S")
-            print(f"  [{timestamp}] {_describe(payload)} on {address.hex()}")
-        if sum(seen.values()) >= _MESSAGES_WANTED and recognised:
+            print(f"  [{timestamp}] Received {_describe(payload, names)} on {address.hex()}")
+
+        if wanted and command == wanted[1]:
+            print(f"  Got {wanted[0]}.")
+            break
+        if not wanted and sum(seen.values()) >= _MESSAGES_WANTED and recognised:
             break
 
-    if not seen:
-        print("\n  Nothing arrived. The remote may have gone to sleep - wake it and run this again.")
-        return False
-    if not recognised:
-        # Anything not in _PROTOCOL_NAMES is reported as a button press
-        # above, since that is what it normally is - but a real remote
-        # also sends status messages constantly, and none arrived.
-        print(f"\n  Got {sum(seen.values())} message(s), but none of the status messages a remote "
-              f"sends constantly. These addresses are picking up something else.")
-        return False
     for address, count in seen.items():
         print(f"  {address.hex()}: {count} message(s)")
     return True
@@ -418,6 +481,7 @@ def main() -> None:
 
     print("Finding your remote's addresses. Have the remote to hand - you will be asked to press "
           "buttons on it a few times.")
+    keymap = _load_keymap()
 
     radio = RF24(CE_PIN, CSN_PIN)
     try:
@@ -434,7 +498,7 @@ def main() -> None:
             return
 
         zeroed = bytes([0x00]) + shared
-        if not _check_pair(radio, assigned, zeroed):
+        if not _check_pair(radio, assigned, zeroed, keymap):
             print(f"\nNothing was saved, so {_ADDRESSES_PATH} is unchanged. Try again with the "
                   "remote awake and close by.")
             return

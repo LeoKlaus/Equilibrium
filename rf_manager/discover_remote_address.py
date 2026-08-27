@@ -304,10 +304,13 @@ def _listen_round(
     None, that packet's payload, packets seen on the control pipe,
     byte hinted by a control packet's payload[0] or None)."""
     radio.stopListening()
-    for pipe in (_CONTROL_PIPE,) + _CANDIDATE_PIPES:
+    for pipe in (_CONTROL_PIPE, *_CANDIDATE_PIPES):
         radio.closeReadingPipe(pipe)
     radio.openReadingPipe(_CONTROL_PIPE, bytes([0x00]) + shared)
-    for pipe, candidate in zip(_CANDIDATE_PIPES, candidates):
+    # candidates can be shorter than _CANDIDATE_PIPES on the final batch
+    # of a sweep (255 candidates doesn't divide evenly by 4), so the
+    # pairing is deliberately not 1:1 - strict=False, not an oversight.
+    for pipe, candidate in zip(_CANDIDATE_PIPES, candidates, strict=False):
         radio.openReadingPipe(pipe, bytes([candidate]) + shared)
     radio.startListening()
 

@@ -1,194 +1,247 @@
 """Discovers a Companion remote's rf_addresses.json pair without a
-genuine Harmony Hub.
+genuine Harmony Hub - the no-hub counterpart to get_remote_address.py,
+which gets the same result by pairing against a real one.
 
-The pair is two addresses differing in exactly one byte: an
-arbitrary, hub-assigned byte and 0x00, over an otherwise shared
-4-byte remainder - e.g. 1e9c9bc1c6 / 009c9bc1c6 (the differing byte
-was 1e, 08 and 08 across three independent real remotes, so it cannot
-be derived; the remainder appears to be common to the product).
+NOTE: what follows is for whoever maintains this. Everything the
+script prints is deliberately free of it - see the strings below.
 
-Discovery runs in two stages.
+The pair is two addresses differing in exactly one byte: an arbitrary,
+hub-assigned byte and 0x00, over an otherwise shared 4-byte remainder
+- e.g. 1e9c9bc1c6 / 009c9bc1c6. Nothing is assumed; both halves are
+found, then the result is proven before it is written.
 
-Stage 1 - promiscuous scan (rf_promiscuous_sniffer.py's technique):
-    address_width=2 with a 0x00AA/0x0055 sync, CRC and auto-ack off,
-    to learn the shared 4 bytes from any one CRC-validated frame.
-    Skipped entirely when they are already known (--shared, or an
-    existing config/rf_addresses.json).
+Step 1 finds the shared bytes by promiscuous sniffing: address_width
+set to an "illegal" 2 bytes matching 0x00AA (or 0x0055 - the polarity
+is unit-specific), CRC and auto-ack off, so the radio latches onto a
+preamble followed by a literal 0x00 first address byte. That is not a
+general-purpose sniffer, and usefully so: the only address it can
+catch is the 0x00-prefixed one, which is precisely the one carrying
+the shared bytes. Captures are noise apart from those, so each is
+searched at every bit offset for a framing whose real nRF24 CRC-16
+validates - the address is 49 bits with the packet control field and
+never byte-aligned. Recovered addresses must start with 0x00 and be
+seen twice to count, which is what separates them from the occasional
+CRC fluke.
 
-Stage 2 - hardware candidate sweep:
-    Measured behaviour, not theory: a 4-byte sync on the shared bytes
-    captures NOTHING in either byte order, while the 2-byte 0x00AA
-    sync captures steadily - and everything it decodes is on the
-    0x00-prefixed address. The consistent explanation is that the
-    radio only latches onto preamble-followed-by-address-start, so
-    the 2-byte sync works by having its 0xAA act as the preamble and
-    its 0x00 match a first address byte that happens to be 0x00.
-    Nothing can be synced mid-address, which is why both 4-byte plans
-    were silent, and why the 0x00 address is the only one that trick
-    can ever see. The hub-assigned byte simply is not reachable that
-    way.
+Step 2 finds the hub-assigned byte using real 5-byte addressing with
+hardware CRC-16, the way RfInput does, so anything received has
+matched a full address and passed CRC. The remote hands the byte over
+directly: every packet carries its counterpart address's leading byte
+in payload[0], so a packet on the known 0x00 address names the
+hub-assigned one. (rf_manager's _decode() reads payload[1:4] and
+ignores payload[0], which is why this sat unnoticed.) That is still
+inferred from payload structure, so it is treated as a hint and proven
+before use, with a sweep of all 255 candidates alongside as the
+backstop - the nRF24 requires pipes 1-5 to share their top 4 bytes and
+differ only in the byte at array index 0, exactly the unknown byte, so
+four are tested per round.
 
-    So stage 2 stops sniffing and uses the radio the way RfInput does
-    - real 5-byte addressing with hardware CRC. It always listens on
-    the known 0x00 address, and takes the unknown byte from two
-    sources at once.
-
-    The fast path is the remote telling us. Every packet carries its
-    counterpart address's leading byte in payload[0]: packets on the
-    0x00 address carry the hub-assigned byte, and packets on the
-    hub-assigned address carry 0x00 (visible in rf_pipe_logger output
-    as raw=1ec10052... on 009c9bc1c6 versus raw=00400028... on
-    1e9c9bc1c6). One press is therefore enough to name the byte. It is
-    still only inferred from payload structure, so it is treated as a
-    hint and proven before use.
-
-    The backstop is a sweep of all 255 candidate values. The nRF24
-    requires pipes 1-5 to share their top 4 bytes and differ only in
-    the byte at array index 0 - exactly the unknown byte - so four
-    candidates are tested per round alongside the 0x00 pipe.
-
-    Both paths end in the same proof: open a pipe on the candidate
-    address and require real packets. Anything the hardware accepts
-    has matched a full 5-byte address and passed CRC-16, so there is
-    no bit alignment, brute forcing, or false-positive analysis left
-    to get wrong.
+Step 3 is rf_pipe_logger's check, folded in: both addresses open on
+the two pipes exactly as RfInput opens them, decoding payload[1:4] the
+way its _decode() does. Nothing is written unless real traffic arrives
+and decodes there, so a wrong or stale config cannot be saved.
 
 Usage:
     python -m rf_manager.discover_remote_address
     python -m rf_manager.discover_remote_address --shared 9c9bc1c6
-    python -m rf_manager.discover_remote_address --dwell 2.0
 """
 import argparse
 import json
 import time
 from collections import Counter, deque
+from datetime import datetime
 from pathlib import Path
 
-from pyrf24 import RF24_2MBPS, RF24_CRC_16
+from pyrf24 import RF24, RF24_2MBPS, RF24_CRC_16, RF24_CRC_DISABLED
 
-from rf_manager.rf_promiscuous_sniffer import (
-    RF24,
-    _bit_shift,
-    _find_crc_valid_framings,
-    _find_known_commands,
-    _init_radio,
-    _load_known_commands,
-)
-
+CSN_PIN = 0  # aka CE0 on SPI bus 0: /dev/spidev0.0
+CE_PIN = 1
 CHANNEL = 5  # matches RfInput's fixed regular-operation channel - see rf_manager.py
-
-_DEFAULT_TIMEOUT = 120.0
-_CONFIRMATIONS_NEEDED = 2
-_STATUS_INTERVAL = 5.0
-_PREAMBLE_DWELL = 4.0
 
 _ADDRESSES_PATH = "config/rf_addresses.json"
 
-# Pipes 2-5 carry candidates; pipe 1 is the always-on control.
+_CONFIRMATIONS_NEEDED = 2
+_DEFAULT_TIMEOUT = 120.0
+_STATUS_INTERVAL = 10.0
+
+# Step 1
+_PREAMBLES = (0xAA, 0x55)
+_PREAMBLE_DWELL = 4.0
+_ADDRESS_BITS = 40
+_PCF_BITS = 9  # 6-bit length + 2-bit PID + 1-bit NO_ACK
+_PREFIX_BITS = _ADDRESS_BITS + _PCF_BITS
+_CRC_POLY = 0x1021
+_CRC_INIT = 0xFFFF
+# Every confirmed real capture in this protocol has used payload_len
+# 10. Searching a tight window instead of all lengths cuts both the
+# per-packet cost and the CRC fluke rate by roughly 9x.
+_MIN_PAYLOAD_LEN = 9
+_MAX_PAYLOAD_LEN = 11
+_MAX_START_BIT = 192
+
+# Step 2
+_CONTROL_PIPE = 1  # the known 0x00 address
 _CANDIDATE_PIPES = (2, 3, 4, 5)
-_CONTROL_PIPE = 1
-_DEFAULT_DWELL = 1.5  # seconds per round - the idle heartbeat is ~1/s
-_VERIFY_SECONDS = 15.0
+_DEFAULT_DWELL = 1.5  # seconds per sweep round - the idle heartbeat is ~1/s
+_PROVE_SECONDS = 15.0
+
+# Step 3
+_CHECK_SECONDS = 20.0
+_MESSAGES_WANTED = 3
+_MAX_LINES_SHOWN = 10
+
+# rf_manager.py's _decode() protocol-level status codes, enough to name
+# what arrives without needing remote_keymap.json.
+_PROTOCOL_NAMES: dict[int, str] = {
+    0x40044C: "idle",
+    0x4F0300: "going to sleep",
+    0x4F0700: "woke up",
+    0x400028: "button held",
+    0x4F0004: "all buttons released",
+    0xC10000: "button released",
+    0xC30000: "button released",
+}
 
 
-def _command_hits(payload: bytes, known_commands: dict[bytes, str]) -> list[tuple[int, str]]:
-    """(bit_position, name) for every known 3-byte command found in any
-    of the 8 bit-shift variants. Stage 1's cheap prefilter: the CRC
-    framing search costs milliseconds per packet and the promiscuous
-    firehose delivers tens per second on a 3-packet-deep FIFO, so
-    searching everything stalls reception and drops the rare genuine
-    capture. Any recoverable real packet passes this (its command
-    bytes sit in the payload); noise needs a 24-bit fluke."""
-    hits = []
-    for shift in range(8):
-        for offset, name, _command in _find_known_commands(_bit_shift(payload, shift), known_commands):
-            hits.append((offset * 8 + shift, name))
-    return hits
+def _describe(payload: bytes) -> str:
+    if len(payload) < 4:
+        return "unrecognised message"
+    command = int.from_bytes(payload[1:4], "big")
+    return _PROTOCOL_NAMES.get(command, "button press")
 
 
-def _stage1_find_shared(
-    radio: RF24, timeout: float, known_commands: dict[bytes, str], preambles: list[int]
-) -> bytes | None:
-    """Promiscuous scan for any CRC-validated frame, to learn the
-    shared 4 bytes. With two preambles, alternates between them every
-    _PREAMBLE_DWELL seconds until a validated recovery locks one in
-    (the polarity is unit-specific and the wrong one captures nothing
-    from this remote at all). A single CRC hit can be a fluke, so an
-    address must be seen twice before its bytes are trusted."""
+def _is_known(payload: bytes) -> bool:
+    return len(payload) >= 4 and int.from_bytes(payload[1:4], "big") in _PROTOCOL_NAMES
+
+
+def _bytes_to_bits(data: bytes) -> list[int]:
+    return [(byte >> i) & 1 for byte in data for i in range(7, -1, -1)]
+
+
+def _bits_to_int(bits: list[int]) -> int:
+    value = 0
+    for bit in bits:
+        value = (value << 1) | bit
+    return value
+
+
+def _crc16_extend(crc: int, bits: list[int]) -> int:
+    """Feeds bits into an in-progress CRC-16/CCITT-FALSE (poly=0x1021,
+    init=0xFFFF) - verified against the reference vector
+    CRC16("123456789") == 0x29B1. Incremental so the framing search
+    below doesn't restart it for every candidate payload length."""
+    for bit in bits:
+        msb = (crc >> 15) & 1
+        crc = (crc << 1) & 0xFFFF
+        if msb ^ bit:
+            crc ^= _CRC_POLY
+    return crc
+
+
+def _find_addresses(capture: bytes) -> list[bytes]:
+    """Returns the address of every framing in a promiscuous capture
+    whose real nRF24 CRC-16 validates, byte-reversed to the order
+    openReadingPipe() expects. Searches every starting bit, not just
+    byte-aligned ones, since address+PCF is 49 bits."""
+    bits = _bytes_to_bits(capture)
+    total = len(bits)
+    found = []
+    for start in range(_MAX_START_BIT):
+        if start + _PREFIX_BITS > total:
+            break
+        crc = _crc16_extend(_CRC_INIT, bits[start:start + _PREFIX_BITS])
+        pos = start + _PREFIX_BITS
+        for payload_len in range(_MAX_PAYLOAD_LEN + 1):
+            if pos + 16 > total:
+                break
+            if payload_len >= _MIN_PAYLOAD_LEN and crc == _bits_to_int(bits[pos:pos + 16]):
+                address = bytes(_bits_to_int(bits[i:i + 8])
+                                for i in range(start, start + _ADDRESS_BITS, 8))
+                found.append(address[::-1])
+            if pos + 8 > total:
+                break
+            crc = _crc16_extend(crc, bits[pos:pos + 8])
+            pos += 8
+    return found
+
+
+def _init_promiscuous(radio: RF24, preamble: int) -> None:
+    # begin() first: it opens the GPIO/SPI pins, so nothing else may
+    # touch the radio before it - including stopListening().
+    if not radio.begin():
+        raise OSError("nRF24L01 hardware isn't responding")
+    radio.stopListening()
+    radio.setChannel(CHANNEL)
+    radio.setDataRate(RF24_2MBPS)
+    radio.set_auto_ack(False)
+    radio.crc_length = RF24_CRC_DISABLED
+    radio.address_width = 2  # "illegal" per the datasheet, but that's the trick
+    radio.payload_size = 32  # dynamic payload framing is meaningless without CRC
+    radio.openReadingPipe(1, bytes([0x00, preamble]))
+    radio.startListening()
+
+
+def _find_shared_bytes(radio: RF24, timeout: float) -> bytes | None:
+    """Promiscuous scan until the same 0x00-prefixed address has been
+    CRC-recovered _CONFIRMATIONS_NEEDED times; returns its 4 shared
+    bytes. Alternates preamble polarity until something validates -
+    the wrong one captures nothing from a given remote at all."""
+    print("\nStep 1 of 3: looking for your remote.")
+    print("  Press and release buttons on the remote, over and over, until this step finishes.")
+
     sightings: Counter[bytes] = Counter()
-    pending: deque[tuple[bytes, int]] = deque()
-    scanned = prefiltered = 0
-    preamble_index = 0
-    locked = len(preambles) == 1
-    deadline = time.monotonic() + timeout
+    pending: deque[bytes] = deque()
+    index = 0
+    locked = False
+    _init_promiscuous(radio, _PREAMBLES[index])
+    started = time.monotonic()
+    deadline = started + timeout
     last_status = last_switch = time.monotonic()
 
     while time.monotonic() < deadline or pending:
         if not locked and time.monotonic() - last_switch >= _PREAMBLE_DWELL:
             last_switch = time.monotonic()
-            preamble_index = (preamble_index + 1) % len(preambles)
+            index = (index + 1) % len(_PREAMBLES)
             radio.stopListening()
-            radio.openReadingPipe(1, bytes([0x00, preambles[preamble_index]]))
+            radio.openReadingPipe(1, bytes([0x00, _PREAMBLES[index]]))
             radio.startListening()
 
         # Drain the RX FIFO (3 packets deep) before any per-capture
-        # work - a stalled read loop drops the very packets wanted.
+        # work - a stalled read loop drops the packets being waited for.
         if time.monotonic() < deadline:
             while radio.available():
-                pending.append((bytes(radio.read(32)), preambles[preamble_index]))
+                pending.append(bytes(radio.read(32)))
 
         if time.monotonic() - last_status >= _STATUS_INTERVAL:
             last_status = time.monotonic()
-            mode = "locked" if locked else "alternating"
-            print(f"  ...{scanned} captures scanned, {prefiltered} passed the command prefilter; "
-                  f"preamble {preambles[preamble_index]:02x} ({mode}). Genuine captures arrive by "
-                  f"luck at this stage - keep pressing buttons.")
+            print(f"  still looking ({time.monotonic() - started:.0f}s) - keep pressing buttons.")
 
         if not pending:
             time.sleep(0.001)
             continue
 
-        payload, capture_preamble = pending.popleft()
-        scanned += 1
-        if not _command_hits(payload, known_commands):
-            continue
-        prefiltered += 1
-
-        for _start, _payload_len, address in _find_crc_valid_framings(payload, max_start_bit=192):
+        for address in _find_addresses(pending.popleft()):
+            # This sync can only latch onto a 0x00-prefixed address, so
+            # anything else is a CRC fluke rather than a real recovery.
+            if address[0] != 0x00:
+                continue
+            locked = True
             sightings[address] += 1
-            print(f"  stage 1: recovered {address.hex()} ({sightings[address]}/{_CONFIRMATIONS_NEEDED})")
-
-            if not locked:
-                locked = True
-                if preambles[preamble_index] != capture_preamble:
-                    preamble_index = preambles.index(capture_preamble)
-                    radio.stopListening()
-                    radio.openReadingPipe(1, bytes([0x00, capture_preamble]))
-                    radio.startListening()
-                print(f"  stage 1: locked onto preamble {capture_preamble:02x}")
-
+            print(f"  found {address.hex()} ({sightings[address]} of {_CONFIRMATIONS_NEEDED})")
             if sightings[address] >= _CONFIRMATIONS_NEEDED:
                 return address[1:]
 
     return None
 
 
-def _init_matched_radio(radio: RF24) -> None:
-    """Switches the radio from promiscuous sniffing to real reception.
-
-    This calls begin() again to reset the whole chip to library
-    defaults first, then applies exactly rf_pipe_logger's sequence.
-    Undoing the promiscuous setup field by field was tried and
-    received nothing at all - not even on a known-good address that
-    rf_pipe_logger receives on constantly - because that setup leaves
-    behind several non-default registers at once (2-byte address
-    width, 32-byte static payload, CRC disabled, auto-ack off) and
-    dynamic payloads in particular depend on auto-ack being on. A full
-    re-init removes every leftover rather than guessing which one
-    mattered."""
-    radio.stopListening()
+def _init_matched(radio: RF24) -> None:
+    """Exactly rf_pipe_logger's setup. begin() re-inits the whole chip
+    first: unwinding the promiscuous registers one by one leaves the
+    radio deaf even on a known-good address, since dynamic payloads
+    depend on auto-ack and several defaults change at once."""
     if not radio.begin():
-        raise OSError("nRF24L01 hardware stopped responding during reconfiguration")
+        raise OSError("nRF24L01 hardware isn't responding")
+    radio.stopListening()
     radio.setChannel(CHANNEL)
     radio.setDataRate(RF24_2MBPS)
     radio.enableDynamicPayloads()
@@ -201,14 +254,7 @@ def _listen_round(
     """Opens the control pipe plus one pipe per candidate and listens
     for `seconds`. Returns (candidate byte that received a packet or
     None, that packet's payload, packets seen on the control pipe,
-    byte hinted by a control packet's payload[0] or None).
-
-    The hint is the fast path. Packets on the 0x00 address carry the
-    hub-assigned byte in payload[0], and packets on the hub-assigned
-    address carry 0x00 there - each announces its counterpart. It is
-    treated as a hint rather than an answer because it is still only
-    inferred from payload structure; the caller proves it by opening a
-    pipe on it and requiring real packets."""
+    byte hinted by a control packet's payload[0] or None)."""
     radio.stopListening()
     for pipe in (_CONTROL_PIPE,) + _CANDIDATE_PIPES:
         radio.closeReadingPipe(pipe)
@@ -230,211 +276,179 @@ def _listen_round(
             control_packets += 1
             if payload and payload[0] != 0x00 and hint is None:
                 hint = payload[0]
-            continue
-        if pipe_number in _CANDIDATE_PIPES:
-            index = _CANDIDATE_PIPES.index(pipe_number)
-            if index < len(candidates):
-                return candidates[index], payload, control_packets, hint
+        elif pipe_number in _CANDIDATE_PIPES:
+            position = _CANDIDATE_PIPES.index(pipe_number)
+            if position < len(candidates):
+                return candidates[position], payload, control_packets, hint
     return None, None, control_packets, hint
 
 
-def _verify_candidate(
-    radio: RF24, shared: bytes, candidate: int, seconds: float, known_commands: dict[bytes, str]
-) -> int:
-    """Opens a pipe on candidate+shared and counts the packets the
-    hardware accepts on it within `seconds`. Every packet counted has
-    matched a full 5-byte address and passed CRC-16, so this turns a
-    guessed byte into a proven one."""
-    address = bytes([candidate]) + shared
-    confirmed = 0
-    deadline = time.monotonic() + seconds
+def _prove(radio: RF24, shared: bytes, candidate: int, already_seen: int) -> bool:
+    """Opens a pipe on candidate+shared alone and counts the packets
+    the hardware accepts. Every one has matched a full 5-byte address
+    and passed CRC-16, which turns a hinted byte into a proven one."""
+    confirmed = already_seen
+    deadline = time.monotonic() + _PROVE_SECONDS
     while confirmed < _CONFIRMATIONS_NEEDED and time.monotonic() < deadline:
-        hit, payload, _control, _hint = _listen_round(
+        hit, _payload, _control, _hint = _listen_round(
             radio, shared, [candidate], min(2.0, deadline - time.monotonic())
         )
-        if hit is None:
-            continue
-        confirmed += 1
-        name = known_commands.get(payload[1:4], "unknown command") if len(payload) >= 4 else "short payload"
-        print(f"  verified {address.hex()} carrying {name} (raw={payload.hex()}) "
-              f"({confirmed}/{_CONFIRMATIONS_NEEDED})")
-    return confirmed
+        if hit is not None:
+            confirmed += 1
+    return confirmed >= _CONFIRMATIONS_NEEDED
 
 
-def _stage2_sweep(
-    radio: RF24, shared: bytes, timeout: float, dwell: float, known_commands: dict[bytes, str]
-) -> bytes | None:
-    """Sweeps every possible value of the hub-assigned byte using real
-    hardware addressing. A packet arriving on a candidate pipe has
-    matched a full 5-byte address and passed CRC, so it is conclusive;
-    it is nonetheless re-verified on its own pipe to collect
-    _CONFIRMATIONS_NEEDED packets before writing any config."""
-    _init_matched_radio(radio)
-    candidates = [value for value in range(1, 256)]  # 0x00 is the control, not a candidate
+def _find_assigned_byte(radio: RF24, shared: bytes, timeout: float, dwell: float) -> bytes | None:
+    """Listens on the known 0x00 address for a packet naming its
+    counterpart, while sweeping candidate values as the backstop."""
+    _init_matched(radio)
+    candidates = list(range(1, 256))  # 0x00 is the control, not a candidate
     rounds = (len(candidates) + len(_CANDIDATE_PIPES) - 1) // len(_CANDIDATE_PIPES)
-
-    print(f"\nStage 2: real 5-byte addressing with hardware CRC, listening on 00{shared.hex()} "
-          f"while sweeping the {len(candidates)} possible values of the hub-assigned byte in "
-          f"xx{shared.hex()}, {len(_CANDIDATE_PIPES)} at a time (one full pass ~{rounds * dwell:.0f}s). "
-          f"Press and release buttons: a single packet on 00{shared.hex()} names the byte outright, "
-          f"and the sweep is only the backstop.")
+    print("\nStep 2 of 3: working out the second address.")
+    print("  Press and release a button on the remote - one press is usually enough.")
 
     control_total = 0
-    tried_hints: set[int] = set()
-    deadline = time.monotonic() + timeout
-    passes = 0
+    tried: set[int] = set()
+    started = time.monotonic()
+    deadline = started + timeout
+    last_status = time.monotonic()
 
     while time.monotonic() < deadline:
-        passes += 1
         for index in range(0, len(candidates), len(_CANDIDATE_PIPES)):
-            if time.monotonic() >= deadline:
-                break
-            batch = candidates[index:index + len(_CANDIDATE_PIPES)]
-            remaining = max(0.0, min(dwell, deadline - time.monotonic()))
+            remaining = min(dwell, deadline - time.monotonic())
             if remaining <= 0:
                 break
-            hit, payload, control_packets, hint = _listen_round(radio, shared, batch, remaining)
+            batch = candidates[index:index + len(_CANDIDATE_PIPES)]
+            hit, _payload, control_packets, hint = _listen_round(radio, shared, batch, remaining)
             control_total += control_packets
 
-            round_number = index // len(_CANDIDATE_PIPES) + 1
-            if round_number % 8 == 0 or hit is not None:
-                print(f"  pass {passes}, round {round_number}/{rounds}: testing "
-                      f"{', '.join(f'{c:02x}' for c in batch)} - control pipe has seen "
-                      f"{control_total} packet(s) on 00{shared.hex()} so far")
+            if time.monotonic() - last_status >= _STATUS_INTERVAL:
+                last_status = time.monotonic()
+                done = index // len(_CANDIDATE_PIPES) + 1
+                print(f"  still working ({time.monotonic() - started:.0f}s, {done * 100 // rounds}% "
+                      f"through this pass) - press another button.")
 
-            # Fast path: a packet on the 0x00 address names its
-            # counterpart in payload[0], so jump straight to proving
-            # that byte instead of waiting for the sweep to reach it.
-            if hint is not None and hint not in tried_hints:
-                tried_hints.add(hint)
-                print(f"\n  a packet on 00{shared.hex()} names {hint:02x} in payload[0] - "
-                      f"testing {bytes([hint]).hex()}{shared.hex()} directly...")
-                if _verify_candidate(radio, shared, hint, _VERIFY_SECONDS, known_commands) >= _CONFIRMATIONS_NEEDED:
-                    return bytes([hint]) + shared
-                print(f"  {hint:02x} did not produce packets of its own - back to the sweep.")
-
-            if hit is None:
-                continue
-
-            name = known_commands.get(payload[1:4], "unknown command") if len(payload) >= 4 else "short payload"
-            address = bytes([hit]) + shared
-            print(f"\n  HIT: {address.hex()} accepted a packet carrying {name} "
-                  f"(raw={payload.hex()}) - verifying...")
-            if 1 + _verify_candidate(radio, shared, hit, _VERIFY_SECONDS, known_commands) >= _CONFIRMATIONS_NEEDED:
-                return address
-            print(f"  {address.hex()} did not repeat within {_VERIFY_SECONDS:.0f}s - continuing the "
-                  f"sweep rather than trusting a single packet.")
-
-        print(f"  completed pass {passes} over all 255 candidates; control pipe total: "
-              f"{control_total} packet(s)")
+            for candidate, seen in ((hint, 0), (hit, 1)):
+                if candidate is None or candidate in tried:
+                    continue
+                tried.add(candidate)
+                address = bytes([candidate]) + shared
+                print(f"  trying {address.hex()}...")
+                if _prove(radio, shared, candidate, seen):
+                    print(f"  confirmed {address.hex()}")
+                    return address
 
     if control_total:
-        print(f"\nSwept every candidate without a single packet on any of them, while the control "
-              f"pipe received {control_total} packet(s) on 00{shared.hex()}. The receiver is "
-              f"working, so this remote genuinely transmits only on the 0x00 address - it has no "
-              f"hub-assigned second address yet, which is expected if it has never been paired "
-              f"with a real hub.")
+        print("\n  Heard the remote, but only ever on one address. If it has never been paired "
+              "with a real hub, it may not have a second one yet.")
     else:
-        print(f"\nNo packets on any pipe, including the control pipe on 00{shared.hex()} - the "
-              f"remote was asleep, out of range, or on another channel, so this sweep proved "
-              f"nothing. Wake the remote and try again.")
+        print("\n  Heard nothing from the remote. Make sure it is awake and close to the Pi.")
     return None
 
 
-def _shared_from_config() -> bytes | None:
-    """Reuses the shared bytes from an existing rf_addresses.json, so a
-    re-run can skip stage 1."""
-    file = Path(_ADDRESSES_PATH)
-    if not file.is_file():
-        return None
-    try:
-        addresses = json.loads(file.read_text())
-        return bytes.fromhex(addresses[0])[1:]
-    except (ValueError, IndexError, TypeError):
-        return None
+def _check_pair(radio: RF24, assigned: bytes, zeroed: bytes) -> bool:
+    """Final check: both addresses open on the two pipes exactly as
+    RfInput opens them, decoding payload[1:4] the way its _decode()
+    does. This is what the app will do, so passing here means the
+    config is usable - and nothing is written if it fails."""
+    _init_matched(radio)
+    radio.openReadingPipe(1, assigned)
+    radio.openReadingPipe(2, zeroed)
+    radio.startListening()
+
+    print("\nStep 3 of 3: checking the addresses actually work.")
+    print("  Press a few buttons on the remote.")
+
+    seen: Counter[bytes] = Counter()
+    recognised = 0
+    deadline = time.monotonic() + _CHECK_SECONDS
+    while time.monotonic() < deadline:
+        has_payload, pipe_number = radio.available_pipe()
+        if not has_payload:
+            time.sleep(0.001)
+            continue
+        payload = bytes(radio.read(radio.getDynamicPayloadSize()))
+        address = assigned if pipe_number == 1 else zeroed
+        seen[address] += 1
+        recognised += _is_known(payload)
+        if sum(seen.values()) <= _MAX_LINES_SHOWN:  # a wrong address can flood this
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            print(f"  [{timestamp}] {_describe(payload)} on {address.hex()}")
+        if sum(seen.values()) >= _MESSAGES_WANTED and recognised:
+            break
+
+    if not seen:
+        print("\n  Nothing arrived. The remote may have gone to sleep - wake it and run this again.")
+        return False
+    if not recognised:
+        # Anything not in _PROTOCOL_NAMES is reported as a button press
+        # above, since that is what it normally is - but a real remote
+        # also sends status messages constantly, and none arrived.
+        print(f"\n  Got {sum(seen.values())} message(s), but none of the status messages a remote "
+              f"sends constantly. These addresses are picking up something else.")
+        return False
+    for address, count in seen.items():
+        print(f"  {address.hex()}: {count} message(s)")
+    return True
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument(
-        "--preamble", choices=["both", "aa", "55"], default="both",
-        help="Stage 1 preamble polarity - unit-specific, and the wrong one captures nothing "
-             f"(default: both, alternating every {_PREAMBLE_DWELL:.0f}s until one validates).",
+    parser = argparse.ArgumentParser(
+        description="Find your Companion remote's addresses and save them to "
+                    f"{_ADDRESSES_PATH}. No Harmony Hub needed - just the remote.",
     )
     parser.add_argument(
         "--shared", default=None,
-        help="The 4 shared address bytes as hex (e.g. 9c9bc1c6) - a known address minus its "
-             f"leading byte. Skips stage 1. Default: read from {_ADDRESSES_PATH} if present.",
+        help="Skip step 1 by supplying the last 4 bytes of a known address. Rarely needed.",
     )
     parser.add_argument(
         "--timeout", type=float, default=_DEFAULT_TIMEOUT,
-        help=f"Seconds per stage before giving up (default: {_DEFAULT_TIMEOUT:.0f}). Stage 2 "
-             f"needs roughly 96s for one full sweep at the default dwell.",
+        help=f"Seconds to spend on each step before giving up (default: {_DEFAULT_TIMEOUT:.0f}).",
     )
     parser.add_argument(
-        "--dwell", type=float, default=_DEFAULT_DWELL,
-        help=f"Stage 2 seconds per candidate round (default: {_DEFAULT_DWELL}). Raise it if the "
-             f"remote transmits rarely, lower it to sweep faster while holding a button down.",
-    )
-    parser.add_argument(
-        "--keymap", default=None,
-        help="Path to remote_keymap.json - known rf_commands widen stage 1's prefilter and name "
-             "the packets stage 2 receives. Default: same auto-discovery as the sniffer.",
+        "--dwell", type=float, default=_DEFAULT_DWELL, help=argparse.SUPPRESS,
     )
     args = parser.parse_args()
 
+    shared = None
     if args.shared:
         shared = bytes.fromhex(args.shared)
         if len(shared) != 4:
             parser.error(f"--shared needs exactly 4 bytes (8 hex chars), got {len(shared)}")
-    else:
-        shared = _shared_from_config()
-        if shared is not None:
-            print(f"Reusing shared bytes {shared.hex()} from {_ADDRESSES_PATH} - skipping stage 1. "
-                  f"Pass --shared to override, or delete that file to rediscover.")
 
-    preambles = [0xAA, 0x55] if args.preamble == "both" else [int(args.preamble, 16)]
-    known_commands = _load_known_commands(args.keymap)
-    radio = _init_radio(preambles[0])
-    radio.setChannel(CHANNEL)
+    print("Finding your remote's addresses. Have the remote to hand - you will be asked to press "
+          "buttons on it a few times.")
 
+    radio = RF24(CE_PIN, CSN_PIN)
     try:
         if shared is None:
-            print(
-                "\nStage 1: promiscuous scan to learn the shared address bytes. Press and "
-                "release buttons on the remote repeatedly - genuine captures arrive by luck "
-                "here, so more traffic is strictly better. Ctrl+C to stop."
-            )
-            shared = _stage1_find_shared(radio, args.timeout, known_commands, preambles)
+            shared = _find_shared_bytes(radio, args.timeout)
             if shared is None:
-                print(f"\nStage 1 gave up after {args.timeout:.0f}s without recovering any frame. "
-                      f"The remote must be awake and in range; if it stays silent, try "
-                      f"--preamble 55 (or aa) to pin one polarity for the whole run.")
+                print("\nCouldn't find the remote. Make sure it is awake and close to the Pi, "
+                      "then run this again.")
                 return
-            print(f"\nShared address bytes: {shared.hex()}")
 
-        confirmed = _stage2_sweep(radio, shared, args.timeout, args.dwell, known_commands)
+        assigned = _find_assigned_byte(radio, shared, args.timeout, args.dwell)
+        if assigned is None:
+            print(f"\nGave up. Nothing was saved, so {_ADDRESSES_PATH} is unchanged.")
+            return
+
+        zeroed = bytes([0x00]) + shared
+        if not _check_pair(radio, assigned, zeroed):
+            print(f"\nNothing was saved, so {_ADDRESSES_PATH} is unchanged. Try again with the "
+                  "remote awake and close by.")
+            return
     except KeyboardInterrupt:
-        print("\nStopped.")
+        print("\nStopped. Nothing was saved.")
         return
 
-    if confirmed is None:
-        print(f"\nNo hub-assigned address confirmed. The shared bytes {shared.hex()} are known, "
-              f"so a re-run can go straight to the sweep with --shared {shared.hex()} "
-              f"(and --timeout 300 for several full passes).")
-        return
-
-    zeroed = bytes([0x00]) + confirmed[1:]
-    addresses = [confirmed.hex(), zeroed.hex()]
-
-    print(f"\nConfirmed address: {confirmed.hex()}")
-    print(f"Second address (leading byte zeroed): {zeroed.hex()}")
-
+    addresses = [assigned.hex(), zeroed.hex()]
     Path("config").mkdir(parents=True, exist_ok=True)
     with open(_ADDRESSES_PATH, "w") as file:
         json.dump(addresses, file, indent=4)
-    print(f"Wrote {_ADDRESSES_PATH}: {addresses}")
-    print("Verify with: python -m rf_manager.rf_pipe_logger")
+
+    print(f"\nDone. Your remote's addresses are {assigned.hex()} and {zeroed.hex()},")
+    print(f"saved to {_ADDRESSES_PATH}. You can start Equilibrium now.")
 
 
 if __name__ == "__main__":

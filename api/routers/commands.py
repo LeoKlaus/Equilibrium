@@ -17,7 +17,7 @@ router = APIRouter(
     responses={404: {"description": "Not found"}}
 )
 
-@router.post("/", tags=["Commands"], response_model=CommandWithRelationships)
+@router.post("/", response_model=CommandWithRelationships)
 def create_command(command: CommandBase, session: SessionDep) -> Command:
     db_command = Command.model_validate(command)
     if db_command.type == CommandType.IR and not db_command.ir_action:
@@ -46,25 +46,25 @@ def create_command(command: CommandBase, session: SessionDep) -> Command:
     session.refresh(db_command)
     return db_command
 
-@router.get("/", tags=["Commands"], response_model=list[CommandWithRelationships])
+@router.get("/", response_model=list[CommandWithRelationships])
 def list_commands(session: SessionDep) -> Sequence[Command]:
     commands = session.exec(select(Command)).all()
     return commands
 
-@router.get("/{command_id}", tags=["Commands"], response_model=CommandWithRelationships)
+@router.get("/{command_id}", response_model=CommandWithRelationships)
 def show_command(command_id: int, session: SessionDep) -> Command:
     command = session.get(Command, command_id)
     if not command:
         raise HTTPException(status_code=404, detail="Command not found")
     return command
 
-@router.post("/{command_id}/send", tags=["Commands"])
+@router.post("/{command_id}/send")
 async def send_command(command_id: int, command_dispatcher: CommandDispatcherDep):
     await command_dispatcher.dispatch(Directive(command_id=command_id))
     return "Command sent"
 
 
-@router.delete("/{command_id}", tags=["Commands"])
+@router.delete("/{command_id}")
 def delete_command(command_id: int, session: SessionDep):
     command = session.get(Command, command_id)
     if not command:

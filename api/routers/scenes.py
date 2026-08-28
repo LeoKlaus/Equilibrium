@@ -17,7 +17,7 @@ router = APIRouter(
     responses={404: {"description": "Not found"}}
 )
 
-@router.post("/", tags=["Scenes"], response_model=SceneWithRelationships)
+@router.post("/", response_model=SceneWithRelationships)
 def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
     db_scene = Scene.model_validate(scene)
     image_id = scene.image_id
@@ -73,13 +73,13 @@ def create_scene(scene: ScenePost, session: SessionDep) -> Scene:
     return db_scene
 
 
-@router.get("/", tags=["Scenes"], response_model=list[SceneWithRelationships])
+@router.get("/", response_model=list[SceneWithRelationships])
 def list_scenes(session: SessionDep) -> Sequence[Scene]:
     scenes = session.exec(select(Scene)).all()
     return scenes
 
 
-@router.patch("/{scene_id}", tags=["Scenes"])
+@router.patch("/{scene_id}")
 def update_scene(scene_id: int, scene: ScenePost, session: SessionDep):
     scene_db = session.get(Scene, scene_id)
     if not scene_db:
@@ -141,7 +141,7 @@ def update_scene(scene_id: int, scene: ScenePost, session: SessionDep):
     return scene_db
 
 
-@router.delete("/{scene_id}", tags=["Scenes"])
+@router.delete("/{scene_id}")
 def delete_scene(scene_id: int, session: SessionDep):
     scene = session.get(Scene, scene_id)
     if not scene:
@@ -153,7 +153,7 @@ def delete_scene(scene_id: int, session: SessionDep):
     return {"message": f"Successfully deleted {scene.name}"}
 
 
-@router.get("/{scene_id}", tags=["Scenes"], response_model=SceneWithRelationshipsAndFullDevices)
+@router.get("/{scene_id}", response_model=SceneWithRelationshipsAndFullDevices)
 def get_scene(scene_id: int, session: SessionDep) -> Scene:
     scene = session.get(Scene, scene_id)
     if not scene:
@@ -161,7 +161,7 @@ def get_scene(scene_id: int, session: SessionDep) -> Scene:
     return scene
 
 
-@router.post("/{scene_id}/start", tags=["Scenes"])
+@router.post("/{scene_id}/start")
 async def start_scene(scene_id: int, scene_manager: SceneManagerDep):
     try:
         await scene_manager.start_scene(scene_id)
@@ -171,7 +171,7 @@ async def start_scene(scene_id: int, scene_manager: SceneManagerDep):
     return f"Started scene {scene_id}"
 
 
-@router.post("/{scene_id}/set_current", tags=["Scenes"], description="Sets the given scene as current scene **without** executing its start macro.")
+@router.post("/{scene_id}/set_current", description="Sets the given scene as current scene **without** executing its start macro.")
 async def set_current_scene(scene_id: int, scene_manager: SceneManagerDep):
     try:
         await scene_manager.set_current_scene(scene_id)
@@ -180,7 +180,7 @@ async def set_current_scene(scene_id: int, scene_manager: SceneManagerDep):
 
     return f"Set scene {scene_id} as current scene."
 
-@router.get("/{scene_id}/keymap_suggestions", tags=["Scenes"], description="Generates a suggested keymap based on the associated devices and remote.")
+@router.get("/{scene_id}/keymap_suggestions", description="Generates a suggested keymap based on the associated devices and remote.")
 async def suggest_keymap(scene_id: int, session: SessionDep, keymap_resolver: KeymapResolverDep):
     scene = session.get(Scene, scene_id)
 
@@ -189,7 +189,7 @@ async def suggest_keymap(scene_id: int, session: SessionDep, keymap_resolver: Ke
 
     return keymap_resolver.suggest_keymap(scene)
 
-@router.post("/stop", tags=["Scenes"])
+@router.post("/stop")
 async def stop_current_scene(scene_manager: SceneManagerDep):
     try:
         await scene_manager.stop_current_scene()

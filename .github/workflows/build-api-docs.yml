@@ -1,0 +1,86 @@
+name: Publish OpenAPI schema
+
+# Same trigger and "is this tag actually on main" gate as build-container.yml,
+# so the published schema always lines up with a real, published release
+# image rather than an arbitrary tag pushed anywhere. workflow_dispatch is
+# just for testing the pipeline itself without waiting for a real tag -
+# github.ref_name/github.sha then refer to whichever branch it's run from,
+# and the "on main" check degrades correctly (running it from main itself
+# passes; from anywhere else, it's skipped the same as an off-main tag).
+on:
+  push:
+    tags:
+      - 'v?[0-9]+.[0-9]+.[0-9]+'
+      - 'v?[0-9]+.[0-9]+.[0-9]+-*'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deployment at a time; don't cancel one mid-flight in
+# favor of a newer tag, so a page never ends up half-updated.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      on_main: ${{ steps.check.outputs.on_main }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check tag is on main
+        id: check
+        run: |
+          git fetch origin main
+          if git merge-base --is-ancestor "${{ github.sha }}" origin/main; then
+            echo "on_main=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "on_main=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Tag ${{ github.ref_name }} is not on main - skipping OpenAPI publish."
+          fi
+
+      - uses: actions/setup-python@v7
+        if: steps.check.outputs.on_main == 'true'
+        with:
+          python-version: '3.14'
+
+      # Only the app's own runtime deps are needed - app.openapi() never
+      # touches RF24/Bluetooth/GPIO hardware or the database (it never
+      # runs the lifespan at all), so this fits the plain ubuntu-latest
+      # runner with no special provisioning.
+      - name: Install dependencies
+        if: steps.check.outputs.on_main == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Export schema
+        if: steps.check.outputs.on_main == 'true'
+        run: |
+          mkdir -p site
+          PYTHONPATH=. python scripts/export_openapi.py --version "${{ github.ref_name }}" --output site/openapi.json
+          cp scripts/openapi_index.html site/index.html
+
+      - uses: actions/configure-pages@v5
+        if: steps.check.outputs.on_main == 'true'
+
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.check.outputs.on_main == 'true'
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.on_main == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

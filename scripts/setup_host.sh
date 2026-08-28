@@ -60,7 +60,6 @@ else
 fi
 
 needs_reboot=0
-needs_relogin=0
 
 echo "=== Docker ==="
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
@@ -74,14 +73,6 @@ else
     fi
     _do "Installing Docker..."
     curl -fsSL https://get.docker.com | sh
-fi
-
-if id -nG "$(id -un)" | tr ' ' '\n' | grep -qx docker; then
-    _ok "$(id -un) is already in the docker group."
-else
-    _do "Adding $(id -un) to the docker group (so docker/compose don't need sudo)..."
-    sudo usermod -aG docker "$(id -un)"
-    needs_relogin=1
 fi
 
 echo
@@ -152,7 +143,7 @@ if [[ "$setup_harmony" =~ ^[Yy]$ ]]; then
             else
                 _do "Finding the remote's addresses..."
                 echo "  You'll be asked to press a few buttons on it as this runs."
-                if ! docker run --rm -it --privileged -v /dev:/dev \
+                if ! sudo docker run --rm -it --privileged -v /dev:/dev \
                     -v "$(pwd)/config:/app/config" \
                     --entrypoint python "$image" -m rf_manager.discover_remote_address
                 then
@@ -161,7 +152,7 @@ if [[ "$setup_harmony" =~ ^[Yy]$ ]]; then
                     if [[ "$use_hub" =~ ^[Yy]$ ]]; then
                         _do "Pairing with the remote via the Harmony Hub."
                         echo "  Press the pair/reset button on the back of the hub when prompted."
-                        docker run --rm -it --privileged -v /dev:/dev \
+                        sudo docker run --rm -it --privileged -v /dev:/dev \
                             -v "$(pwd)/config:/app/config" \
                             --entrypoint python "$image" -m rf_manager.get_remote_address
                     else
@@ -252,28 +243,24 @@ echo
 echo "=== Summary ==="
 if [ "$needs_reboot" -eq 1 ]; then
     echo "  Config was just changed - reboot before running Equilibrium: sudo reboot"
-fi
-if [ "$needs_relogin" -eq 1 ]; then
-    echo "  You were added to the docker group - log out and back in (or run 'newgrp docker') before using docker without sudo."
-fi
-if [ "$needs_reboot" -eq 0 ] && [ "$needs_relogin" -eq 0 ]; then
+else
     echo "  All checked dependencies are already in place."
 fi
 
 echo
-if [ "$needs_reboot" -eq 1 ] || [ "$needs_relogin" -eq 1 ]; then
-    _warn "Not quite ready yet. Perform the step(s) above first, then: cd $install_dir && docker compose up -d"
+if [ "$needs_reboot" -eq 1 ]; then
+    _warn "Not quite ready yet. Reboot first, then: cd $install_dir && sudo docker compose up -d"
 elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 && [ -f docker-compose.yml ]; then
-    read -rp "  Start Equilibrium now (docker compose up -d)? [y/N] " start_now
+    read -rp "  Start Equilibrium now (sudo docker compose up -d)? [y/N] " start_now
     if [[ "$start_now" =~ ^[Yy]$ ]]; then
         _do "Starting Equilibrium..."
-        if docker compose up -d; then
-            _ok "Equilibrium is up. Check on it with: cd $install_dir && docker compose logs -f"
+        if sudo docker compose up -d; then
+            _ok "Equilibrium is up. Check on it with: cd $install_dir && sudo docker compose logs -f"
         else
-            _warn "docker compose up -d failed - see the output above. Retry with: cd $install_dir && docker compose up -d"
+            _warn "docker compose up -d failed - see the output above. Retry with: cd $install_dir && sudo docker compose up -d"
         fi
     else
-        _ok "Not starting now. When you're ready: cd $install_dir && docker compose up -d"
+        _ok "Not starting now. When you're ready: cd $install_dir && sudo docker compose up -d"
     fi
 else
     _warn "Docker (and/or docker-compose.yml) isn't available - can't offer to start Equilibrium."

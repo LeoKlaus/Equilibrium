@@ -1,47 +1,13 @@
 #!/usr/bin/env bash
-# Checks for (and installs/enables) the host-side dependencies Equilibrium
-# needs when run via Docker: Docker itself, SPI enabled for the RF24
-# radio, and the gpio-ir-tx/gpio-ir device tree overlays for the IR
-# blaster/receiver. Also interactively sets up the optional app-level
-# config in config/: the Harmony Companion remote, the Home Assistant
-# integration, and the script execution module.
-# Idempotent - safe to re-run.
-#
-# Usage (fresh Pi, no repo needed - sets up ~/Equilibrium for you):
-#   curl -fsSL https://raw.githubusercontent.com/LeoKlaus/Equilibrium/main/scripts/setup_host.sh | bash
-#
-# Usage (already have the repo cloned):
-#   ./scripts/setup_host.sh
 
 set -uo pipefail
 
-# Everything lives inside main(), called only at the very end. This
-# matters specifically for `curl ... | bash`: in that invocation bash
-# reads the *script itself* from stdin as it goes, so any top-level
-# command that redirects stdin (the exec below) would make bash lose
-# its place reading the rest of the script. A function body, by
-# contrast, is always fully read (to its closing brace) before any of
-# it executes - so by the time the exec actually runs, bash is already
-# done reading the script from the pipe, and redirecting stdin at that
-# point is safe.
 main() {
 
-# When piped into bash, the script's own stdin *is* the pipe and is
-# already drained by the time we get here - every `read` below would
-# silently see EOF instead of prompting. Reattach to the controlling
-# terminal so prompts still work; no-op when stdin is already a real
-# terminal (i.e. run directly, not piped).
 if [ ! -t 0 ]; then
     exec < /dev/tty
 fi
 
-# Running from inside a real checkout (clone or downloaded ZIP - hence
-# checking for docker-compose.yml itself, not .git) operates on that
-# repo root, matching a developer's own working copy exactly as
-# before. Otherwise (fetched standalone, e.g. via curl | bash), set up
-# ~/Equilibrium instead - the only files ever needed to run Equilibrium
-# via Docker are docker-compose.yml and config/, since the compose file
-# pulls the published image rather than building from source.
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-.}")" 2>/dev/null && pwd)"
 if [ -n "$script_dir" ] && [ -f "$script_dir/../docker-compose.yml" ]; then
     repo_root="$(cd "$script_dir/.." && pwd)"
@@ -57,9 +23,6 @@ _ok()   { printf '  [ok]      %s\n' "$1"; }
 _do()   { printf '  [action]  %s\n' "$1"; }
 _warn() { printf '  [!]       %s\n' "$1"; }
 
-# Minimal JSON string escaping (backslash and double-quote) - enough for
-# the URL/token values we write below without needing jq or python on
-# the host.
 _json_escape() {
     local s="$1"
     s="${s//\\/\\\\}"
@@ -69,10 +32,6 @@ _json_escape() {
 
 _RAW_BASE="https://raw.githubusercontent.com/LeoKlaus/Equilibrium/main"
 
-# Copies from the local checkout if we're running inside one
-# ($repo_root set), otherwise fetches from GitHub - so a developer's
-# own working copy is always used as-is, never silently overwritten by
-# a fetched one.
 _fetch_repo_file() {
     local repo_path="$1" dest="$2"
     if [ -n "${repo_root:-}" ] && [ -f "$repo_root/$repo_path" ]; then
@@ -82,9 +41,6 @@ _fetch_repo_file() {
     fi
 }
 
-# Sets KEY=VALUE in .env, creating the file or updating an existing key
-# in place. Compose auto-loads .env for ${VAR} substitution in
-# docker-compose.yml.
 _write_env_var() {
     local key="$1" value="$2"
     touch .env
@@ -110,7 +66,13 @@ echo "=== Docker ==="
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     _ok "Docker is already installed."
 else
-    _do "Installing Docker (via the official get.docker.com script)..."
+    echo "  Docker isn't installed."
+    read -rp "  Install Docker now? [y/N] " install_docker
+    if [[ ! "$install_docker" =~ ^[Yy]$ ]]; then
+        _warn "Docker is required - stopping here without changing anything else."
+        exit 1
+    fi
+    _do "Installing Docker..."
     curl -fsSL https://get.docker.com | sh
 fi
 
@@ -125,9 +87,6 @@ fi
 echo
 echo "=== SPI (for the RF24 radio) ==="
 if command -v raspi-config >/dev/null 2>&1; then
-    # get_spi prints "0" if enabled, "1" if disabled - via stdout, not its
-    # exit code. do_spi takes the same convention as an argument: 0 to
-    # enable, 1 to disable.
     if [ "$(sudo raspi-config nonint get_spi)" = "0" ]; then
         _ok "SPI is already enabled."
     else
@@ -169,7 +128,7 @@ if [ -n "$config_txt" ]; then
         needs_reboot=1
     fi
 else
-    _warn "Couldn't find config.txt - this isn't Raspberry Pi OS. Enable the gpio-ir-tx/gpio-ir (or equivalent) overlays manually for your distro so /dev/lircX devices exist."
+    _warn "Couldn't find config.txt. Enable the gpio-ir-tx/gpio-ir (or equivalent) overlays manually for your distro so /dev/lircX devices exist."
 fi
 
 echo
@@ -191,22 +150,17 @@ if [[ "$setup_harmony" =~ ^[Yy]$ ]]; then
             if [ -z "$image" ]; then
                 _warn "Couldn't find an image reference in docker-compose.yml - skipping RF pairing."
             else
-                # discover_remote_address needs only the RF24 hardware and
-                # the remote itself, so it's the default and runs without
-                # asking. get_remote_address needs a genuine Harmony Hub to
-                # pair against instead - only offered as a fallback if the
-                # no-hub attempt didn't finish.
-                _do "Finding the remote's addresses - no hub needed, just the remote."
+                _do "Finding the remote's addresses..."
                 echo "  You'll be asked to press a few buttons on it as this runs."
                 if ! docker run --rm -it --privileged -v /dev:/dev \
                     -v "$(pwd)/config:/app/config" \
                     --entrypoint python "$image" -m rf_manager.discover_remote_address
                 then
                     _warn "Didn't finish - config/rf_addresses.json is unchanged."
-                    read -rp "  Retry using a Harmony Hub to pair against instead? [y/N] " use_hub
+                    read -rp "  Retry using a Harmony Hub instead? [y/N] " use_hub
                     if [[ "$use_hub" =~ ^[Yy]$ ]]; then
                         _do "Pairing with the remote via the Harmony Hub."
-                        echo "  Press and hold the pair/reset button on the back of the hub when prompted."
+                        echo "  Press the pair/reset button on the back of the hub when prompted."
                         docker run --rm -it --privileged -v /dev:/dev \
                             -v "$(pwd)/config:/app/config" \
                             --entrypoint python "$image" -m rf_manager.get_remote_address
@@ -308,7 +262,7 @@ fi
 
 echo
 if [ "$needs_reboot" -eq 1 ] || [ "$needs_relogin" -eq 1 ]; then
-    _warn "Not offering to start Equilibrium yet - do the step(s) above first, then: cd $install_dir && docker compose up -d"
+    _warn "Not quite ready yet. Perform the step(s) above first, then: cd $install_dir && docker compose up -d"
 elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 && [ -f docker-compose.yml ]; then
     read -rp "  Start Equilibrium now (docker compose up -d)? [y/N] " start_now
     if [[ "$start_now" =~ ^[Yy]$ ]]; then
@@ -319,7 +273,7 @@ elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1
             _warn "docker compose up -d failed - see the output above. Retry with: cd $install_dir && docker compose up -d"
         fi
     else
-        _ok "Not starting it now. When you're ready: cd $install_dir && docker compose up -d"
+        _ok "Not starting now. When you're ready: cd $install_dir && docker compose up -d"
     fi
 else
     _warn "Docker (and/or docker-compose.yml) isn't available - can't offer to start Equilibrium."

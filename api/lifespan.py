@@ -9,6 +9,19 @@ from db_manager.db_manager import run_migrations
 from hub.hub import Hub
 from zeroconf_manager.zeroconf_manager import ZeroconfManager
 
+_DEFAULT_INSTANCE_NAME = "Equilibrium"
+
+
+def _instance_name(dev: bool) -> str:
+    """The name this hub advertises over mDNS/Bonjour - configurable via
+    the INSTANCE_NAME env var (see docker-compose.yml/setup_host.sh)
+    since two hubs on the same network need different names to be
+    told apart. Falls back to the default on an unset or blank value.
+    The dev/prod suffix is kept regardless, so running both against
+    the same configured name still doesn't collide on one machine."""
+    name = os.environ.get("INSTANCE_NAME", "").strip() or _DEFAULT_INSTANCE_NAME
+    return f"{name}-Dev" if dev else name
+
 
 def _load_rf_addresses() -> list[bytes] | None:
     try:
@@ -63,8 +76,9 @@ async def _lifespan(app: FastAPI, dev: bool):
     logger.info("Hub initialized")
 
     zeroconf = ZeroconfManager()
-    await zeroconf.register_service("Test-Instance-Dev" if dev else "Test-Instance")
-    logger.info("Registered bonjour service")
+    instance_name = _instance_name(dev)
+    await zeroconf.register_service(instance_name)
+    logger.info(f"Registered bonjour service as '{instance_name}'")
 
     yield {
         "status_store": hub.status_store,

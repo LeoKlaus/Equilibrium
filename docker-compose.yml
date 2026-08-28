@@ -9,6 +9,10 @@ services:
       # config/scripts - only enable if you trust everything with
       # access to the HTTP API. Set via setup_host.sh or .env.
       - ENABLE_SCRIPTS=${ENABLE_SCRIPTS:-false}
+      # Name this hub advertises over mDNS/Bonjour. Every hub on the
+      # same network needs a different one. Set via setup_host.sh or
+      # by hand in .env.
+      - INSTANCE_NAME=${INSTANCE_NAME:-Equilibrium}
     # Host networking so mDNS advertising (zeroconf) works without extra plumbing
     network_mode: host
     # Privileged + /dev mounted in: pyrf24 needs direct SPI/GPIO access

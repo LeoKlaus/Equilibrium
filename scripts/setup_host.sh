@@ -59,6 +59,19 @@ else
     _fetch_repo_file "docker-compose.yml" docker-compose.yml
 fi
 
+# Sets KEY=VALUE in .env, creating the file or updating an existing key
+# in place. Compose auto-loads .env for ${VAR} substitution in
+# docker-compose.yml.
+_write_env_var() {
+    local key="$1" value="$2"
+    touch .env
+    if grep -q "^${key}=" .env; then
+        sed -i.bak "s|^${key}=.*|${key}=${value}|" .env && rm -f .env.bak
+    else
+        echo "${key}=${value}" >> .env
+    fi
+}
+
 needs_reboot=0
 
 echo "=== Docker ==="
@@ -237,6 +250,35 @@ elif [ -f .env ] && grep -q '^ENABLE_SCRIPTS=true' .env 2>/dev/null; then
     _do "Disabled script execution (ENABLE_SCRIPTS=false in .env)."
 else
     _ok "Script execution stays disabled."
+fi
+
+echo
+echo "=== Instance name ==="
+echo "  This is the name Equilibrium advertises on the network (mDNS/Bonjour)"
+echo "  so clients can find it. If you run more than one hub on the same"
+echo "  network, each one needs a DIFFERENT name, or clients won't be able"
+echo "  to tell them apart."
+
+current_name=""
+if [ -f .env ] && grep -q '^INSTANCE_NAME=' .env 2>/dev/null; then
+    current_name=$(sed -n 's/^INSTANCE_NAME=//p' .env | tail -1)
+fi
+
+if [ -n "$current_name" ]; then
+    _ok "Instance name is already set to '$current_name'."
+    read -rp "  Change it? [y/N] " change_name
+else
+    change_name="y"
+fi
+
+if [[ "${change_name:-}" =~ ^[Yy]$ ]]; then
+    # Suggest a name that's already likely to be unique rather than a
+    # bare "Equilibrium" everyone would otherwise share.
+    suggested="${current_name:-Equilibrium-$(hostname -s 2>/dev/null || hostname)}"
+    read -rp "  Instance name [$suggested]: " instance_name
+    instance_name="${instance_name:-$suggested}"
+    _write_env_var INSTANCE_NAME "$instance_name"
+    _do "Set instance name to '$instance_name' (in .env)."
 fi
 
 echo

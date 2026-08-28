@@ -58,6 +58,10 @@ Log verbosity is set via the `LOG_LEVEL` environment variable in
 `docker-compose.yml` (`DEBUG`, `INFO`, `WARNING`, `ERROR` or
 `CRITICAL`).
 
+The name Equilibrium advertises over mDNS/Bonjour is set via the
+`INSTANCE_NAME` environment variable (defaults to `Equilibrium`).
+If you run more than one hub on the same network, each one has to have its own name.
+
 ## Pictures
 
 ### The Hub

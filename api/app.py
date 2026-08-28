@@ -8,7 +8,7 @@ from api.routers import commands, devices, images, macros, scenes, system, webso
 
 
 def app_generator(dev: bool = False):
-    app = FastAPI(lifespan=lifespan_dev) if dev else FastAPI(lifespan=lifespan)
+    app = FastAPI(title="Equilibrium", lifespan=lifespan_dev if dev else lifespan)
 
     app.mount("/ui", StaticFiles(directory="web", html=True), name="ui")
     app.include_router(commands.router)

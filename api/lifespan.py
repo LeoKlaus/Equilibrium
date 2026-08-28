@@ -1,10 +1,13 @@
+import asyncio
 import json
+import logging
 import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from api import logger
+from api.log_broadcaster import LogBroadcaster
 from db_manager.db_manager import run_migrations
 from hub.hub import Hub
 from zeroconf_manager.zeroconf_manager import ZeroconfManager
@@ -59,6 +62,9 @@ def _scripts_dir_from_env() -> str | None:
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI, dev: bool):
+    log_broadcaster = LogBroadcaster(asyncio.get_running_loop())
+    logging.getLogger().addHandler(log_broadcaster)
+
     logger.info("Starting up...")
 
     run_migrations()
@@ -88,12 +94,15 @@ async def _lifespan(app: FastAPI, dev: bool):
         "ble_keyboard": hub.executors.get("bluetooth"),
         "ir_manager": hub.executors.get("ir"),
         "modules_manifest": hub.build_modules_manifest(),
+        "log_broadcaster": log_broadcaster,
     }
 
     logger.info("Shutting down...")
     await zeroconf.unregister_service()
     logger.info("Unregistered Zeroconf/Bonjour service")
     await hub.shutdown()
+
+    logging.getLogger().removeHandler(log_broadcaster)
 
 
 @asynccontextmanager

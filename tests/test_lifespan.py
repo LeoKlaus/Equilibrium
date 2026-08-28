@@ -1,10 +1,12 @@
 import json
+import logging
 from typing import ClassVar
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.lifespan import _lifespan, _load_ha_credentials, _load_rf_addresses, _scripts_dir_from_env
+from api.log_broadcaster import LogBroadcaster
 
 
 class FakeZeroconfManager:
@@ -90,8 +92,8 @@ async def test_lifespan_dev_yields_the_hub_pieces(tmp_path, monkeypatch):
 
     async with _lifespan(FastAPI(), dev=True) as state:
         assert set(state.keys()) == {
-            "status_store", "keymap_resolver", "scene_manager",
-            "command_dispatcher", "ble_keyboard", "ir_manager", "modules_manifest",
+            "status_store", "keymap_resolver", "scene_manager", "command_dispatcher",
+            "ble_keyboard", "ir_manager", "modules_manifest", "log_broadcaster",
         }
         assert state["status_store"] is not None
         assert state["scene_manager"] is not None
@@ -102,6 +104,26 @@ async def test_lifespan_dev_yields_the_hub_pieces(tmp_path, monkeypatch):
     zeroconf = FakeZeroconfManager.instances[-1]
     assert zeroconf.registered_name == "Equilibrium-Dev"
     assert zeroconf.unregistered is True
+
+
+async def test_lifespan_attaches_and_detaches_the_log_broadcaster(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir()
+    monkeypatch.setattr("api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("api.lifespan.run_migrations", lambda: None)
+
+    root = logging.getLogger()
+    before = set(root.handlers)
+
+    async with _lifespan(FastAPI(), dev=True) as state:
+        broadcaster = state["log_broadcaster"]
+        assert isinstance(broadcaster, LogBroadcaster)
+        assert broadcaster in root.handlers
+
+        logging.getLogger("some.module").warning("hello from inside the lifespan")
+        assert any(line.message == "hello from inside the lifespan" for line in broadcaster.backlog)
+
+    assert set(root.handlers) == before
 
 
 async def test_lifespan_mounts_module_routers_onto_the_app(tmp_path, monkeypatch):

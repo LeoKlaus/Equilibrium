@@ -1,6 +1,10 @@
+import asyncio
+
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
+from api.log_broadcaster import LogBroadcaster
+from api.models.log_line import LogLine
 from api.routers import system
 
 
@@ -37,3 +41,37 @@ def test_get_modules_manifest_empty_when_nothing_registered():
 
     assert response.status_code == 200
     assert response.json() == {"modules": []}
+
+
+def _line(message: str) -> LogLine:
+    return LogLine(timestamp="12:00:00", level="INFO", logger="test", message=message, formatted=message)
+
+
+async def test_get_logs_returns_the_backlog():
+    broadcaster = LogBroadcaster(asyncio.get_running_loop())
+    broadcaster.backlog.extend([_line("first"), _line("second")])
+    client = _client_with_state(log_broadcaster=broadcaster)
+
+    response = client.get("/system/logs")
+
+    assert response.status_code == 200
+    assert [line["message"] for line in response.json()["lines"]] == ["first", "second"]
+
+
+async def test_get_logs_respects_limit():
+    broadcaster = LogBroadcaster(asyncio.get_running_loop())
+    broadcaster.backlog.extend([_line("first"), _line("second"), _line("third")])
+    client = _client_with_state(log_broadcaster=broadcaster)
+
+    response = client.get("/system/logs?limit=2")
+
+    assert [line["message"] for line in response.json()["lines"]] == ["second", "third"]
+
+
+async def test_get_logs_empty_backlog():
+    client = _client_with_state(log_broadcaster=LogBroadcaster(asyncio.get_running_loop()))
+
+    response = client.get("/system/logs")
+
+    assert response.status_code == 200
+    assert response.json() == {"lines": []}

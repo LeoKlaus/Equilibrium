@@ -41,16 +41,6 @@ _fetch_repo_file() {
     fi
 }
 
-_write_env_var() {
-    local key="$1" value="$2"
-    touch .env
-    if grep -q "^${key}=" .env; then
-        sed -i.bak "s|^${key}=.*|${key}=${value}|" .env && rm -f .env.bak
-    else
-        echo "${key}=${value}" >> .env
-    fi
-}
-
 mkdir -p config
 if [ -f docker-compose.yml ]; then
     _ok "docker-compose.yml already exists in $install_dir."

@@ -3,8 +3,8 @@ services:
     image: ghcr.io/leoklaus/equilibrium:latest
     restart: unless-stopped
     environment:
-      # DEBUG, INFO (default), WARNING, ERROR or CRITICAL. Set via .env.
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # DEBUG, INFO, WARNING (default), ERROR or CRITICAL. Set via .env.
+      - LOG_LEVEL=${LOG_LEVEL:-WARNING}
       # Runs commands with a script_path as executables from
       # config/scripts - only enable if you trust everything with
       # access to the HTTP API. Set via setup_host.sh or .env.

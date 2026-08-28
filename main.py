@@ -4,6 +4,7 @@ import os
 
 import uvicorn
 
+from api import LOG_FORMAT
 from api.app import app_generator
 
 
@@ -62,7 +63,7 @@ if __name__ == '__main__':
     else:
         logging.basicConfig(level=args.loglevel)
 
-    logging.basicConfig(format="%(asctime)s %(name)-20s - %(levelname)-8s - %(message)s", force=True)
+    logging.basicConfig(format=LOG_FORMAT, force=True)
 
     app = app_generator(args.dev)
 

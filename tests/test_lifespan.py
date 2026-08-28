@@ -4,7 +4,7 @@ from typing import ClassVar
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api.lifespan import _lifespan, _load_ha_credentials, _load_rf_addresses
+from api.lifespan import _lifespan, _load_ha_credentials, _load_rf_addresses, _scripts_dir_from_env
 
 
 class FakeZeroconfManager:
@@ -58,9 +58,33 @@ def test_load_ha_credentials_missing_key_returns_none_pair(tmp_path, monkeypatch
     assert _load_ha_credentials() == (None, None)
 
 
+def test_scripts_dir_from_env_missing_var_is_disabled(monkeypatch):
+    monkeypatch.delenv("ENABLE_SCRIPTS", raising=False)
+    assert _scripts_dir_from_env() is None
+
+
+def test_scripts_dir_from_env_false_is_disabled(monkeypatch):
+    monkeypatch.setenv("ENABLE_SCRIPTS", "false")
+    assert _scripts_dir_from_env() is None
+
+
+def test_scripts_dir_from_env_true_enables_the_scripts_dir(monkeypatch):
+    monkeypatch.setenv("ENABLE_SCRIPTS", "true")
+    assert _scripts_dir_from_env() == "config/scripts"
+
+
+def test_scripts_dir_from_env_accepts_1_and_yes(monkeypatch):
+    monkeypatch.setenv("ENABLE_SCRIPTS", "1")
+    assert _scripts_dir_from_env() == "config/scripts"
+
+    monkeypatch.setenv("ENABLE_SCRIPTS", "YES")
+    assert _scripts_dir_from_env() == "config/scripts"
+
+
 async def test_lifespan_dev_yields_the_hub_pieces(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config").mkdir()
+    monkeypatch.delenv("INSTANCE_NAME", raising=False)
     monkeypatch.setattr("api.lifespan.ZeroconfManager", FakeZeroconfManager)
     monkeypatch.setattr("api.lifespan.run_migrations", lambda: None)
 
@@ -76,7 +100,7 @@ async def test_lifespan_dev_yields_the_hub_pieces(tmp_path, monkeypatch):
         assert {module["name"] for module in state["modules_manifest"]} == {"network"}  # only the non-hardware executor in dev mode
 
     zeroconf = FakeZeroconfManager.instances[-1]
-    assert zeroconf.registered_name == "Test-Instance-Dev"
+    assert zeroconf.registered_name == "Equilibrium-Dev"
     assert zeroconf.unregistered is True
 
 
@@ -120,6 +144,7 @@ async def test_lifespan_non_dev_uses_the_non_dev_service_name(tmp_path, monkeypa
     # only lifespan.py's own service-naming logic is under test here.
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config").mkdir()
+    monkeypatch.delenv("INSTANCE_NAME", raising=False)
     monkeypatch.setattr("api.lifespan.ZeroconfManager", FakeZeroconfManager)
     monkeypatch.setattr("api.lifespan.run_migrations", lambda: None)
 
@@ -132,4 +157,38 @@ async def test_lifespan_non_dev_uses_the_non_dev_service_name(tmp_path, monkeypa
         pass
 
     zeroconf = FakeZeroconfManager.instances[-1]
-    assert zeroconf.registered_name == "Test-Instance"
+    assert zeroconf.registered_name == "Equilibrium"
+
+
+async def test_lifespan_uses_instance_name_env_var(tmp_path, monkeypatch):
+    # Two hubs on the same network need different mDNS names to be told
+    # apart - INSTANCE_NAME is how that's configured (see setup_host.sh).
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir()
+    monkeypatch.setenv("INSTANCE_NAME", "LivingRoomHub")
+    monkeypatch.setattr("api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("api.lifespan.run_migrations", lambda: None)
+
+    async def fake_create(cls, **kwargs):
+        return cls()
+
+    monkeypatch.setattr("api.lifespan.Hub.create", classmethod(fake_create))
+
+    async with _lifespan(FastAPI(), dev=False) as _:
+        pass
+    zeroconf = FakeZeroconfManager.instances[-1]
+    assert zeroconf.registered_name == "LivingRoomHub"
+
+    # The dev/prod distinction still applies on top of a custom name,
+    # so running both against one configured name doesn't collide.
+    async with _lifespan(FastAPI(), dev=True) as _:
+        pass
+    zeroconf = FakeZeroconfManager.instances[-1]
+    assert zeroconf.registered_name == "LivingRoomHub-Dev"
+
+
+def test_instance_name_falls_back_to_default_when_env_var_is_blank(monkeypatch):
+    from api.lifespan import _instance_name
+
+    monkeypatch.setenv("INSTANCE_NAME", "   ")
+    assert _instance_name(dev=False) == "Equilibrium"

@@ -34,7 +34,15 @@ I've created a [Wiki in this repo](https://github.com/LeoKlaus/Equilibrium/wiki)
 
 ### Docker
 
-Equilibrium can also be run in Docker:
+Equilibrium can also be run in Docker.
+`scripts/setup_host.sh` sets up the host (Docker, SPI, IR overlays) and
+creates a ready-to-use `~/Equilibrium/` directory for you:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/LeoKlaus/Equilibrium/main/scripts/setup_host.sh | bash
+```
+
+Or, if you already have `docker-compose.yml` (e.g. from a clone):
 
 ```bash
 docker compose up -d
@@ -49,6 +57,10 @@ recreation.
 Log verbosity is set via the `LOG_LEVEL` environment variable in
 `docker-compose.yml` (`DEBUG`, `INFO`, `WARNING`, `ERROR` or
 `CRITICAL`).
+
+The name Equilibrium advertises over mDNS/Bonjour is set via the
+`INSTANCE_NAME` environment variable (defaults to `Equilibrium`).
+If you run more than one hub on the same network, each one has to have its own name.
 
 ## Pictures
 

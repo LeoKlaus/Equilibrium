@@ -23,7 +23,7 @@
 
 from api.models.command import Command, CommandWithRelationships
 from api.models.device import Device, DeviceWithRelationships
-from api.models.macro import Macro, MacroWithRelationships
+from api.models.macro import Macro, MacroWithCommands, MacroWithRelationships
 from api.models.scene import Scene, ScenePost, SceneWithRelationships, SceneWithRelationshipsAndFullDevices
 
 __all__ = [
@@ -32,6 +32,7 @@ __all__ = [
     "Device",
     "DeviceWithRelationships",
     "Macro",
+    "MacroWithCommands",
     "MacroWithRelationships",
     "Scene",
     "ScenePost",
@@ -43,6 +44,7 @@ Command.model_rebuild()
 CommandWithRelationships.model_rebuild()
 DeviceWithRelationships.model_rebuild()
 SceneWithRelationships.model_rebuild()
+MacroWithCommands.model_rebuild()
 MacroWithRelationships.model_rebuild()
 ScenePost.model_rebuild()
 Scene.model_rebuild()

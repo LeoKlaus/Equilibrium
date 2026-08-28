@@ -11,13 +11,12 @@ router = APIRouter(
     responses={404: {"description": "Not found"}}
 )
 
-@router.get("/status", tags=["System"], response_model=StatusReport)
+@router.get("/status", response_model=StatusReport)
 def get_current_system_status(status_store: StatusStoreDep) -> StatusReport:
     return status_store.status
 
 @router.get(
     "/modules",
-    tags=["System"],
     response_model=ModulesManifestResponse,
     description="Lists every registered module's name, capabilities, and endpoint paths, "
                 "so a client can discover what's available without hardcoding routes.",
@@ -27,7 +26,6 @@ def get_modules_manifest(modules_manifest: ModulesManifestDep) -> ModulesManifes
 
 @router.get(
     "/logs",
-    tags=["System"],
     response_model=LogsResponse,
     description="Returns the most recently logged lines. To follow logs, "
                 "use /ws/logs.",

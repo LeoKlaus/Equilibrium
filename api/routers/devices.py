@@ -13,20 +13,20 @@ router = APIRouter(
     responses={404: {"description": "Not found"}}
 )
 
-@router.get("/", tags=["Devices"], response_model=list[DeviceWithRelationships])
+@router.get("/", response_model=list[DeviceWithRelationships])
 def list_devices(session: SessionDep) -> Sequence[Device]:
     devices = session.exec(select(Device)).all()
     return devices
 
 
-@router.get("/{device_id}", tags=["Devices"], response_model=DeviceWithRelationships)
+@router.get("/{device_id}", response_model=DeviceWithRelationships)
 def read_device(device_id: int, session: SessionDep) -> Device:
     device = session.get(Device, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     return device
 
-@router.delete("/{device_id}", tags=["Devices"])
+@router.delete("/{device_id}")
 def delete_device(device_id: int, session: SessionDep):
     device = session.get(Device, device_id)
     if not device:
@@ -35,7 +35,7 @@ def delete_device(device_id: int, session: SessionDep):
     session.commit()
     return {"ok": True}
 
-@router.patch("/{device_id}", tags=["Devices"])
+@router.patch("/{device_id}")
 def update_device(device_id: int, device: DevicePost, session: SessionDep):
     device_db = session.get(Device, device_id)
     if not device_db:
@@ -54,7 +54,7 @@ def update_device(device_id: int, device: DevicePost, session: SessionDep):
     session.refresh(device_db)
     return device_db
 
-@router.post("/", tags=["Devices"], response_model=DeviceWithRelationships)
+@router.post("/", response_model=DeviceWithRelationships)
 def create_device(device: DevicePost, session: SessionDep) -> Device:
     db_device = Device.model_validate(device)
     image_id = device.image_id

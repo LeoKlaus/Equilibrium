@@ -16,19 +16,19 @@ router = APIRouter(
     responses={404: {"description": "Not found"}}
 )
 
-@router.get("/", tags=["Images"])
+@router.get("/")
 def get_all_images(session: SessionDep):
     images = session.exec(select(UserImage)).all()
     return images
 
-@router.get("/{image_id}", tags=["Images"])
+@router.get("/{image_id}")
 def get_image(image_id: int, session: SessionDep):
     image = session.get(UserImage, image_id)
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(image.path)
 
-@router.post("/", tags=["Images"], response_model=UserImage)
+@router.post("/", response_model=UserImage)
 async def upload_image(file: UploadFile, session: SessionDep):
     try:
         if not file.filename:
@@ -56,7 +56,7 @@ async def upload_image(file: UploadFile, session: SessionDep):
     finally:
         file.file.close()
 
-@router.delete("/{image_id}", tags=["Images"])
+@router.delete("/{image_id}")
 def delete_image(image_id: int, session: SessionDep):
     image = session.get(UserImage, image_id)
     if not image:

@@ -108,7 +108,7 @@ needs_relogin=0
 
 echo "=== Docker ==="
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-    _ok "Docker and the Compose plugin are already installed."
+    _ok "Docker is already installed."
 else
     _do "Installing Docker (via the official get.docker.com script)..."
     curl -fsSL https://get.docker.com | sh
@@ -191,25 +191,27 @@ if [[ "$setup_harmony" =~ ^[Yy]$ ]]; then
             if [ -z "$image" ]; then
                 _warn "Couldn't find an image reference in docker-compose.yml - skipping RF pairing."
             else
-                # discover_remote_address needs only the RF24 hardware and the
-                # remote itself, so it's the default; get_remote_address needs
-                # a genuine Harmony Hub to pair against, offered as a fallback
-                # for anyone who'd rather use one (or whose remote it can't find).
-                read -rp "  Do you have a Harmony Hub to pair against instead? [y/N] " use_hub
-                if [[ "$use_hub" =~ ^[Yy]$ ]]; then
-                    _do "Pairing with the remote via the Harmony Hub."
-                    echo "  Press and hold the pair/reset button on the back of the hub when prompted."
-                    docker run --rm -it --privileged -v /dev:/dev \
-                        -v "$(pwd)/config:/app/config" \
-                        --entrypoint python "$image" -m rf_manager.get_remote_address
-                else
-                    _do "Finding the remote's addresses - no hub needed, just the remote."
-                    echo "  You'll be asked to press a few buttons on it as this runs."
-                    if ! docker run --rm -it --privileged -v /dev:/dev \
-                        -v "$(pwd)/config:/app/config" \
-                        --entrypoint python "$image" -m rf_manager.discover_remote_address
-                    then
-                        _warn "Didn't finish - config/rf_addresses.json is unchanged. Re-run this script to try again, or with a Harmony Hub to hand, pair against that instead."
+                # discover_remote_address needs only the RF24 hardware and
+                # the remote itself, so it's the default and runs without
+                # asking. get_remote_address needs a genuine Harmony Hub to
+                # pair against instead - only offered as a fallback if the
+                # no-hub attempt didn't finish.
+                _do "Finding the remote's addresses - no hub needed, just the remote."
+                echo "  You'll be asked to press a few buttons on it as this runs."
+                if ! docker run --rm -it --privileged -v /dev:/dev \
+                    -v "$(pwd)/config:/app/config" \
+                    --entrypoint python "$image" -m rf_manager.discover_remote_address
+                then
+                    _warn "Didn't finish - config/rf_addresses.json is unchanged."
+                    read -rp "  Retry using a Harmony Hub to pair against instead? [y/N] " use_hub
+                    if [[ "$use_hub" =~ ^[Yy]$ ]]; then
+                        _do "Pairing with the remote via the Harmony Hub."
+                        echo "  Press and hold the pair/reset button on the back of the hub when prompted."
+                        docker run --rm -it --privileged -v /dev:/dev \
+                            -v "$(pwd)/config:/app/config" \
+                            --entrypoint python "$image" -m rf_manager.get_remote_address
+                    else
+                        _ok "Not retrying now. Re-run this script (or python -m rf_manager.discover_remote_address in the container) when you're ready."
                     fi
                 fi
             fi

@@ -4,6 +4,14 @@ from zeroconf import IPVersion
 from zeroconf.asyncio import AsyncServiceInfo, AsyncZeroconf
 
 
+def _get_lan_ip() -> str:
+    """The machine's actual outbound LAN address, independent of
+    hostname/DNS/hosts-file resolution entirely."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
+        udp_socket.connect(("8.8.8.8", 80))
+        return udp_socket.getsockname()[0]
+
+
 class ZeroconfManager:
 
     info: AsyncServiceInfo|None = None
@@ -14,7 +22,7 @@ class ZeroconfManager:
             description = {}
 
         fqdn = socket.gethostname()
-        ip_addr = socket.gethostbyname(fqdn)
+        ip_addr = _get_lan_ip()
         hostname = fqdn.split('.')[0]
 
         self.info = AsyncServiceInfo(
@@ -26,7 +34,7 @@ class ZeroconfManager:
             server=hostname,
         )
 
-        self.zeroconf = AsyncZeroconf(ip_version=IPVersion.All)
+        self.zeroconf = AsyncZeroconf(ip_version=IPVersion.V4Only)
         await self.zeroconf.async_register_service(info=self.info)
 
     async def unregister_service(self):

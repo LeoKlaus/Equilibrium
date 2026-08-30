@@ -122,7 +122,7 @@ class RfInput(InputSource):
 
     def _decode(self, payload: bytes | bytearray) -> _Signal | None:
         if len(payload) < 5:
-            self.logger.warning(f"Received unexpectedly short payload: {':'.join(f'{i:02x}' for i in payload)}")
+            self.logger.debug(f"Received unexpectedly short payload: {':'.join(f'{i:02x}' for i in payload)}")
             return None
 
         command = 0
@@ -156,6 +156,6 @@ class RfInput(InputSource):
             # pressed. With multiple buttons held, this could differentiate them.
             return None
 
-        self.logger.warning("Unexpected payload:")
-        self.logger.warning(f"len: {len(payload)}, bytes: {':'.join(f'{i:02x}' for i in payload)}")
+        self.logger.debug("Unexpected payload:")
+        self.logger.debug(f"len: {len(payload)}, bytes: {':'.join(f'{i:02x}' for i in payload)}")
         return None

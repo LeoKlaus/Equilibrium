@@ -65,6 +65,6 @@ if __name__ == '__main__':
 
     logging.basicConfig(format=LOG_FORMAT, force=True)
 
-    app = app_generator(args.dev)
+    app = app_generator(args.dev, port=args.port)
 
     uvicorn.run(app, host='0.0.0.0', port=args.port, log_config=None)

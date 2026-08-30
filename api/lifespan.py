@@ -6,11 +6,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from api import logger
 from api.log_broadcaster import LogBroadcaster
 from db_manager.db_manager import run_migrations
 from hub.hub import Hub
-from zeroconf_manager.zeroconf_manager import ZeroconfManager
+from zeroconf_manager.zeroconf_manager import ZeroconfManager, get_lan_ip
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 _DEFAULT_INSTANCE_NAME = "Equilibrium"
 
@@ -81,10 +83,15 @@ async def _lifespan(app: FastAPI, dev: bool):
     hub.mount_routers(app)
     logger.info("Hub initialized")
 
+    port = getattr(app.state, "port", 8000)
+
     zeroconf = ZeroconfManager()
     instance_name = _instance_name(dev)
-    await zeroconf.register_service(instance_name)
+    await zeroconf.register_service(instance_name, port=port)
     logger.info(f"Registered bonjour service as '{instance_name}'")
+
+    ip_addr = get_lan_ip()
+    logger.info(f"Hub is ready! Web UI: http://{ip_addr}:{port}/ui")
 
     yield {
         "status_store": hub.status_store,

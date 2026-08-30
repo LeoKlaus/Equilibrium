@@ -14,11 +14,13 @@ class FakeZeroconfManager:
 
     def __init__(self):
         self.registered_name = None
+        self.registered_port = None
         self.unregistered = False
         FakeZeroconfManager.instances.append(self)
 
-    async def register_service(self, name, description=None):
+    async def register_service(self, name, description=None, port=8000):
         self.registered_name = name
+        self.registered_port = port
 
     async def unregister_service(self):
         self.unregistered = True
@@ -214,3 +216,86 @@ def test_instance_name_falls_back_to_default_when_env_var_is_blank(monkeypatch):
 
     monkeypatch.setenv("INSTANCE_NAME", "   ")
     assert _instance_name(dev=False) == "Equilibrium"
+
+
+def test_lifespan_logger_stays_visible_regardless_of_the_root_loggers_level():
+    # The actual bug report: LOG_LEVEL=WARNING (a reasonable choice for
+    # reducing noise) left nothing confirming the hub ever started,
+    # because every startup-step message used the shared, root-level-
+    # governed logger. api.lifespan now has its own logger with an
+    # explicit level, which - unlike a logger left at the default
+    # NOTSET - settles isEnabledFor() using its OWN level rather than
+    # walking up to inherit whatever the root is configured to.
+    lifespan_logger = logging.getLogger("api.lifespan")
+    root = logging.getLogger()
+    original_root_level = root.level
+    root.setLevel(logging.CRITICAL)  # simulates a deliberately quiet LOG_LEVEL
+    try:
+        assert lifespan_logger.isEnabledFor(logging.INFO)
+    finally:
+        root.setLevel(original_root_level)
+
+
+async def test_lifespan_logs_startup_steps_and_the_ready_message(tmp_path, monkeypatch, caplog):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir()
+    monkeypatch.setattr("api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("api.lifespan.get_lan_ip", lambda: "192.168.1.50")
+    monkeypatch.setattr("api.lifespan.run_migrations", lambda: None)
+
+    async def fake_create(cls, **kwargs):
+        return cls()
+
+    monkeypatch.setattr("api.lifespan.Hub.create", classmethod(fake_create))
+
+    caplog.set_level(logging.DEBUG)
+    app = FastAPI()
+    app.state.port = 9001
+    async with _lifespan(app, dev=False):
+        pass
+
+    messages = [record.message for record in caplog.records if record.name == "api.lifespan"]
+    assert "Starting up..." in messages
+    assert "Database initialized" in messages
+    assert "Hub initialized" in messages
+    assert "Hub is ready! Web UI: http://192.168.1.50:9001/ui" in messages
+    assert "Shutting down..." in messages
+
+
+async def test_lifespan_registers_zeroconf_with_the_apps_actual_port(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir()
+    monkeypatch.setattr("api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("api.lifespan.run_migrations", lambda: None)
+
+    async def fake_create(cls, **kwargs):
+        return cls()
+
+    monkeypatch.setattr("api.lifespan.Hub.create", classmethod(fake_create))
+
+    app = FastAPI()
+    app.state.port = 9001
+    async with _lifespan(app, dev=False):
+        pass
+
+    assert FakeZeroconfManager.instances[-1].registered_port == 9001
+
+
+async def test_lifespan_defaults_to_port_8000_when_app_state_has_none(tmp_path, monkeypatch):
+    # app_generator() always sets app.state.port, but a bare FastAPI()
+    # (as most of this file's own tests use) doesn't - falling back to
+    # uvicorn's own default keeps those tests working unmodified.
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir()
+    monkeypatch.setattr("api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("api.lifespan.run_migrations", lambda: None)
+
+    async def fake_create(cls, **kwargs):
+        return cls()
+
+    monkeypatch.setattr("api.lifespan.Hub.create", classmethod(fake_create))
+
+    async with _lifespan(FastAPI(), dev=False):
+        pass
+
+    assert FakeZeroconfManager.instances[-1].registered_port == 8000

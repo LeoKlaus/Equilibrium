@@ -4,9 +4,11 @@ from zeroconf import IPVersion
 from zeroconf.asyncio import AsyncServiceInfo, AsyncZeroconf
 
 
-def _get_lan_ip() -> str:
+def get_lan_ip() -> str:
     """The machine's actual outbound LAN address, independent of
-    hostname/DNS/hosts-file resolution entirely."""
+    hostname/DNS/hosts-file resolution entirely. Also used by
+    api.lifespan for the "Hub is ready" startup message, alongside
+    this module's own use of it when building the mDNS record."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
         udp_socket.connect(("8.8.8.8", 80))
         return udp_socket.getsockname()[0]
@@ -17,19 +19,19 @@ class ZeroconfManager:
     info: AsyncServiceInfo|None = None
     zeroconf: AsyncZeroconf|None = None
 
-    async def register_service(self, name: str, description=None):
+    async def register_service(self, name: str, description=None, port: int = 8000):
         if description is None:
             description = {}
 
         fqdn = socket.gethostname()
-        ip_addr = _get_lan_ip()
+        ip_addr = get_lan_ip()
         hostname = fqdn.split('.')[0]
 
         self.info = AsyncServiceInfo(
             "_equilibrium._tcp.local.",
             name + "._equilibrium._tcp.local.",
             addresses=[socket.inet_aton(ip_addr)],
-            port=8000,
+            port=port,
             properties=description,
             server=hostname,
         )

@@ -7,8 +7,9 @@ from api.models.server_info import ServerInfo
 from api.routers import commands, devices, images, macros, scenes, system, websockets
 
 
-def app_generator(dev: bool = False):
+def app_generator(dev: bool = False, port: int = 8000):
     app = FastAPI(title="Equilibrium", lifespan=lifespan_dev if dev else lifespan)
+    app.state.port = port
 
     app.mount("/ui", StaticFiles(directory="web", html=True), name="ui")
     app.include_router(commands.router)

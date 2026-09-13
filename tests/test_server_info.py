@@ -1,7 +1,7 @@
 import subprocess
 from unittest.mock import patch
 
-from api.models.server_info import ServerInfo, _resolve_version
+from api.models.server_info import ServerInfo, _resolve_version, _resolve_web_ui_version
 
 
 def test_uses_app_version_env_var_when_set(monkeypatch):
@@ -57,3 +57,27 @@ def test_server_info_resolves_fresh_per_instance(monkeypatch):
 
     monkeypatch.setenv("APP_VERSION", "1.0.1")
     assert ServerInfo().version == "1.0.1"
+
+
+def test_web_ui_version_reads_the_web_ui_version_file(tmp_path, monkeypatch):
+    # The same file fetch_web_ui.py reads to know what to download, so
+    # this can never drift from what's actually in web/.
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "WEB_UI_VERSION").write_text("0.9.2-beta\n")
+    assert _resolve_web_ui_version() == "0.9.2-beta"
+
+
+def test_web_ui_version_unknown_when_file_missing(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert _resolve_web_ui_version() == "unknown"
+
+
+def test_server_info_reports_the_web_ui_version(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "WEB_UI_VERSION").write_text("0.9.2-beta")
+    monkeypatch.setenv("APP_VERSION", "2.0.0")
+
+    info = ServerInfo()
+
+    assert info.version == "2.0.0"
+    assert info.web_ui_version == "0.9.2-beta"

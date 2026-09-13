@@ -1,7 +1,18 @@
 import os
 import subprocess
+from pathlib import Path
 
 from sqlmodel import Field, SQLModel
+
+
+def _resolve_web_ui_version() -> str:
+    """Web UI version /info reports. Read from the
+    WEB_UI_VERSION file at the repo root. "unknown"
+    if the file isn't there at all."""
+    try:
+        return Path("WEB_UI_VERSION").read_text().strip()
+    except FileNotFoundError:
+        return "unknown"
 
 
 def _resolve_version() -> str:
@@ -27,3 +38,4 @@ def _resolve_version() -> str:
 
 class ServerInfo(SQLModel):
     version: str = Field(default_factory=_resolve_version)
+    web_ui_version: str = Field(default_factory=_resolve_web_ui_version)

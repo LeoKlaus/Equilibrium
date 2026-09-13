@@ -3,4 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.12 (Equilibrium-New)" />
   </component>
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.14 (Equilibrium-Server)" project-jdk-type="Python SDK" />
 </project>

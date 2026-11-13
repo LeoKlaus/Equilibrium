@@ -1,0 +1,5 @@
+-c requirements.txt
+pytest~=9.2.0
+pytest-asyncio~=1.5
+ruff==0.17.5
+mypy~=2.4.1

@@ -51,7 +51,7 @@ class ScriptExecutor(ActionExecutor):
 
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=self._timeout_seconds)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             process.kill()
             await process.wait()
             self.logger.error(f"Command {command.name}: script '{script}' timed out after {self._timeout_seconds}s")

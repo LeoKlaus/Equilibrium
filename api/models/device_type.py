@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class DeviceType(str, Enum):
+class DeviceType(StrEnum):
     DISPLAY = "display"         # Should receive input changes
     AMPLIFIER = "amplifier"     # Should be default for handling audio
     PLAYER = "player"           # Should be default for transport controls (play, pause, ff, etc.)

@@ -1,9 +1,9 @@
-from enum import Enum
+from enum import StrEnum
 
 from sqlmodel import SQLModel
 
 
-class ComponentStatus(str, Enum):
+class ComponentStatus(StrEnum):
     OK = "ok"
     # Running, but impaired (e.g. no keymap loaded, last operation failed).
     DEGRADED = "degraded"
@@ -13,7 +13,7 @@ class ComponentStatus(str, Enum):
     NOT_CONFIGURED = "not_configured"
 
 
-class HealthStatus(str, Enum):
+class HealthStatus(StrEnum):
     """Overall status. Separate from ComponentStatus so clients don't have
     to handle a "not_configured" the overall status can never be."""
 

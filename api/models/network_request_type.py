@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class NetworkRequestType(str, Enum):
+class NetworkRequestType(StrEnum):
     GET = "get"
     POST = "post"
     DELETE = "delete"

@@ -1,4 +1,5 @@
 import stat
+from typing import Any
 
 from api.models.command import Command
 from api.models.command_group_type import CommandGroupType
@@ -11,7 +12,7 @@ from script_executor.script_executor import ScriptExecutor
 
 
 def _command(**overrides) -> Command:
-    defaults = {
+    defaults: dict[str, Any] = {
         "name": "cmd",
         "button": RemoteButton.SELECT,
         "type": CommandType.SCRIPT,

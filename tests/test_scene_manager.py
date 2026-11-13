@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from sqlmodel import Session
 
@@ -60,7 +62,7 @@ def deps(db_engine, monkeypatch):
 
 
 def _create_command(db_engine, **overrides) -> int:
-    defaults = {
+    defaults: dict[str, Any] = {
         "name": "cmd",
         "button": RemoteButton.POWER_OFF,
         "type": CommandType.IR,

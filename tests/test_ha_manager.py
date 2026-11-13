@@ -1,5 +1,6 @@
 import asyncio
 import time
+from typing import Any
 
 from api.models.command import Command
 from api.models.command_group_type import CommandGroupType
@@ -40,7 +41,7 @@ def _ha_manager() -> HaManager:
 
 
 def _command(**overrides) -> Command:
-    defaults = {
+    defaults: dict[str, Any] = {
         "name": "cmd",
         "button": RemoteButton.SELECT,
         "type": CommandType.INTEGRATION,

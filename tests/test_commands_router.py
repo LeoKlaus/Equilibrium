@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlmodel import Session
@@ -28,7 +30,7 @@ def _client_for(db_engine, command_dispatcher=None) -> TestClient:
 
 
 def _create_command(db_engine, **overrides) -> int:
-    defaults = {
+    defaults: dict[str, Any] = {
         "name": "cmd",
         "button": "power_toggle",
         "type": "network",
@@ -47,7 +49,7 @@ def _create_command(db_engine, **overrides) -> int:
 
 
 def _create_device(db_engine, **overrides) -> int:
-    defaults = {"name": "TV"}
+    defaults: dict[str, Any] = {"name": "TV"}
     defaults.update(overrides)
     with Session(db_engine) as session:
         device = Device(**defaults)
@@ -59,7 +61,7 @@ def _create_device(db_engine, **overrides) -> int:
 
 
 def _payload(**overrides) -> dict:
-    defaults = {
+    defaults: dict[str, Any] = {
         "name": "cmd",
         "button": "power_toggle",
         "type": "network",

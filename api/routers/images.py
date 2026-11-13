@@ -39,9 +39,7 @@ async def upload_image(file: UploadFile, session: SessionDep):
         pil_img.thumbnail((512,512))
         path = Path("./config/images/" + str(uuid4()) + ".png")
         Path("./config/images").mkdir(exist_ok=True)
-        image = UserImage()
-        image.filename = file.filename
-        image.path = str(path)
+        image = UserImage(filename=file.filename, path=str(path))
         pil_img.save(path, "PNG")
         db_image = UserImage.model_validate(image)
         session.add(db_image)

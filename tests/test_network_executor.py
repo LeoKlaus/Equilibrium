@@ -1,3 +1,5 @@
+from typing import Any
+
 import httpx2
 import pytest
 
@@ -11,7 +13,7 @@ from network_executor.network_executor import NetworkExecutor
 
 
 def _command(**overrides) -> Command:
-    defaults = {
+    defaults: dict[str, Any] = {
         "name": "cmd",
         "button": RemoteButton.SELECT,
         "type": CommandType.NETWORK,

@@ -1,4 +1,5 @@
 from io import BytesIO
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -24,7 +25,7 @@ def _png_bytes() -> bytes:
 
 
 def _create_image_row(db_engine, **overrides) -> int:
-    defaults = {"filename": "cover.png", "path": "config/images/cover.png"}
+    defaults: dict[str, Any] = {"filename": "cover.png", "path": "config/images/cover.png"}
     defaults.update(overrides)
     with Session(db_engine) as session:
         image = UserImage(**defaults)

@@ -1,5 +1,6 @@
 import asyncio
 import time
+from typing import Any
 
 import pytest
 from fastapi import FastAPI
@@ -70,7 +71,7 @@ def _ir_manager(tx=None, rx=None) -> IrManager:
 
 
 def _command(**overrides) -> Command:
-    defaults = {
+    defaults: dict[str, Any] = {
         "name": "cmd",
         "button": RemoteButton.PLAY,
         "type": CommandType.IR,

@@ -48,5 +48,6 @@ class ZeroconfManager:
         self.advertised_port = port
 
     async def unregister_service(self):
-        await self.zeroconf.async_unregister_service(self.info)
+        goodbye = await self.zeroconf.async_unregister_service(self.info)
+        await goodbye
         await self.zeroconf.async_close()

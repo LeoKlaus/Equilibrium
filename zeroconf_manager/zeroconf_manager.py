@@ -19,6 +19,10 @@ class ZeroconfManager:
     info: AsyncServiceInfo|None = None
     zeroconf: AsyncZeroconf|None = None
 
+    advertised_name: str | None = None
+    advertised_ip: str | None = None
+    advertised_port: int | None = None
+
     async def register_service(self, name: str, description=None, port: int = 8000):
         if description is None:
             description = {}
@@ -38,6 +42,10 @@ class ZeroconfManager:
 
         self.zeroconf = AsyncZeroconf(ip_version=IPVersion.V4Only)
         await self.zeroconf.async_register_service(info=self.info)
+
+        self.advertised_name = name
+        self.advertised_ip = ip_addr
+        self.advertised_port = port
 
     async def unregister_service(self):
         await self.zeroconf.async_unregister_service(self.info)

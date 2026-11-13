@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from api.models.command import Command
+from api.models.health import ComponentHealth, ComponentStatus
 from hub.event_bus import Directive
 from hub.interfaces import ActionExecutor
 
@@ -60,6 +61,16 @@ class ScriptExecutor(ActionExecutor):
             f"Ran script '{script}' for command {command.name}, exit code {process.returncode}: "
             f"stdout={stdout.decode(errors='replace')!r} stderr={stderr.decode(errors='replace')!r}"
         )
+
+    async def health(self) -> ComponentHealth:
+        loop = asyncio.get_running_loop()
+        if not await loop.run_in_executor(None, self._scripts_dir.is_dir):
+            return ComponentHealth(
+                name=self.name,
+                status=ComponentStatus.DOWN,
+                detail=f"Scripts directory {self._scripts_dir} does not exist",
+            )
+        return ComponentHealth(name=self.name, status=ComponentStatus.OK)
 
     def _resolve(self, script_path: str) -> Path | None:
         candidate = (self._scripts_dir / script_path).resolve()

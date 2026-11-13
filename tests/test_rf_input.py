@@ -3,6 +3,7 @@ import json
 
 import pytest
 
+from api.models.health import ComponentStatus
 from hub.event_bus import Event, EventBus
 from rf_manager.rf_manager import RfInput, _Signal
 
@@ -160,3 +161,67 @@ async def test_start_publishes_pressed_repeated_and_released_events(keymap_dir):
         ("key_repeated", "Play"),
         ("key_released", "Play"),
     ]
+
+
+# --- health() ----------------------------------------------------------------
+
+@pytest.mark.parametrize("addresses", [[], [b"only-one"]])
+async def test_health_not_configured_without_two_addresses(keymap_dir, addresses):
+    health = await RfInput(addresses=addresses, config_dir=keymap_dir).health()
+
+    assert health.name == "rf"
+    assert health.status == ComponentStatus.NOT_CONFIGURED
+
+
+async def test_health_down_when_the_radio_hardware_does_not_respond(keymap_dir, monkeypatch):
+    class UnresponsiveRF24:
+        def __init__(self, ce_pin, csn_pin):
+            pass
+
+        def begin(self):
+            return False
+
+    monkeypatch.setattr("rf_manager.rf_manager.RF24", UnresponsiveRF24, raising=False)
+    rf_input = RfInput(addresses=[b"a", b"b"], config_dir=keymap_dir)
+
+    assert rf_input._init_radio() is None
+    health = await rf_input.health()
+
+    assert health.status == ComponentStatus.DOWN
+    assert health.detail == "RF hardware is not responding"
+
+
+async def test_health_degraded_before_the_radio_has_initialized(keymap_dir):
+    health = await RfInput(addresses=[b"a", b"b"], config_dir=keymap_dir).health()
+
+    assert health.status == ComponentStatus.DEGRADED
+    assert health.detail == "Radio is still initializing"
+
+
+async def test_health_degraded_when_no_keymap_is_loaded(tmp_path):
+    rf_input = RfInput(addresses=[b"a", b"b"], config_dir=str(tmp_path))
+    rf_input._rf = FakeRadio([])
+
+    health = await rf_input.health()
+
+    assert health.status == ComponentStatus.DEGRADED
+    assert health.detail is not None
+    assert "no remote keymap" in health.detail
+
+
+async def test_health_ok_while_listening(keymap_dir):
+    rf_input = RfInput(addresses=[b"a", b"b"], config_dir=keymap_dir)
+    rf_input._rf = FakeRadio([])
+
+    assert (await rf_input.health()).status == ComponentStatus.OK
+
+
+async def test_health_down_once_stopped(keymap_dir):
+    rf_input = RfInput(addresses=[b"a", b"b"], config_dir=keymap_dir)
+    rf_input._rf = FakeRadio([])
+    rf_input.stop()
+
+    health = await rf_input.health()
+
+    assert health.status == ComponentStatus.DOWN
+    assert health.detail == "Stopped"

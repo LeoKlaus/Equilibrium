@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 from starlette.websockets import WebSocket
 
+from api.health import HealthChecker
 from api.log_broadcaster import LogBroadcaster
 from hub.command_dispatcher import CommandDispatcher
 from hub.keymap_resolver import KeymapResolver
@@ -39,6 +40,10 @@ def get_modules_manifest(request: Request) -> list[dict]:
     return request.state.modules_manifest
 
 
+def get_health_checker(request: Request) -> HealthChecker:
+    return request.state.health_checker
+
+
 def get_log_broadcaster(request: Request) -> LogBroadcaster:
     return request.state.log_broadcaster
 
@@ -53,5 +58,6 @@ KeymapResolverDep = Annotated[KeymapResolver, Depends(get_keymap_resolver)]
 SceneManagerDep = Annotated[SceneManager, Depends(get_scene_manager)]
 CommandDispatcherDep = Annotated[CommandDispatcher, Depends(get_command_dispatcher)]
 ModulesManifestDep = Annotated[list[dict], Depends(get_modules_manifest)]
+HealthCheckerDep = Annotated[HealthChecker, Depends(get_health_checker)]
 LogBroadcasterDep = Annotated[LogBroadcaster, Depends(get_log_broadcaster)]
 LogBroadcasterWsDep = Annotated[LogBroadcaster, Depends(get_log_broadcaster_ws)]

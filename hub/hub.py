@@ -1,15 +1,18 @@
 import asyncio
 import contextlib
 import logging
+from functools import partial
 
 from fastapi import FastAPI
 
+from api.models.health import ComponentHealth, ComponentStatus
 from ble_keyboard.ble_keyboard import BleKeyboard
 from ha_manager.ha_manager import HaManager
 from hub.command_dispatcher import CommandDispatcher
 from hub.event_bus import EventBus
+from hub.health import HealthCheck, run_check
 from hub.input_router import InputRouter
-from hub.interfaces import ActionExecutor, BleKeyboardProtocol, InputSource, IrManagerProtocol
+from hub.interfaces import ActionExecutor, BleKeyboardProtocol, HealthReporting, InputSource, IrManagerProtocol
 from hub.keymap_resolver import KeymapResolver
 from hub.scene_manager import SceneManager
 from hub.status_store import StatusStore
@@ -90,6 +93,50 @@ class Hub:
                 "endpoints": endpoints,
             })
         return manifest
+
+    async def check_health(self) -> list[ComponentHealth]:
+        """Health of every registered module that can report one.
+
+        Every InputSource is covered even if it implements nothing itself,
+        because Hub owns its task: one that crashed (e.g. the RF receive
+        loop hitting an SPI error) would otherwise die silently with only a
+        traceback nobody reads until shutdown.
+
+        Executors are only included if they implement HealthReporting
+        """
+        checks: list[tuple[str, HealthCheck]] = []
+
+        for index, source in enumerate(self._sources):
+            task = self._source_tasks[index] if index < len(self._source_tasks) else None
+            checks.append((source.name, partial(self._check_source, source, task)))
+
+        for executor in self._executors.values():
+            if isinstance(executor, HealthReporting):
+                checks.append((executor.name, executor.health))
+
+        return list(await asyncio.gather(*(run_check(name, check) for name, check in checks)))
+
+    @staticmethod
+    async def _check_source(source: InputSource, task: asyncio.Task | None) -> ComponentHealth:
+        # A crash outranks whatever the module itself would say - its
+        # cached state can't know the loop that maintains it is gone.
+        if task is not None and task.done() and not task.cancelled():
+            error = task.exception()
+            if error is not None:
+                return ComponentHealth(
+                    name=source.name,
+                    status=ComponentStatus.DOWN,
+                    detail=f"Task crashed: {type(error).__name__}: {error}",
+                )
+
+        if isinstance(source, HealthReporting):
+            return await source.health()
+
+        # start() is meant to run forever; with nothing from the module to
+        # explain an early return, it ending is itself the problem.
+        if task is not None and task.done():
+            return ComponentHealth(name=source.name, status=ComponentStatus.DOWN, detail="Task exited unexpectedly")
+        return ComponentHealth(name=source.name, status=ComponentStatus.OK)
 
     def assemble(self) -> None:
         """Build StatusStore/KeymapResolver/CommandDispatcher/SceneManager/
@@ -192,5 +239,12 @@ class Hub:
         for task in tasks:
             task.cancel()
         for task in tasks:
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
+            try:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+            except Exception:
+                # A task that crashed earlier (see check_health) re-raises
+                # here. That must not abort shutdown and leave the remaining
+                # tasks un-awaited - and this is the first place its
+                # traceback gets logged at all.
+                self.logger.exception("A hub task had crashed before shutdown")

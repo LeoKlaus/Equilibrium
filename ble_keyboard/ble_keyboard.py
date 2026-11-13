@@ -10,6 +10,7 @@ from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from api.models.command import Command
+from api.models.health import ComponentHealth, ComponentStatus
 from api.models.websocket_responses import (
     BleDevice,
     WebsocketBleCommand,
@@ -154,6 +155,28 @@ class BleKeyboard(ActionExecutor):
             self.logger.debug(f"Sent media command {command.name}")
         else:
             self.logger.error(f"Command {command.name} doesn't include a bluetooth action")
+
+    async def health(self) -> ComponentHealth:
+        """Whether the D-Bus connection is alive and a Bluetooth adapter is
+        present and powered."""
+        if self.bus is None or not self.bus.connected:
+            return ComponentHealth(
+                name=self.name, status=ComponentStatus.DOWN, detail="Not connected to the system D-Bus"
+            )
+        try:
+            adapter = await Adapter.get_first(self.bus)
+            powered = await adapter.get_powered()
+        except Exception as error:
+            return ComponentHealth(
+                name=self.name,
+                status=ComponentStatus.DOWN,
+                detail=f"No usable Bluetooth adapter: {type(error).__name__}: {error}",
+            )
+        if not powered:
+            return ComponentHealth(
+                name=self.name, status=ComponentStatus.DEGRADED, detail="Bluetooth adapter is powered off"
+            )
+        return ComponentHealth(name=self.name, status=ComponentStatus.OK)
 
     async def register_services(self):
         self.battery_service = BatteryService()

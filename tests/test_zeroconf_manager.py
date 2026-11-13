@@ -2,7 +2,7 @@ import ipaddress
 import socket
 from unittest.mock import MagicMock, patch
 
-from zeroconf_manager.zeroconf_manager import get_lan_ip
+from zeroconf_manager.zeroconf_manager import ZeroconfManager, get_lan_ip
 
 
 def test_get_lan_ip_is_not_loopback():
@@ -31,3 +31,29 @@ def test_get_lan_ip_uses_a_udp_route_lookup_not_hostname_resolution():
     mock_socket_cls.assert_called_once_with(socket.AF_INET, socket.SOCK_DGRAM)
     fake_socket.connect.assert_called_once()
     assert ip == "192.168.1.42"
+
+
+class FakeAsyncZeroconf:
+    def __init__(self, ip_version=None):
+        self.registered = []
+
+    async def async_register_service(self, info):
+        self.registered.append(info)
+
+
+async def test_register_service_remembers_what_it_advertised(monkeypatch):
+    monkeypatch.setattr("zeroconf_manager.zeroconf_manager.AsyncZeroconf", FakeAsyncZeroconf)
+    monkeypatch.setattr("zeroconf_manager.zeroconf_manager.get_lan_ip", lambda: "192.168.1.5")
+    manager = ZeroconfManager()
+
+    await manager.register_service("LivingRoom", port=9001)
+
+    assert manager.advertised_name == "LivingRoom"
+    assert manager.advertised_ip == "192.168.1.5"
+    assert manager.advertised_port == 9001
+
+
+def test_nothing_is_advertised_until_registered():
+    manager = ZeroconfManager()
+
+    assert manager.advertised_ip is None

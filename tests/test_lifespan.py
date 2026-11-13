@@ -5,6 +5,7 @@ from typing import ClassVar
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from api.health import HealthChecker
 from api.lifespan import _lifespan, _load_ha_credentials, _load_rf_addresses, _scripts_dir_from_env
 from api.log_broadcaster import LogBroadcaster
 
@@ -95,10 +96,11 @@ async def test_lifespan_dev_yields_the_hub_pieces(tmp_path, monkeypatch):
     async with _lifespan(FastAPI(), dev=True) as state:
         assert set(state.keys()) == {
             "status_store", "keymap_resolver", "scene_manager", "command_dispatcher",
-            "ble_keyboard", "ir_manager", "modules_manifest", "log_broadcaster",
+            "ble_keyboard", "ir_manager", "modules_manifest", "log_broadcaster", "health_checker",
         }
         assert state["status_store"] is not None
         assert state["scene_manager"] is not None
+        assert isinstance(state["health_checker"], HealthChecker)
         assert state["ble_keyboard"] is None  # dev mode skips hardware
         assert state["ir_manager"] is None
         assert {module["name"] for module in state["modules_manifest"]} == {"network"}  # only the non-hardware executor in dev mode

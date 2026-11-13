@@ -57,3 +57,33 @@ def test_nothing_is_advertised_until_registered():
     manager = ZeroconfManager()
 
     assert manager.advertised_ip is None
+
+
+class GoodbyeTrackingZeroconf:
+    """Mimics AsyncZeroconf: unregistering returns a task for the goodbye
+    packets, which only go out if that task is awaited."""
+
+    def __init__(self):
+        self.events: list[str] = []
+
+    async def async_unregister_service(self, info):
+        self.events.append("unregister")
+
+        async def send_goodbye():
+            self.events.append("goodbye sent")
+
+        return send_goodbye()
+
+    async def async_close(self):
+        self.events.append("close")
+
+
+async def test_unregister_service_sends_the_goodbye_before_closing():
+    manager = ZeroconfManager()
+    zeroconf = GoodbyeTrackingZeroconf()
+    manager.zeroconf = zeroconf  # type: ignore[assignment]  # duck-typed test double
+    manager.info = object()  # type: ignore[assignment]
+
+    await manager.unregister_service()
+
+    assert zeroconf.events == ["unregister", "goodbye sent", "close"]

@@ -1,6 +1,4 @@
-pytest~=9.1.1
-pytest-asyncio~=1.4
-# Pinned exactly: ruff releases add or promote lint rules, and a floating pin turned
-# CI red on untouched code (UP042 in 0.17). Bump it deliberately, fixing what it flags.
+pytest~=9.2.0
+pytest-asyncio~=1.5
 ruff==0.17.5
-mypy~=2.3.1
+mypy~=2.4.1

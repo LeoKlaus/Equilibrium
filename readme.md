@@ -74,3 +74,18 @@ If you run more than one hub on the same network, each one has to have its own n
 
 If an error occurs, you should check the output from Equilibrium. If you have daemonized it, you can do so via `journalctl`.
 In some cases, you may want to use the `--verbose` or `--debug` flags to get more verbose logs, though I don't recommend using either for longer times due to the number of log entries they create.
+
+### Bluetooth: "Failed to register advertisement"
+
+If `POST /bluetooth/start_advertisement` fails with `Failed to register advertisement` and the hub is not discoverable, check the kernel version (`uname -r`).
+
+Raspberry Pi OS kernels **6.18.34 up to (not including) 6.18.36** reject the advertising data that BlueZ 5.82 sends, so no BLE advertisement can be registered, regardless of what Equilibrium does. `btmon` shows `Add Extended Advertising Data` failing with `Invalid Parameters (0x0d)`.
+
+Update the kernel and reboot:
+
+```bash
+sudo apt update && sudo apt full-upgrade
+sudo reboot
+```
+
+Kernel 6.18.36 or newer fixes it ([raspberrypi/linux#7473](https://github.com/raspberrypi/linux/issues/7473)).

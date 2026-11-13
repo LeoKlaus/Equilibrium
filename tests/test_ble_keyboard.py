@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from fastapi import FastAPI
@@ -403,3 +403,82 @@ async def test_health_never_touches_devices_because_listing_them_triggers_pairin
     keyboard.bus = FakeBus()
 
     await keyboard.health()
+
+
+class FakeAgent:
+    """Stands in for NoIoAgent, recording how it was registered."""
+
+    instances: ClassVar[list["FakeAgent"]] = []
+    fail_register = False
+
+    def __init__(self):
+        self.is_exported = False
+        self.register_calls: list[dict[str, Any]] = []
+        FakeAgent.instances.append(self)
+
+    async def register(self, bus, **kwargs):
+        self.register_calls.append(kwargs)
+        self.is_exported = True
+        if FakeAgent.fail_register:
+            raise RuntimeError("bluez said no")
+
+    def unexport(self):
+        self.is_exported = False
+
+
+class FakeAdvertisement:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def register(self, bus, adapter=None):
+        pass
+
+
+@pytest.fixture
+def fake_bluez(monkeypatch):
+    async def get_first(bus):
+        return object()
+
+    FakeAgent.instances = []
+    FakeAgent.fail_register = False
+    monkeypatch.setattr("ble_keyboard.ble_keyboard.NoIoAgent", FakeAgent)
+    monkeypatch.setattr("ble_keyboard.ble_keyboard.Advertisement", FakeAdvertisement)
+    monkeypatch.setattr("ble_keyboard.ble_keyboard.Adapter.get_first", get_first)
+
+
+@pytest.mark.asyncio
+async def test_advertise_registers_the_agent_with_an_explicit_path(fake_bluez):
+    # bluez_peripheral 0.2.0a5 forwards path=None to BlueZ's RegisterAgent
+    # unless a path is given, which BlueZ rejects (HTTP 500 on /start_advertisement).
+    keyboard = BleKeyboard()
+
+    await keyboard.advertise()
+
+    assert FakeAgent.instances[0].register_calls == [{"path": BleKeyboard.AGENT_PATH}]
+
+
+@pytest.mark.asyncio
+async def test_advertise_registers_the_agent_only_once(fake_bluez):
+    keyboard = BleKeyboard()
+
+    await keyboard.advertise()
+    await keyboard.advertise()
+
+    assert len(FakeAgent.instances) == 1
+
+
+@pytest.mark.asyncio
+async def test_advertise_can_retry_after_the_agent_registration_failed(fake_bluez):
+    keyboard = BleKeyboard()
+    FakeAgent.fail_register = True
+
+    with pytest.raises(RuntimeError):
+        await keyboard.advertise()
+
+    assert keyboard.agent is None
+    assert not FakeAgent.instances[0].is_exported  # the export was undone so the path is free again
+
+    FakeAgent.fail_register = False
+    await keyboard.advertise()
+
+    assert keyboard.agent is FakeAgent.instances[1]

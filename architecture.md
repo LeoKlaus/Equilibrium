@@ -193,6 +193,35 @@ or removing a module doesn't require an app update to know whether to show
 the corresponding UI, and route paths can change server-side without
 breaking the client.
 
+## Health
+
+`GET /system/health` reports hub health. Each component is `ok`,
+`degraded` (running but impaired), `down`, or
+`not_configured` (deliberately never set up).
+
+Like `stop()`, health is an optional, structurally-checked hook rather than
+part of the minimal `InputSource`/`ActionExecutor` interfaces:
+
+```python
+@runtime_checkable
+class HealthReporting(Protocol):
+    async def health(self) -> ComponentHealth: ...
+```
+
+- **Modules report their own state**, so `Hub` never reaches into concrete
+  hardware classes. A module with nothing that can fail (`NetworkExecutor`)
+  simply doesn't implement it and is left out of the report.
+- **`Hub.check_health()` adds liveness for every `InputSource` for free.**
+- **Infrastructure the hub depends on** is checked by `api.health.HealthChecker`
+  (database, storage,..).
+- Every check runs concurrently under a timeout, and a timeout or exception
+  becomes a `down` result rather than a 500.
+
+Overall status is `down` **only** if a critical component is down (just the
+database) and is served as HTTP 503; anything else impaired is `degraded` and
+still 200, so a simple monitor only alerts on a real outage and the body says
+what to look at.
+
 ## API layer: direct dependency injection
 
 Routers depend on the specific component(s) they need instead of a single

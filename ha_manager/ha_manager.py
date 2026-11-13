@@ -4,6 +4,7 @@ import logging
 from homeassistant_api import Client, Domain
 
 from api.models.command import Command
+from api.models.health import ComponentHealth, ComponentStatus
 from api.models.integration_action import IntegrationAction
 from hub.event_bus import Directive
 from hub.interfaces import ActionExecutor
@@ -20,6 +21,8 @@ class HaManager(ActionExecutor):
 
     def __init__(self, url, token):
         self.client = Client(url, token)
+        # Outcome of the most recent command, for health()
+        self._last_error: str | None = None
 
     async def execute(self, directive: Directive, command: Command) -> None:
         if command.integration_action is None:
@@ -27,14 +30,29 @@ class HaManager(ActionExecutor):
             return
 
         loop = asyncio.get_running_loop()
-        match command.integration_action:
-            case IntegrationAction.TOGGLE_LIGHT:
-                assert command.integration_entity is not None  # enforced at command creation
-                await loop.run_in_executor(None, self.toggle_light, command.integration_entity)
-            case IntegrationAction.BRIGHTNESS_UP:
-                await loop.run_in_executor(None, self.increase_brightness)
-            case IntegrationAction.BRIGHTNESS_DOWN:
-                await loop.run_in_executor(None, self.decrease_brightness)
+        try:
+            match command.integration_action:
+                case IntegrationAction.TOGGLE_LIGHT:
+                    assert command.integration_entity is not None  # enforced at command creation
+                    await loop.run_in_executor(None, self.toggle_light, command.integration_entity)
+                case IntegrationAction.BRIGHTNESS_UP:
+                    await loop.run_in_executor(None, self.increase_brightness)
+                case IntegrationAction.BRIGHTNESS_DOWN:
+                    await loop.run_in_executor(None, self.decrease_brightness)
+        except Exception as error:
+            self._last_error = f"{type(error).__name__}: {error}"
+            raise
+        self._last_error = None
+
+    async def health(self) -> ComponentHealth:
+        """The outcome of the last command. Until one has
+        run there's nothing to go on, so a freshly started hub reports ok
+        even if the credentials are wrong."""
+        if self._last_error is not None:
+            return ComponentHealth(
+                name=self.name, status=ComponentStatus.DEGRADED, detail=f"Last command failed: {self._last_error}"
+            )
+        return ComponentHealth(name=self.name, status=ComponentStatus.OK)
 
     def get_lights(self):
         entities = self.client.get_entities()

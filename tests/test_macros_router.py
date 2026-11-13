@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlmodel import Session
@@ -29,7 +31,7 @@ def _client_for(db_engine, command_dispatcher=None) -> TestClient:
 
 
 def _create_command(db_engine, **overrides) -> int:
-    defaults = {
+    defaults: dict[str, Any] = {
         "name": "cmd",
         "button": "power_toggle",
         "type": "network",
@@ -48,7 +50,7 @@ def _create_command(db_engine, **overrides) -> int:
 
 
 def _create_device(db_engine, **overrides) -> int:
-    defaults = {"name": "TV"}
+    defaults: dict[str, Any] = {"name": "TV"}
     defaults.update(overrides)
     with Session(db_engine) as session:
         device = Device(**defaults)
@@ -60,7 +62,7 @@ def _create_device(db_engine, **overrides) -> int:
 
 
 def _create_scene(db_engine, **overrides) -> int:
-    defaults = {"name": "Movie Night"}
+    defaults: dict[str, Any] = {"name": "Movie Night"}
     defaults.update(overrides)
     with Session(db_engine) as session:
         scene = Scene(**defaults)
@@ -72,7 +74,7 @@ def _create_scene(db_engine, **overrides) -> int:
 
 
 def _create_macro(db_engine, **overrides) -> int:
-    defaults = {"name": "My Macro", "command_ids": [], "delays": []}
+    defaults: dict[str, Any] = {"name": "My Macro", "command_ids": [], "delays": []}
     defaults.update(overrides)
     with Session(db_engine) as session:
         macro = Macro(**defaults)

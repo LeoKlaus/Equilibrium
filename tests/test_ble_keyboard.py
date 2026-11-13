@@ -1,9 +1,13 @@
+from typing import Any
+
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.models.command import Command
 from api.models.command_group_type import CommandGroupType
 from api.models.command_type import CommandType
+from api.models.health import ComponentStatus
 from api.models.remote_button import RemoteButton
 from ble_keyboard.ble_keyboard import BleKeyboard
 from hub.event_bus import Directive
@@ -28,7 +32,7 @@ def _keyboard() -> BleKeyboard:
 
 
 def _command(**overrides) -> Command:
-    defaults = {
+    defaults: dict[str, Any] = {
         "name": "cmd",
         "button": RemoteButton.PLAY,
         "type": CommandType.BLUETOOTH,
@@ -315,3 +319,87 @@ def test_ws_bt_pairing_disconnect():
 
     assert response == {"success": True}
     assert calls == ["disconnect"]
+
+
+# --- health() ----------------------------------------------------------------
+
+class FakeBus:
+    def __init__(self, connected: bool = True):
+        self.connected = connected
+
+
+class FakeAdapter:
+    def __init__(self, powered: bool = True):
+        self._powered = powered
+
+    async def get_powered(self) -> bool:
+        return self._powered
+
+
+def _fake_adapter_class(powered: bool = True, error: Exception | None = None):
+    class FakeAdapterClass:
+        @staticmethod
+        async def get_first(bus):
+            if error is not None:
+                raise error
+            return FakeAdapter(powered)
+
+    return FakeAdapterClass
+
+
+async def test_health_down_without_a_bus():
+    health = await BleKeyboard().health()
+
+    assert health.name == "bluetooth"
+    assert health.status == ComponentStatus.DOWN
+    assert health.detail == "Not connected to the system D-Bus"
+
+
+async def test_health_down_when_the_bus_connection_was_lost():
+    keyboard = BleKeyboard()
+    keyboard.bus = FakeBus(connected=False)
+
+    assert (await keyboard.health()).status == ComponentStatus.DOWN
+
+
+async def test_health_down_when_there_is_no_adapter(monkeypatch):
+    monkeypatch.setattr(
+        "ble_keyboard.ble_keyboard.Adapter", _fake_adapter_class(error=ValueError("No adapters found"))
+    )
+    keyboard = BleKeyboard()
+    keyboard.bus = FakeBus()
+
+    health = await keyboard.health()
+
+    assert health.status == ComponentStatus.DOWN
+    assert health.detail == "No usable Bluetooth adapter: ValueError: No adapters found"
+
+
+async def test_health_degraded_when_the_adapter_is_powered_off(monkeypatch):
+    monkeypatch.setattr("ble_keyboard.ble_keyboard.Adapter", _fake_adapter_class(powered=False))
+    keyboard = BleKeyboard()
+    keyboard.bus = FakeBus()
+
+    health = await keyboard.health()
+
+    assert health.status == ComponentStatus.DEGRADED
+    assert health.detail == "Bluetooth adapter is powered off"
+
+
+async def test_health_ok_with_a_powered_adapter(monkeypatch):
+    monkeypatch.setattr("ble_keyboard.ble_keyboard.Adapter", _fake_adapter_class(powered=True))
+    keyboard = BleKeyboard()
+    keyboard.bus = FakeBus()
+
+    assert (await keyboard.health()).status == ComponentStatus.OK
+
+
+async def test_health_never_touches_devices_because_listing_them_triggers_pairing(monkeypatch):
+    monkeypatch.setattr("ble_keyboard.ble_keyboard.Adapter", _fake_adapter_class())
+    monkeypatch.setattr(
+        BleKeyboard, "devices", property(lambda self: pytest.fail("health() must not touch .devices"))
+    )
+    keyboard = BleKeyboard()
+    keyboard.bus = FakeBus()
+
+    await keyboard.health()

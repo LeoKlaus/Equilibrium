@@ -2,10 +2,12 @@ import asyncio
 import json
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from api.health import HealthChecker
 from api.log_broadcaster import LogBroadcaster
 from db_manager.db_manager import run_migrations
 from hub.hub import Hub
@@ -64,6 +66,7 @@ def _scripts_dir_from_env() -> str | None:
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI, dev: bool):
+    started_at = time.monotonic()
     log_broadcaster = LogBroadcaster(asyncio.get_running_loop())
     logging.getLogger().addHandler(log_broadcaster)
 
@@ -90,6 +93,8 @@ async def _lifespan(app: FastAPI, dev: bool):
     await zeroconf.register_service(instance_name, port=port)
     logger.info(f"Registered bonjour service as '{instance_name}'")
 
+    health_checker = HealthChecker(hub=hub, zeroconf=zeroconf, started_at=started_at)
+
     ip_addr = get_lan_ip()
     logger.info(f"Hub is ready! Web UI: http://{ip_addr}:{port}/ui")
 
@@ -102,6 +107,7 @@ async def _lifespan(app: FastAPI, dev: bool):
         "ir_manager": hub.executors.get("ir"),
         "modules_manifest": hub.build_modules_manifest(),
         "log_broadcaster": log_broadcaster,
+        "health_checker": health_checker,
     }
 
     logger.info("Shutting down...")

@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from api.log_broadcaster import LogBroadcaster
+from api.models.health import ComponentHealth, ComponentStatus, HealthReport, HealthStatus
 from api.models.log_line import LogLine
 from api.routers import system
 
@@ -75,3 +76,63 @@ async def test_get_logs_empty_backlog():
 
     assert response.status_code == 200
     assert response.json() == {"lines": []}
+
+
+class FakeHealthChecker:
+    def __init__(self, report: HealthReport):
+        self._report = report
+
+    async def report(self) -> HealthReport:
+        return self._report
+
+
+def _report(status: HealthStatus, *components: ComponentHealth) -> HealthReport:
+    return HealthReport(status=status, uptime_seconds=3725, components=list(components))
+
+
+def test_get_health_ok_returns_200_with_the_report():
+    report = _report(
+        HealthStatus.OK,
+        ComponentHealth(name="database", status=ComponentStatus.OK),
+        ComponentHealth(name="rf", status=ComponentStatus.NOT_CONFIGURED, detail="No RF addresses configured"),
+    )
+    client = _client_with_state(health_checker=FakeHealthChecker(report))
+
+    response = client.get("/system/health")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "uptime_seconds": 3725,
+        "components": [
+            {"name": "database", "status": "ok", "detail": None},
+            {"name": "rf", "status": "not_configured", "detail": "No RF addresses configured"},
+        ],
+    }
+
+
+def test_get_health_degraded_is_still_200_so_a_simple_monitor_only_alerts_on_real_outages():
+    report = _report(
+        HealthStatus.DEGRADED,
+        ComponentHealth(name="bluetooth", status=ComponentStatus.DOWN, detail="Not connected to the system D-Bus"),
+    )
+    client = _client_with_state(health_checker=FakeHealthChecker(report))
+
+    response = client.get("/system/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "degraded"
+
+
+def test_get_health_down_is_503_but_still_carries_the_report():
+    report = _report(
+        HealthStatus.DOWN,
+        ComponentHealth(name="database", status=ComponentStatus.DOWN, detail="Query failed: OperationalError"),
+    )
+    client = _client_with_state(health_checker=FakeHealthChecker(report))
+
+    response = client.get("/system/health")
+
+    assert response.status_code == 503
+    assert response.json()["status"] == "down"
+    assert response.json()["components"][0]["detail"] == "Query failed: OperationalError"

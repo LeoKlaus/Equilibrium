@@ -1,8 +1,10 @@
 import stat
+from typing import Any
 
 from api.models.command import Command
 from api.models.command_group_type import CommandGroupType
 from api.models.command_type import CommandType
+from api.models.health import ComponentStatus
 from api.models.remote_button import RemoteButton
 from hub.event_bus import Directive
 from hub.interfaces import ActionExecutor
@@ -10,7 +12,7 @@ from script_executor.script_executor import ScriptExecutor
 
 
 def _command(**overrides) -> Command:
-    defaults = {
+    defaults: dict[str, Any] = {
         "name": "cmd",
         "button": RemoteButton.SELECT,
         "type": CommandType.SCRIPT,
@@ -87,3 +89,22 @@ async def test_execute_kills_the_process_on_timeout(tmp_path):
     await executor.execute(Directive(command_id=1), _command(script_path="slow.sh"))
 
     assert not marker.exists()  # killed before the sleep completed
+
+
+# --- health() ----------------------------------------------------------------
+
+async def test_health_ok_when_the_scripts_directory_exists(tmp_path):
+    health = await ScriptExecutor(scripts_dir=str(tmp_path)).health()
+
+    assert health.name == "script"
+    assert health.status == ComponentStatus.OK
+
+
+async def test_health_down_when_the_scripts_directory_is_missing(tmp_path):
+    missing = tmp_path / "does-not-exist"
+
+    health = await ScriptExecutor(scripts_dir=str(missing)).health()
+
+    assert health.status == ComponentStatus.DOWN
+    assert health.detail is not None
+    assert "does not exist" in health.detail

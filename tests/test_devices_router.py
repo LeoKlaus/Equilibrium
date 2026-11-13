@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlmodel import Session
@@ -16,7 +18,7 @@ def _client_for(db_engine) -> TestClient:
 
 
 def _create_device(db_engine, **overrides) -> int:
-    defaults = {"name": "TV"}
+    defaults: dict[str, Any] = {"name": "TV"}
     defaults.update(overrides)
     with Session(db_engine) as session:
         device = Device(**defaults)
@@ -28,7 +30,7 @@ def _create_device(db_engine, **overrides) -> int:
 
 
 def _create_image(db_engine, **overrides) -> int:
-    defaults = {"filename": "cover.png", "path": "/tmp/cover.png"}
+    defaults: dict[str, Any] = {"filename": "cover.png", "path": "/tmp/cover.png"}
     defaults.update(overrides)
     with Session(db_engine) as session:
         image = UserImage(**defaults)

@@ -4,6 +4,7 @@ from typing import ClassVar, Protocol, runtime_checkable
 from fastapi import APIRouter
 
 from api.models.command import Command
+from api.models.health import ComponentHealth
 from hub.event_bus import Directive, EventBus
 
 
@@ -34,6 +35,22 @@ class ActionExecutor(ABC):
     @abstractmethod
     async def execute(self, directive: Directive, command: Command) -> None:
         ...
+
+
+@runtime_checkable
+class HealthReporting(Protocol):
+    """Optional: a module that can say whether it's actually working.
+
+    Deliberately not part of InputSource/ActionExecutor (which stay minimal
+    - see architecture.md); Hub checks for it structurally, the same way
+    shutdown() checks for an optional stop().
+
+    Implementations should report cached state or the outcome of their last
+    real operation rather than probing hardware or the network on every
+    call, so health polling can't disturb normal operation.
+    """
+
+    async def health(self) -> ComponentHealth: ...
 
 
 @runtime_checkable

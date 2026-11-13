@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SceneStatus(str, Enum):
+class SceneStatus(StrEnum):
     STARTING = "starting"
     ACTIVE = "active"
     STOPPING = "stopping"

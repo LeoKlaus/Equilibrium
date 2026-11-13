@@ -1,9 +1,9 @@
-from enum import Enum
+from enum import StrEnum
 
 from sqlmodel import SQLModel
 
 
-class WebsocketBleCommand(str, Enum):
+class WebsocketBleCommand(StrEnum):
     ADVERTISE = "advertise"
     CONNECT = "connect"
     DISCONNECT = "disconnect"
@@ -21,7 +21,7 @@ class BleDevice(SQLModel):
 class WebsocketBleDeviceResponse(SQLModel):
     devices: list[BleDevice]
 
-class WebsocketIrResponse(str, Enum):
+class WebsocketIrResponse(StrEnum):
     PRESS_KEY = "press_key"
     REPEAT_KEY = "repeat_key"
     SHORT_CODE = "short_code"

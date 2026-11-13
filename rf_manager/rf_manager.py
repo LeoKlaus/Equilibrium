@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 from sys import platform
 
+from api.models.health import ComponentHealth, ComponentStatus
 from hub.event_bus import Event, EventBus
 from hub.interfaces import InputSource
 
@@ -57,6 +58,7 @@ class RfInput(InputSource):
         self._rf: RF24 | None = None
         self._last_key: str | None = None
         self._running = True
+        self._init_failure: str | None = None
 
     def _load_known_commands(self, config_dir: str) -> dict[int, str]:
         try:
@@ -87,6 +89,28 @@ class RfInput(InputSource):
             self._rf.powerDown()
             self.logger.debug("Stopped RF listener")
 
+    async def health(self) -> ComponentHealth:
+        # Reports cached state only
+        if len(self._addresses) < 2:
+            return ComponentHealth(
+                name=self.name,
+                status=ComponentStatus.NOT_CONFIGURED,
+                detail="No RF addresses configured (no remote paired)",
+            )
+        if self._init_failure is not None:
+            return ComponentHealth(name=self.name, status=ComponentStatus.DOWN, detail=self._init_failure)
+        if not self._running:
+            return ComponentHealth(name=self.name, status=ComponentStatus.DOWN, detail="Stopped")
+        if self._rf is None:
+            return ComponentHealth(name=self.name, status=ComponentStatus.DEGRADED, detail="Radio is still initializing")
+        if not self._known_commands:
+            return ComponentHealth(
+                name=self.name,
+                status=ComponentStatus.DEGRADED,
+                detail="Listening, but no remote keymap is loaded so button presses won't be recognized",
+            )
+        return ComponentHealth(name=self.name, status=ComponentStatus.OK)
+
     def _init_radio(self) -> "RF24 | None":
         if len(self._addresses) < 2:
             self.logger.warning("No RF addresses specified, skipping listener startup")
@@ -95,6 +119,7 @@ class RfInput(InputSource):
         rf = RF24(CE_PIN, CSN_PIN)
         if not rf.begin():
             self.logger.warning("RF hardware is not responding. Listener will not respond to commands.")
+            self._init_failure = "RF hardware is not responding"
             return None
 
         rf.setChannel(5)

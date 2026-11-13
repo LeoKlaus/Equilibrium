@@ -11,6 +11,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from api.models.command import Command, CommandBase
 from api.models.device import Device
+from api.models.health import ComponentHealth, ComponentStatus
 from api.models.websocket_responses import WebsocketIrResponse
 from db_manager.db_manager import engine
 from hub.event_bus import Directive
@@ -33,6 +34,9 @@ class IrManager(ActionExecutor):
     logger = logging.getLogger(__package__)
     recording_task: Task|None = None
     sending_task: Task|None = None
+    # Outcome of the most recent transmit, for health() - the device
+    # can't be probed without actually sending something.
+    _last_send_error: str | None = None
 
     def __init__(self):
         self.logger.info("Connecting...")
@@ -150,8 +154,25 @@ class IrManager(ActionExecutor):
         # transmit() is a blocking write() syscall - offload it, or a
         # send stalls whatever else is pending on the event loop.
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self.tx.transmit, code)
+        try:
+            await loop.run_in_executor(None, self.tx.transmit, code)
+        except OSError as error:
+            # Only device-level faults - a ValueError (malformed pulses) is
+            # bad command data, not a sign the hardware is unhealthy.
+            self._last_send_error = f"{type(error).__name__}: {error}"
+            raise
+        self._last_send_error = None
         self.logger.debug("Sent IR command")
+
+    async def health(self) -> ComponentHealth:
+        devices = f"tx {self.tx.path}, rx {self.rx.path}"
+        if self._last_send_error is not None:
+            return ComponentHealth(
+                name=self.name,
+                status=ComponentStatus.DEGRADED,
+                detail=f"Last transmit failed ({self._last_send_error}); {devices}",
+            )
+        return ComponentHealth(name=self.name, status=ComponentStatus.OK, detail=devices)
 
 
     async def record_command(self, name: str, websocket: WebSocket | None = None) -> list[int] | None:

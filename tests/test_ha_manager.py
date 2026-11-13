@@ -1,9 +1,11 @@
 import asyncio
 import time
+from typing import Any
 
 from api.models.command import Command
 from api.models.command_group_type import CommandGroupType
 from api.models.command_type import CommandType
+from api.models.health import ComponentStatus
 from api.models.integration_action import IntegrationAction
 from api.models.remote_button import RemoteButton
 from ha_manager.ha_manager import HaManager
@@ -39,7 +41,7 @@ def _ha_manager() -> HaManager:
 
 
 def _command(**overrides) -> Command:
-    defaults = {
+    defaults: dict[str, Any] = {
         "name": "cmd",
         "button": RemoteButton.SELECT,
         "type": CommandType.INTEGRATION,
@@ -147,3 +149,48 @@ async def test_execute_offloads_the_blocking_client_call():
 
     assert ticks == 8
     assert elapsed < 0.3
+
+
+# --- health() ----------------------------------------------------------------
+
+class ExplodingDomain(FakeDomain):
+    def toggle(self, entity_id):
+        raise ConnectionError("Home Assistant is unreachable")
+
+
+async def test_health_ok_before_any_command_has_run():
+    health = await _ha_manager().health()
+
+    assert health.name == "integration"
+    assert health.status == ComponentStatus.OK
+
+
+async def test_health_degraded_after_a_failed_command_and_the_error_still_propagates():
+    manager = _ha_manager()
+    manager.client.domain = ExplodingDomain()  # type: ignore[assignment]  # duck-typed fake
+    command = _command(
+        integration_action=IntegrationAction.TOGGLE_LIGHT, integration_entity="light.kitchen"
+    )
+
+    try:
+        await manager.execute(Directive(command_id=1), command)
+        raised = False
+    except ConnectionError:
+        raised = True
+    health = await manager.health()
+
+    assert raised  # recording the failure must not swallow it
+    assert health.status == ComponentStatus.DEGRADED
+    assert health.detail == "Last command failed: ConnectionError: Home Assistant is unreachable"
+
+
+async def test_health_recovers_after_the_next_successful_command():
+    manager = _ha_manager()
+    manager._last_error = "ConnectionError: Home Assistant is unreachable"
+    command = _command(
+        integration_action=IntegrationAction.TOGGLE_LIGHT, integration_entity="light.kitchen"
+    )
+
+    await manager.execute(Directive(command_id=1), command)
+
+    assert (await manager.health()).status == ComponentStatus.OK

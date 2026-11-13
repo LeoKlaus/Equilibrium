@@ -1,6 +1,8 @@
 import asyncio
 import time
+from typing import Any
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
@@ -10,6 +12,7 @@ from api.models.command_group_type import CommandGroupType
 from api.models.command_type import CommandType
 from api.models.device import Device
 from api.models.device_type import DeviceType
+from api.models.health import ComponentStatus
 from api.models.remote_button import RemoteButton
 from api.models.websocket_responses import WebsocketIrResponse
 from hub.event_bus import Directive
@@ -20,6 +23,8 @@ class FakeLircTransmitter:
     """Stands in for LircTransmitter - avoids needing a real /dev/lircX
     device. `delay` simulates transmit()'s blocking write() syscall
     taking real time, for the offloading test."""
+
+    path = "/dev/lirc0"
 
     def __init__(self, delay: float = 0.0):
         self.calls: list[list[int]] = []
@@ -39,6 +44,8 @@ class FakeLircReceiver:
     device. Feed it a sequence of pre-baked codes via `codes`; each
     receive_code() call (as run_in_executor would call it - synchronously,
     off the event loop) pops the next one."""
+
+    path = "/dev/lirc1"
 
     def __init__(self, codes: list[list[int]] | None = None):
         self._codes = list(codes) if codes is not None else []
@@ -64,7 +71,7 @@ def _ir_manager(tx=None, rx=None) -> IrManager:
 
 
 def _command(**overrides) -> Command:
-    defaults = {
+    defaults: dict[str, Any] = {
         "name": "cmd",
         "button": RemoteButton.PLAY,
         "type": CommandType.IR,
@@ -326,3 +333,53 @@ def test_ws_commands_cancelled_after_socket_already_closed_does_not_raise(db_eng
 
     with Session(db_engine) as session:
         assert session.exec(select(Command).where(Command.name == "Play")).first() is None
+
+
+# --- health() ----------------------------------------------------------------
+
+class FailingLircTransmitter(FakeLircTransmitter):
+    def __init__(self, error: Exception):
+        super().__init__()
+        self._error = error
+
+    def transmit(self, pulses):
+        raise self._error
+
+
+async def test_health_ok_reports_which_devices_were_picked():
+    health = await _ir_manager().health()
+
+    assert health.name == "ir"
+    assert health.status == ComponentStatus.OK
+    assert health.detail == "tx /dev/lirc0, rx /dev/lirc1"
+
+
+async def test_health_degraded_after_a_device_level_transmit_failure():
+    manager = _ir_manager(tx=FailingLircTransmitter(OSError(5, "Input/output error")))
+
+    with pytest.raises(OSError):
+        await manager.send_command([100, 200, 100])
+    health = await manager.health()
+
+    assert health.status == ComponentStatus.DEGRADED
+    assert health.detail is not None
+    assert "Input/output error" in health.detail
+    assert "tx /dev/lirc0" in health.detail
+
+
+async def test_health_recovers_once_a_transmit_succeeds_again():
+    manager = _ir_manager()
+    manager._last_send_error = "OSError: [Errno 5] Input/output error"
+
+    await manager.send_command([100, 200, 100])
+
+    assert (await manager.health()).status == ComponentStatus.OK
+
+
+async def test_health_ignores_malformed_pulses_which_are_bad_data_not_a_bad_device():
+    manager = _ir_manager(tx=FailingLircTransmitter(ValueError("pulses must have an odd length")))
+
+    with pytest.raises(ValueError):
+        await manager.send_command([100, 200])
+
+    assert (await manager.health()).status == ComponentStatus.OK

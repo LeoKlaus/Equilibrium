@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class CommandGroupType(str, Enum):
+class CommandGroupType(StrEnum):
     VOLUME  = "volume"
     NAVIGATION = "navigation"
     TRANSPORT = "transport"

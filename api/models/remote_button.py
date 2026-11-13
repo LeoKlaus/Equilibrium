@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class RemoteButton(str, Enum):
+class RemoteButton(StrEnum):
     # Power
     POWER_TOGGLE = "power_toggle"
     POWER_OFF = "power_off"

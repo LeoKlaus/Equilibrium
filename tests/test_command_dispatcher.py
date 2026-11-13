@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 import pytest
 from sqlmodel import Session
@@ -57,7 +58,7 @@ def keymap_resolver(db_engine, monkeypatch):
 
 
 def _add_command(db_engine, **overrides) -> int:
-    defaults = {
+    defaults: dict[str, Any] = {
         "name": "Play",
         "button": RemoteButton.PLAY,
         "type": CommandType.IR,

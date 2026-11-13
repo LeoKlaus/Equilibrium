@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class CommandType(str, Enum):
+class CommandType(StrEnum):
     IR = "ir"
     BLUETOOTH = "bluetooth"
     NETWORK = "network"

@@ -51,11 +51,14 @@ class BleKeyboard(ActionExecutor):
 
     logger = logging.getLogger(__package__)
 
+    AGENT_PATH = "/me/wehrfritz/bluez_peripheral/agent"
+
     def __init__(self) -> None:
         self.bus = None
         self.battery_service: BatteryService | None = None
         self.device_info_service: DeviceInformationService | None = None
         self.hid_service: HidService | None = None
+        self.agent: NoIoAgent | None = None
 
         self.pressed_keys: list[list[int]] = []
         self.pressed_media_keys: list[list[int]] = []
@@ -196,15 +199,34 @@ class BleKeyboard(ActionExecutor):
         if self.hid_service is not None:
             await self.hid_service.unregister()
 
+    async def _ensure_agent_registered(self) -> None:
+        """Registers the pairing agent once; advertise() may be called repeatedly.
+
+        The path has to be passed explicitly: bluez_peripheral 0.2.0a5's
+        BaseAgent.register() hands its `path` argument (None by default) to
+        BlueZ's RegisterAgent instead of the generated export path, which
+        makes BlueZ reject the call.
+        """
+        if self.agent is not None:
+            return
+
+        agent = NoIoAgent()
+        try:
+            await agent.register(self.bus, path=self.AGENT_PATH)
+        except Exception:
+            # register() exports the object before calling BlueZ; undo that so a retry can export again
+            if agent.is_exported:
+                agent.unexport()
+            raise
+        self.agent = agent
+
     async def advertise(self):
         """
         Starts advertisement for the keyboard service. Call this to make the keyboard discoverable.
         Warning: Starting the advertisement might lead to previously connected devices reconnecting.
         """
 
-        agent = NoIoAgent()
-
-        await agent.register(self.bus)
+        await self._ensure_agent_registered()
 
         adapter = await Adapter.get_first(self.bus)
 

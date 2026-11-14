@@ -18,7 +18,13 @@ from api.models.websocket_responses import (
     WebsocketBleSuccessResponse,
 )
 from ble_keyboard.battery_service import BatteryService
-from ble_keyboard.bluetooth_events import BluetoothEventBroadcaster, Subscription, change_message, snapshot_message
+from ble_keyboard.bluetooth_events import (
+    BluetoothEventBroadcaster,
+    Subscription,
+    change_message,
+    device_for_address,
+    snapshot_message,
+)
 from ble_keyboard.bluetooth_state import BluetoothState
 from ble_keyboard.bluez_monitor import BluezMonitor
 from ble_keyboard.device_information_service import DeviceInformationService
@@ -177,6 +183,11 @@ class BleKeyboard(ActionExecutor):
         while True:
             await websocket.receive_text()
             await websocket.send_text("This endpoint should only be used to receive Bluetooth updates!")
+
+    def bluetooth_device(self, address: str) -> BleDevice:
+        """The current state of the device with this address (a scene's
+        bluetooth_address); disconnected and unpaired if BlueZ doesn't know it."""
+        return device_for_address(self.state.device(address), address)
 
     @classmethod
     async def create(cls):

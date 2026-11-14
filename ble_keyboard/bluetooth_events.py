@@ -21,6 +21,7 @@ from ble_keyboard.bluetooth_state import (
     DeviceChanged,
     DeviceState,
     StateChange,
+    normalize_address,
 )
 
 MAX_QUEUED_CHANGES = 100
@@ -32,6 +33,14 @@ def _adapter(adapter: AdapterState | None) -> BleAdapter | None:
 
 def _device(device: DeviceState) -> BleDevice:
     return BleDevice(name=device.name or "", address=device.address, connected=device.connected, paired=device.paired)
+
+
+def device_for_address(device: DeviceState | None, address: str) -> BleDevice:
+    """A device for clients that follow one specific address: unknown to
+    BlueZ is reported as disconnected."""
+    if device is None:
+        return BleDevice(address=normalize_address(address))
+    return _device(device)
 
 
 def snapshot_message(snapshot: BluetoothSnapshot) -> BluetoothSnapshotMessage:

@@ -5,6 +5,8 @@ from fastapi import APIRouter
 
 from api.models.command import Command
 from api.models.health import ComponentHealth
+from api.models.websocket_responses import BleDevice
+from ble_keyboard.bluetooth_state import BluetoothState
 from hub.event_bus import Directive, EventBus
 
 
@@ -68,6 +70,16 @@ class BleKeyboardProtocol(Protocol):
     async def unregister_services(self) -> None: ...
     def release_keys(self) -> None: ...
     def release_media_keys(self) -> None: ...
+
+
+@runtime_checkable
+class BluetoothStatusSource(Protocol):
+    """What the status needs from the bluetooth module to follow a scene's
+    bluetooth device: its state, and how to describe a device by address."""
+
+    state: BluetoothState
+
+    def bluetooth_device(self, address: str) -> BleDevice: ...
 
 
 @runtime_checkable

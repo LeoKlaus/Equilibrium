@@ -8,11 +8,19 @@ from fastapi import FastAPI
 from api.models.health import ComponentHealth, ComponentStatus
 from ble_keyboard.ble_keyboard import BleKeyboard
 from ha_manager.ha_manager import HaManager
+from hub.bluetooth_status_forwarder import BluetoothStatusForwarder
 from hub.command_dispatcher import CommandDispatcher
 from hub.event_bus import EventBus
 from hub.health import HealthCheck, run_check
 from hub.input_router import InputRouter
-from hub.interfaces import ActionExecutor, BleKeyboardProtocol, HealthReporting, InputSource, IrManagerProtocol
+from hub.interfaces import (
+    ActionExecutor,
+    BleKeyboardProtocol,
+    BluetoothStatusSource,
+    HealthReporting,
+    InputSource,
+    IrManagerProtocol,
+)
 from hub.keymap_resolver import KeymapResolver
 from hub.scene_manager import SceneManager
 from hub.status_store import StatusStore
@@ -48,6 +56,7 @@ class Hub:
         self.command_dispatcher: CommandDispatcher | None = None
         self.scene_manager: SceneManager | None = None
         self.input_router: InputRouter | None = None
+        self.bluetooth_status_forwarder: BluetoothStatusForwarder | None = None
 
     @property
     def sources(self) -> list[InputSource]:
@@ -148,12 +157,18 @@ class Hub:
         if self._assembled:
             return
 
-        self.status_store = StatusStore()
-        self.keymap_resolver = KeymapResolver(config_dir=self._config_dir)
-        self.command_dispatcher = CommandDispatcher(self.status_store, self.keymap_resolver, self._executors)
-
         ble_keyboard = self._executors.get("bluetooth")
         assert ble_keyboard is None or isinstance(ble_keyboard, BleKeyboardProtocol)
+        bluetooth_source = ble_keyboard if isinstance(ble_keyboard, BluetoothStatusSource) else None
+
+        self.status_store = StatusStore(
+            bluetooth_device_resolver=bluetooth_source.bluetooth_device if bluetooth_source else None
+        )
+        self.keymap_resolver = KeymapResolver(config_dir=self._config_dir)
+        self.command_dispatcher = CommandDispatcher(self.status_store, self.keymap_resolver, self._executors)
+        if bluetooth_source is not None:
+            self.bluetooth_status_forwarder = BluetoothStatusForwarder(bluetooth_source.state, self.status_store)
+
         ir_manager = self._executors.get("ir")
         assert ir_manager is None or isinstance(ir_manager, IrManagerProtocol)
 

@@ -340,6 +340,21 @@ def _load_bluez(keyboard: BleKeyboard) -> None:
     )
 
 
+def test_bluetooth_device_describes_a_known_device_by_any_spelling_of_its_address():
+    keyboard = _keyboard()
+    _load_bluez(keyboard)
+
+    device = keyboard.bluetooth_device("aa-bb-cc-dd-ee-ff")
+
+    assert device.model_dump() == {"name": "Apple TV", "address": "AA:BB:CC:DD:EE:FF", "connected": False, "paired": True}
+
+
+def test_bluetooth_device_reports_an_unknown_device_as_disconnected():
+    device = _keyboard().bluetooth_device("11:22:33:44:55:66")
+
+    assert device.model_dump() == {"name": "", "address": "11:22:33:44:55:66", "connected": False, "paired": False}
+
+
 def test_ws_bluetooth_sends_the_snapshot_on_connect():
     keyboard = _keyboard()
     _load_bluez(keyboard)

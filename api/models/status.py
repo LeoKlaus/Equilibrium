@@ -2,6 +2,7 @@ from sqlmodel import Field, SQLModel
 
 from api.models import SceneWithRelationships
 from api.models.scene_status import SceneStatus
+from api.models.websocket_responses import BleDevice
 
 
 class DeviceState(SQLModel):
@@ -36,3 +37,4 @@ class StatusReport(SQLModel):
     current_scene: SceneWithRelationships | None = Field(default=None)
     scene_status: SceneStatus | None = Field(default=None)
     devices: DeviceStates = Field(default_factory=DeviceStates)
+    bluetooth_device: BleDevice | None = Field(default=None)

@@ -10,6 +10,8 @@ from api.models.command import Command
 from api.models.command_group_type import CommandGroupType
 from api.models.command_type import CommandType
 from api.models.remote_button import RemoteButton
+from api.models.websocket_responses import BleDevice
+from ble_keyboard.bluetooth_state import BluetoothState
 from hub.event_bus import Event
 from hub.hub import Hub
 
@@ -242,6 +244,38 @@ def test_assemble_pulls_ble_and_ir_from_the_registry():
     assert hub.scene_manager._ble_keyboard is ble
     assert hub.input_router._ble_keyboard is ble
     assert hub.input_router._ir_manager is ir
+
+
+class FakeBluetoothStatusExecutor(FakeBleExecutor):
+    def __init__(self):
+        super().__init__()
+        self.state = BluetoothState()
+
+    def bluetooth_device(self, address):
+        return BleDevice(address=address)
+
+
+def test_assemble_forwards_the_bluetooth_state_into_the_status_store():
+    hub = Hub()
+    ble = FakeBluetoothStatusExecutor()
+    hub.register_executor(ble)
+
+    hub.assemble()
+
+    assert hub.bluetooth_status_forwarder is not None
+    assert hub.status_store._resolve_bluetooth_device == ble.bluetooth_device
+    assert hub.bluetooth_status_forwarder._status_store is hub.status_store
+    assert len(ble.state._listeners) == 1
+
+
+def test_assemble_without_a_bluetooth_status_source_has_no_forwarder():
+    hub = Hub()
+    hub.register_executor(FakeBleExecutor())
+
+    hub.assemble()
+
+    assert hub.bluetooth_status_forwarder is None
+    assert hub.status_store._resolve_bluetooth_device is None
 
 
 def test_assemble_works_with_no_ble_or_ir_registered():

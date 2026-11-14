@@ -123,7 +123,7 @@ components living under a renamed `hub/` package.
 | Component | Owns                                                                                          | Depends on                                                                                                                                                                                                                                          |
 |---|-----------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `Hub` | `EventBus`, executor/source registries                                                        | (composition root)                                                                                                                                                                                                                                  |
-| `StatusStore` | `StatusReport` (current scene, scene status, per-device power/input state), `status_callback` | -                                                                                                                                                                                                                                                   |
+| `StatusStore` | `StatusReport` (current scene, scene status, per-device power/input state, the scene's bluetooth device), `status_callback` | -                                                                                                                                                                                                                                                   |
 | `KeymapResolver` | `keymap`, `keymap_scene`, `cached_commands`                                                   | DB (`Api.models.Command`)                                                                                                                                                                                                                           |
 | `CommandDispatcher` | (stateless orchestrator)                                                                      | `StatusStore` (from_start/from_stop skip checks + post-send state update), `KeymapResolver` (command cache), `Hub`'s executor registry (looks up the right `ActionExecutor` by `CommandType` and calls `execute()`), handles macro delay sequencing |
 | `SceneManager` | -                                                                                             | `StatusStore` (current scene), `KeymapResolver` (swap active keymap), `CommandDispatcher` (run start/stop macros), `BleKeyboard` (per-scene BT address connect/disconnect)                                                                          |
@@ -240,7 +240,10 @@ alone:
 - `/ws/commands` (IR recording) → moves into `IrManager`'s own router,
   removed from `api/routers/websockets.py`
 - `/ws/status` → `StatusStore` (registers `manager.broadcast_json` as its
-  callback)
+  callback). Its `bluetooth_device` follows the current scene's
+  `bluetooth_address`: `BluetoothStatusForwarder` refreshes it whenever
+  `BluetoothState` reports a change of that device, and `set_scene` resolves
+  it for a new scene.
 
 `api/lifespan.py` builds `StatusStore`, `KeymapResolver`, `CommandDispatcher`,
 `SceneManager`, and `Hub` (which owns `RfInput`, `BleKeyboard`, `IrManager`,

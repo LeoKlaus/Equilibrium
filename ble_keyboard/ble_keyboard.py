@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from typing import ClassVar
 
 from bluez_peripheral.adapter import Adapter
@@ -25,7 +26,7 @@ from ble_keyboard.bluetooth_events import (
     device_for_address,
     snapshot_message,
 )
-from ble_keyboard.bluetooth_state import AvailabilityChanged, BluetoothState, StateChange
+from ble_keyboard.bluetooth_state import AvailabilityChanged, BluetoothState, DeviceChanged, StateChange
 from ble_keyboard.bluez_monitor import BluezMonitor
 from ble_keyboard.device_information_service import DeviceInformationService
 from ble_keyboard.hid_service import HidService
@@ -36,9 +37,9 @@ from hub.interfaces import ActionExecutor
 # For Apple TV:
 # 1. Advertise
 # 2. (On Apple TV) connect
-# 3. Connect to initiate pairing
+# 3. The hub initiates pairing by itself (see _pair_new_connection)
 # 4. (On Apple TV) confirm pairing
-# 6. send keystrokes
+# 5. send keystrokes
 #
 # Controls:
 # esc                 = back
@@ -61,6 +62,9 @@ class BleKeyboard(ActionExecutor):
     logger = logging.getLogger(__package__)
 
     AGENT_PATH = "/me/wehrfritz/bluez_peripheral/agent"
+    ADVERTISEMENT_TIMEOUT = 60  # seconds
+    # How long after advertise() a new, unpaired connection is paired automatically
+    PAIRING_WINDOW = ADVERTISEMENT_TIMEOUT + 10
 
     def __init__(self) -> None:
         self.bus = None
@@ -72,6 +76,9 @@ class BleKeyboard(ActionExecutor):
         self.state = BluetoothState()
         self.events = BluetoothEventBroadcaster(self.state)
         self._services_lost = False
+        self._pairing_window_until = 0.0
+        self._pairing: set[str] = set()  # addresses with a Pair call in progress
+        self._pairing_tasks: set[asyncio.Task[None]] = set()
         self.state.add_listener(self._on_state_change)
 
         self.pressed_keys: list[list[int]] = []
@@ -116,13 +123,13 @@ class BleKeyboard(ActionExecutor):
             return {"success": True}
 
     def _add_websocket_routes(self, router: APIRouter) -> None:
-        # Pairing flow (e.g. for an ATV 4K, where the pairing prompt only appears if triggered
-        # manually within a short time after connecting for the first time - handled in the
-        # `devices` property below):
+        # Pairing flow (e.g. for an ATV 4K, where the pairing prompt only appears if the hub
+        # initiates pairing within a short time after connecting for the first time - done
+        # automatically by _pair_new_connection):
         # 1. Start advertisement
         # 2. Select "Virtual Keyboard" in the target's bluetooth settings
-        # 3. Send a devices query over this socket to trigger pairing (returns connected: True, paired: False)
-        # 4. Confirm pairing on the target device
+        # 3. Confirm pairing on the target device
+        # A devices query over this socket still triggers pairing for a connected, unpaired device.
         @router.websocket("/ws/bt_pairing")
         async def websocket_bt_pairing(websocket: WebSocket):
             await websocket.accept()
@@ -187,6 +194,9 @@ class BleKeyboard(ActionExecutor):
             await websocket.send_text("This endpoint should only be used to receive Bluetooth updates!")
 
     def _on_state_change(self, change: StateChange) -> None:
+        if isinstance(change, DeviceChanged):
+            self._pair_new_connection(change)
+            return
         if not isinstance(change, AvailabilityChanged) or self.hid_service is None:
             return
         if not change.available:
@@ -196,6 +206,44 @@ class BleKeyboard(ActionExecutor):
                 "bluetoothd is back, but the Bluetooth services and the pairing agent were lost with the "
                 "restart and aren't registered again. Restart the hub to restore the virtual keyboard."
             )
+
+    def _pair_new_connection(self, change: DeviceChanged) -> None:
+        """Some hosts (notably Apple TVs) only show their pairing prompt once
+        the hub initiates pairing, shortly after they connected. Done for
+        devices that connect right after advertise(), and only then: this is
+        what keeps anything else that connects from being paired."""
+        device = change.device
+        if device is None or not device.connected or device.paired:
+            return
+        if time.monotonic() > self._pairing_window_until:
+            return
+        path = self.state.device_path(change.address)
+        if path is None:
+            return
+
+        task = asyncio.create_task(self._pair_automatically(path, change.address))
+        self._pairing_tasks.add(task)
+        task.add_done_callback(self._pairing_tasks.discard)
+
+    async def _pair_automatically(self, path: str, address: str) -> None:
+        try:
+            await self._pair_device(path, address)
+        except Exception:
+            self.logger.warning(f"Couldn't pair with {address}", exc_info=True)
+
+    async def _pair_device(self, path: str, address: str) -> None:
+        """Asks BlueZ to pair with the device, which returns once the host
+        confirmed or gave up. Does nothing if that is already going on."""
+        if address in self._pairing:
+            self.logger.debug(f"Already pairing with {address}")
+            return
+        self._pairing.add(address)
+        try:
+            self.logger.info(f"Trying to pair with {address}, confirm pairing on your device...")
+            interface = await self._get_device_interface(path)
+            await interface.call_pair()
+        finally:
+            self._pairing.discard(address)
 
     def bluetooth_device(self, address: str) -> BleDevice:
         """The current state of the device with this address (a scene's
@@ -223,6 +271,8 @@ class BleKeyboard(ActionExecutor):
         self.monitor = monitor
 
     async def stop(self) -> None:
+        for task in list(self._pairing_tasks):
+            task.cancel()
         if self.monitor is not None:
             monitor, self.monitor = self.monitor, None
             await monitor.stop()
@@ -344,9 +394,10 @@ class BleKeyboard(ActionExecutor):
             "0000180F-0000-1000-8000-00805F9B34FB",
             "0000180A-0000-1000-8000-00805F9B34FB",
             "00001812-0000-1000-8000-00805F9B34FB"
-        ], appearance=0x03C1, timeout=60)
+        ], appearance=0x03C1, timeout=self.ADVERTISEMENT_TIMEOUT)
 
         await advert.register(self.bus, adapter=adapter)
+        self._pairing_window_until = time.monotonic() + self.PAIRING_WINDOW
         self.logger.info("Started advertising!")
 
 
@@ -452,10 +503,7 @@ class BleKeyboard(ActionExecutor):
             connected = device.get("Connected", False)
 
             if address and paired and connected and not paired.value and connected.value:
-                self.logger.info(f"Trying to pair with {address.value}")
-                interface = await self._get_device_interface(path)
-                self.logger.info("Trying to pair, confirm pairing on your device...")
-                await interface.call_pair()
+                await self._pair_device(path, address.value)
 
     @property
     async def devices(self):
@@ -479,10 +527,7 @@ class BleKeyboard(ActionExecutor):
 
             # My ATV 4K doesn't pair automatically after connecting...
             if address and paired and connected and not paired.value and connected.value:
-                self.logger.info(f"Trying to pair with {address.value}")
-                interface = await self._get_device_interface(path)
-                self.logger.info("Trying to pair, confirm pairing on your device...")
-                await interface.call_pair()
+                await self._pair_device(path, address.value)
 
             if address and alias and (paired or connected):
                 connected_devices.append({

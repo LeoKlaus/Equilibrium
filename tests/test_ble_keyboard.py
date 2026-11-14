@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import Any, ClassVar
 
 import pytest
@@ -768,6 +769,170 @@ async def test_create_starts_the_bluetooth_monitor_on_the_keyboards_bus(fake_cre
     assert keyboard.monitor is FakeMonitor.instances[0]
     assert keyboard.monitor.started  # type: ignore[attr-defined]
     assert FakeMonitor.instances[0].bus is fake_create_deps
+
+
+class FakeDeviceInterface:
+    """Stands in for a device's org.bluez.Device1, as returned by _get_device_interface."""
+
+    def __init__(self, error: Exception | None = None, gate: asyncio.Event | None = None):
+        self.pair_calls = 0
+        self._error = error
+        self._gate = gate
+
+    async def call_pair(self):
+        self.pair_calls += 1
+        if self._gate is not None:
+            await self._gate.wait()
+        if self._error is not None:
+            raise self._error
+
+
+def _keyboard_with_unpaired_device(interface: FakeDeviceInterface, paired: bool = False, window_open: bool = True):
+    """A keyboard that knows an unpaired, disconnected device, and whose
+    pairing window is open (as it is just after advertise())."""
+    keyboard = _keyboard()
+    keyboard.state.load(
+        {
+            ADAPTER_PATH: {"org.bluez.Adapter1": {"Powered": True}},
+            DEVICE_PATH: {"org.bluez.Device1": {"Alias": "Apple TV", "Connected": False, "Paired": paired}},
+        }
+    )
+    requested_paths: list[str] = []
+
+    async def get_device_interface(path):
+        requested_paths.append(path)
+        return interface
+
+    keyboard._get_device_interface = get_device_interface  # type: ignore[method-assign]
+    keyboard.requested_paths = requested_paths  # type: ignore[attr-defined]
+    if window_open:
+        keyboard._pairing_window_until = time.monotonic() + 60
+    return keyboard
+
+
+def _connect(keyboard: BleKeyboard) -> None:
+    keyboard.state.properties_changed(DEVICE_PATH, "org.bluez.Device1", {"Connected": True})
+
+
+async def _settle(keyboard: BleKeyboard) -> None:
+    await asyncio.gather(*keyboard._pairing_tasks)
+
+
+async def test_a_device_connecting_after_advertise_is_paired_automatically():
+    interface = FakeDeviceInterface()
+    keyboard = _keyboard_with_unpaired_device(interface)
+
+    _connect(keyboard)
+    await _settle(keyboard)
+
+    assert interface.pair_calls == 1
+    assert keyboard.requested_paths == [DEVICE_PATH]  # type: ignore[attr-defined]
+
+
+async def test_a_device_connecting_outside_the_pairing_window_is_left_alone():
+    interface = FakeDeviceInterface()
+    keyboard = _keyboard_with_unpaired_device(interface, window_open=False)
+
+    _connect(keyboard)
+
+    assert not keyboard._pairing_tasks
+    assert interface.pair_calls == 0
+
+
+async def test_an_already_paired_device_connecting_is_not_paired_again():
+    interface = FakeDeviceInterface()
+    keyboard = _keyboard_with_unpaired_device(interface, paired=True)
+
+    _connect(keyboard)
+
+    assert not keyboard._pairing_tasks
+
+
+async def test_a_device_that_isnt_connected_is_not_paired():
+    interface = FakeDeviceInterface()
+    keyboard = _keyboard_with_unpaired_device(interface)
+
+    keyboard.state.properties_changed(DEVICE_PATH, "org.bluez.Device1", {"Alias": "Living Room"})
+
+    assert not keyboard._pairing_tasks
+
+
+async def test_further_changes_while_pairing_dont_pair_a_second_time():
+    gate = asyncio.Event()
+    interface = FakeDeviceInterface(gate=gate)
+    keyboard = _keyboard_with_unpaired_device(interface)
+
+    _connect(keyboard)
+    await asyncio.sleep(0)
+    keyboard.state.properties_changed(DEVICE_PATH, "org.bluez.Device1", {"Alias": "Living Room"})
+    await asyncio.sleep(0)
+    gate.set()
+    await _settle(keyboard)
+
+    assert interface.pair_calls == 1
+
+
+async def test_a_failed_automatic_pairing_is_logged_and_can_be_tried_again(caplog):
+    interface = FakeDeviceInterface(error=RuntimeError("Authentication Canceled"))
+    keyboard = _keyboard_with_unpaired_device(interface)
+
+    _connect(keyboard)
+    await _settle(keyboard)
+    assert "Couldn't pair with AA:BB:CC:DD:EE:FF" in caplog.text
+
+    keyboard.state.properties_changed(DEVICE_PATH, "org.bluez.Device1", {"Alias": "Living Room"})
+    await _settle(keyboard)
+
+    assert interface.pair_calls == 2
+
+
+async def test_pairing_manually_while_pairing_automatically_does_nothing():
+    gate = asyncio.Event()
+    interface = FakeDeviceInterface(gate=gate)
+    keyboard = _keyboard_with_unpaired_device(interface)
+    _connect(keyboard)
+    await asyncio.sleep(0)
+
+    await keyboard._pair_device(DEVICE_PATH, "AA:BB:CC:DD:EE:FF")
+    gate.set()
+    await _settle(keyboard)
+
+    assert interface.pair_calls == 1
+
+
+async def test_a_failure_of_a_manual_pairing_still_reaches_the_caller():
+    interface = FakeDeviceInterface(error=RuntimeError("Authentication Canceled"))
+    keyboard = _keyboard_with_unpaired_device(interface)
+
+    with pytest.raises(RuntimeError):
+        await keyboard._pair_device(DEVICE_PATH, "AA:BB:CC:DD:EE:FF")
+
+    with pytest.raises(RuntimeError):  # not stuck as "in progress": it really tries again
+        await keyboard._pair_device(DEVICE_PATH, "AA:BB:CC:DD:EE:FF")
+    assert interface.pair_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_advertise_opens_the_pairing_window(fake_bluez):
+    keyboard = BleKeyboard()
+    assert keyboard._pairing_window_until == 0.0
+
+    await keyboard.advertise()
+
+    assert keyboard._pairing_window_until > time.monotonic() + BleKeyboard.ADVERTISEMENT_TIMEOUT
+
+
+async def test_stop_cancels_a_pairing_in_progress():
+    interface = FakeDeviceInterface(gate=asyncio.Event())
+    keyboard = _keyboard_with_unpaired_device(interface)
+    _connect(keyboard)
+    await asyncio.sleep(0)
+    task = next(iter(keyboard._pairing_tasks))
+
+    await keyboard.stop()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert task.cancelled()
 
 
 async def test_stop_stops_the_monitor(fake_create_deps):

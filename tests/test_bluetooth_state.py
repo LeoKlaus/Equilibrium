@@ -400,3 +400,10 @@ def test_a_failing_listener_neither_stops_the_others_nor_the_update(caplog):
     assert len(received) == 1
     assert state.device(ADDRESS) is not None
     assert "A Bluetooth state listener raised" in caplog.text
+
+
+def test_device_path_finds_a_device_by_any_spelling_of_its_address():
+    state = _loaded()
+
+    assert state.device_path("aa-bb-cc-dd-ee-ff") == DEVICE
+    assert state.device_path("11:22:33:44:55:66") is None

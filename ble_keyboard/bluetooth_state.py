@@ -108,6 +108,14 @@ class BluetoothState:
                 return device
         return None
 
+    def device_path(self, address: str) -> str | None:
+        """The object path of a device by address, in any case/separator."""
+        wanted = normalize_address(address)
+        for path, device in self._devices.items():
+            if device.address == wanted:
+                return path
+        return None
+
     def device_at(self, path: str) -> DeviceState | None:
         return self._devices.get(path)
 

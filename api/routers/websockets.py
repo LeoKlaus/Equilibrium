@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from starlette.websockets import WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketDisconnected
 
 from api import logger
 from api.dependencies import LogBroadcasterWsDep, StatusStoreWsDep
@@ -19,17 +19,18 @@ async def websocket_status(websocket: WebSocket, status_store: StatusStoreWsDep)
 
     await manager.connect(websocket)
 
-    status_store.set_callback(manager.broadcast_json)
-
-    await websocket.send_json(status_store.status.model_dump())
-
     try:
+        status_store.set_callback(manager.broadcast_json)
+
+        await websocket.send_json(status_store.status.model_dump())
+
         while True:
             await websocket.receive_text()
             await websocket.send_text("This endpoint should only be used to receive status updates!")
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
+    except (WebSocketDisconnect, WebSocketDisconnected):
         logger.debug("Client disconnected from status websocket")
+    finally:
+        manager.disconnect(websocket)
 
 
 @router.websocket("/keyboard")
@@ -42,13 +43,14 @@ async def websocket_keyboard(websocket: WebSocket):
 async def websocket_logs(websocket: WebSocket, log_broadcaster: LogBroadcasterWsDep):
     await log_broadcaster.manager.connect(websocket)
 
-    for line in log_broadcaster.backlog:
-        await websocket.send_json(line.model_dump())
-
     try:
+        for line in list(log_broadcaster.backlog):
+            await websocket.send_json(line.model_dump())
+
         while True:
             await websocket.receive_text()
             await websocket.send_text("This endpoint should only be used to receive log updates!")
-    except WebSocketDisconnect:
-        log_broadcaster.manager.disconnect(websocket)
+    except (WebSocketDisconnect, WebSocketDisconnected):
         logger.debug("Client disconnected from logs websocket")
+    finally:
+        log_broadcaster.manager.disconnect(websocket)

@@ -293,6 +293,7 @@ def test_assemble_builds_the_pipeline():
     assert hub.command_dispatcher is not None
     assert hub.scene_manager is not None
     assert hub.input_router is not None
+    assert hub.scene_manager._bus is hub.bus
 
 
 def test_assemble_is_idempotent():

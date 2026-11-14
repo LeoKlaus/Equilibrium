@@ -9,9 +9,10 @@ from api.models.scene import Scene, SceneWithRelationships
 from api.models.scene_status import SceneStatus
 from db_manager.db_manager import engine
 from hub.command_dispatcher import CommandDispatcher
-from hub.event_bus import Directive
+from hub.event_bus import Directive, EventBus
 from hub.interfaces import BleKeyboardProtocol
 from hub.keymap_resolver import KeymapResolver
+from hub.scene_events import SceneEvent, scene_event
 from hub.status_store import StatusStore
 
 
@@ -32,6 +33,11 @@ class SceneManager:
     ble_keyboard is optional: pass None to run without BLE (e.g. dev mode)
     and scene-level BLE connect/disconnect becomes a no-op, rather than
     threading an is_dev flag through this class's logic.
+
+    bus is optional too: when given, the scene lifecycle (starting, started,
+    stopping, stopped) is published on it as scene.* events. Switching the
+    tracked scene with set_current_scene() isn't a lifecycle change and
+    publishes nothing.
     """
 
     logger = logging.getLogger(__package__)
@@ -42,11 +48,17 @@ class SceneManager:
         keymap_resolver: KeymapResolver,
         command_dispatcher: CommandDispatcher,
         ble_keyboard: BleKeyboardProtocol | None = None,
+        bus: EventBus | None = None,
     ) -> None:
         self._status_store = status_store
         self._keymap_resolver = keymap_resolver
         self._command_dispatcher = command_dispatcher
         self._ble_keyboard = ble_keyboard
+        self._bus = bus
+
+    async def _publish(self, event_type: SceneEvent, scene_id: int | None, scene_name: str | None) -> None:
+        if self._bus is not None:
+            await self._bus.publish(scene_event(event_type, scene_id, scene_name))
 
     async def start_scene(self, scene_id: int) -> None:
         with Session(engine) as session:
@@ -65,6 +77,7 @@ class SceneManager:
                 await self.stop_current_scene(skip_power_down_for=skip_power_down_for)
 
             await self._status_store.set_scene(SceneWithRelationships.model_validate(scene), SceneStatus.STARTING)
+            await self._publish(SceneEvent.STARTING, scene.id, scene.name)
 
             await self._connect_ble_for_scene(scene)
 
@@ -75,6 +88,7 @@ class SceneManager:
                 self._keymap_resolver.load_key_map(scene.keymap)
 
             await self._status_store.set_scene(SceneWithRelationships.model_validate(scene), SceneStatus.ACTIVE)
+            await self._publish(SceneEvent.STARTED, scene.id, scene.name)
 
             self.logger.info(f"Scene {scene.name} started!")
 
@@ -120,6 +134,7 @@ class SceneManager:
             self._keymap_resolver.load_key_map("default")
 
             await self._status_store.set_scene_status(SceneStatus.STOPPING)
+            await self._publish(SceneEvent.STOPPING, scene.id, scene.name)
 
             if scene.bluetooth_address and self._ble_keyboard is not None:
                 await self._ble_keyboard.disconnect(scene.bluetooth_address)
@@ -139,6 +154,7 @@ class SceneManager:
                         await asyncio.sleep(scene.stop_macro.delays[index] / 1000)
 
             await self._status_store.set_scene(None, None)
+            await self._publish(SceneEvent.STOPPED, scene.id, scene.name)
 
             self.logger.info(f"Scene {scene.name} stopped!")
 

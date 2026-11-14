@@ -174,7 +174,7 @@ class Hub:
         assert ir_manager is None or isinstance(ir_manager, IrManagerProtocol)
 
         self.scene_manager = SceneManager(
-            self.status_store, self.keymap_resolver, self.command_dispatcher, ble_keyboard
+            self.status_store, self.keymap_resolver, self.command_dispatcher, ble_keyboard, self.bus
         )
         self.input_router = InputRouter(
             self.keymap_resolver, self.scene_manager, self.command_dispatcher, ble_keyboard, ir_manager

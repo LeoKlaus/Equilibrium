@@ -1,0 +1,13 @@
+fastapi[standard]~=0.162.7
+sqlmodel~=0.0.50
+uvicorn~=0.54.0
+starlette~=1.10.0
+bluez_peripheral~=0.2.0a5
+zeroconf~=0.154.0
+SQLAlchemy~=2.1.8
+alembic~=1.20.1
+python-multipart~=0.0.33
+httpx2~=2.16.0
+pillow~=13.0.0
+pyrf24~=0.6.0
+homeassistant_api~=6.1.0

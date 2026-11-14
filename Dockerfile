@@ -36,6 +36,10 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm/v6" ]; then \
         rm -rf /var/lib/apt/lists/*; \
     fi
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /install /usr/local
 
 COPY WEB_UI_VERSION .

@@ -13,6 +13,23 @@ services:
       # same network needs a different one. Set via setup_host.sh or
       # by hand in .env.
       - INSTANCE_NAME=${INSTANCE_NAME:-Equilibrium}
+    # Only marked unhealthy when a critical failure is reported.
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - --show-error
+        - --max-time
+        - "5"
+        - --output
+        - /dev/null
+        - http://127.0.0.1:8000/system/health
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     # Host networking so mDNS advertising (zeroconf) works without extra plumbing
     network_mode: host
     # Privileged + /dev mounted in: pyrf24 needs direct SPI/GPIO access

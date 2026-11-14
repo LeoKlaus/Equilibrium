@@ -18,6 +18,7 @@ from api.models.websocket_responses import (
     WebsocketBleSuccessResponse,
 )
 from ble_keyboard.battery_service import BatteryService
+from ble_keyboard.bluez_monitor import BluezMonitor
 from ble_keyboard.device_information_service import DeviceInformationService
 from ble_keyboard.hid_service import HidService
 from ble_keyboard.keymap_helper import create_keycode, create_media_keycode
@@ -59,6 +60,7 @@ class BleKeyboard(ActionExecutor):
         self.device_info_service: DeviceInformationService | None = None
         self.hid_service: HidService | None = None
         self.agent: NoIoAgent | None = None
+        self.monitor: BluezMonitor | None = None
 
         self.pressed_keys: list[list[int]] = []
         self.pressed_media_keys: list[list[int]] = []
@@ -141,7 +143,20 @@ class BleKeyboard(ActionExecutor):
         self = cls()
         self.bus = await get_message_bus()
         await self.register_services()
+        await self._start_monitor()
         return self
+
+    async def _start_monitor(self) -> None:
+        """Starts logging BlueZ's state changes. Purely diagnostic, so a
+        failure here must not keep the keyboard itself from starting."""
+        assert self.bus is not None
+        monitor = BluezMonitor(self.bus)
+        try:
+            await monitor.start()
+        except Exception:
+            self.logger.warning("Couldn't start the Bluetooth state monitor", exc_info=True)
+            return
+        self.monitor = monitor
 
     async def execute(self, directive: Directive, command: Command) -> None:
         if command.bt_action:

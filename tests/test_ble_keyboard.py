@@ -482,3 +482,53 @@ async def test_advertise_can_retry_after_the_agent_registration_failed(fake_blue
     await keyboard.advertise()
 
     assert keyboard.agent is FakeAgent.instances[1]
+
+
+class FakeMonitor:
+    instances: ClassVar[list["FakeMonitor"]] = []
+    fail_start = False
+
+    def __init__(self, bus):
+        self.bus = bus
+        self.started = False
+        FakeMonitor.instances.append(self)
+
+    async def start(self):
+        if FakeMonitor.fail_start:
+            raise RuntimeError("no D-Bus match for you")
+        self.started = True
+
+
+@pytest.fixture
+def fake_create_deps(monkeypatch):
+    bus = object()
+
+    async def get_message_bus():
+        return bus
+
+    async def register_services(self):
+        pass
+
+    FakeMonitor.instances = []
+    FakeMonitor.fail_start = False
+    monkeypatch.setattr("ble_keyboard.ble_keyboard.get_message_bus", get_message_bus)
+    monkeypatch.setattr("ble_keyboard.ble_keyboard.BluezMonitor", FakeMonitor)
+    monkeypatch.setattr(BleKeyboard, "register_services", register_services)
+    return bus
+
+
+async def test_create_starts_the_bluetooth_monitor_on_the_keyboards_bus(fake_create_deps):
+    keyboard = await BleKeyboard.create()
+
+    assert keyboard.monitor is FakeMonitor.instances[0]
+    assert keyboard.monitor.started  # type: ignore[attr-defined]
+    assert FakeMonitor.instances[0].bus is fake_create_deps
+
+
+async def test_create_still_succeeds_when_the_monitor_cannot_start(fake_create_deps, caplog):
+    FakeMonitor.fail_start = True
+
+    keyboard = await BleKeyboard.create()
+
+    assert keyboard.monitor is None
+    assert "Couldn't start the Bluetooth state monitor" in caplog.text

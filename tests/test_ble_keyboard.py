@@ -677,7 +677,11 @@ class FakeMonitor:
         self.bus = bus
         self.state = state
         self.started = False
+        self.stop_calls = 0
         FakeMonitor.instances.append(self)
+
+    async def stop(self):
+        self.stop_calls += 1
 
     async def start(self):
         if FakeMonitor.fail_start:
@@ -709,6 +713,30 @@ async def test_create_starts_the_bluetooth_monitor_on_the_keyboards_bus(fake_cre
     assert keyboard.monitor is FakeMonitor.instances[0]
     assert keyboard.monitor.started  # type: ignore[attr-defined]
     assert FakeMonitor.instances[0].bus is fake_create_deps
+
+
+async def test_stop_stops_the_monitor(fake_create_deps):
+    keyboard = await BleKeyboard.create()
+    monitor = keyboard.monitor
+
+    await keyboard.stop()
+
+    assert monitor.stop_calls == 1  # type: ignore[union-attr]
+    assert keyboard.monitor is None
+
+
+async def test_stop_twice_only_stops_the_monitor_once(fake_create_deps):
+    keyboard = await BleKeyboard.create()
+    monitor = keyboard.monitor
+
+    await keyboard.stop()
+    await keyboard.stop()
+
+    assert monitor.stop_calls == 1  # type: ignore[union-attr]
+
+
+async def test_stop_without_a_monitor_does_nothing():
+    await BleKeyboard().stop()
 
 
 async def test_create_gives_the_monitor_the_keyboards_state(fake_create_deps):

@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import inspect
 import logging
 from functools import partial
 
@@ -243,9 +244,7 @@ class Hub:
             await self.command_dispatcher.shutdown()
 
         for source in self._sources:
-            stop = getattr(source, "stop", None)
-            if stop is not None:
-                stop()
+            await self._stop(source)
 
         tasks = [*self._source_tasks]
         if self._bus_task is not None:
@@ -263,3 +262,18 @@ class Hub:
                 # tasks un-awaited - and this is the first place its
                 # traceback gets logged at all.
                 self.logger.exception("A hub task had crashed before shutdown")
+
+        for executor in self._executors.values():
+            await self._stop(executor)
+
+    async def _stop(self, module: InputSource | ActionExecutor) -> None:
+        """Calls the module's optional stop()."""
+        stop = getattr(module, "stop", None)
+        if stop is None:
+            return
+        try:
+            result = stop()
+            if inspect.isawaitable(result):
+                await result
+        except Exception:
+            self.logger.exception(f"Couldn't stop {module.name}")

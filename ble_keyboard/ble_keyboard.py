@@ -209,6 +209,11 @@ class BleKeyboard(ActionExecutor):
             return
         self.monitor = monitor
 
+    async def stop(self) -> None:
+        if self.monitor is not None:
+            monitor, self.monitor = self.monitor, None
+            await monitor.stop()
+
     async def execute(self, directive: Directive, command: Command) -> None:
         if command.bt_action:
             if directive.press_without_release:

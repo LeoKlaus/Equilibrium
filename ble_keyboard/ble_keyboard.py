@@ -25,7 +25,7 @@ from ble_keyboard.bluetooth_events import (
     device_for_address,
     snapshot_message,
 )
-from ble_keyboard.bluetooth_state import BluetoothState
+from ble_keyboard.bluetooth_state import AvailabilityChanged, BluetoothState, StateChange
 from ble_keyboard.bluez_monitor import BluezMonitor
 from ble_keyboard.device_information_service import DeviceInformationService
 from ble_keyboard.hid_service import HidService
@@ -71,6 +71,8 @@ class BleKeyboard(ActionExecutor):
         self.monitor: BluezMonitor | None = None
         self.state = BluetoothState()
         self.events = BluetoothEventBroadcaster(self.state)
+        self._services_lost = False
+        self.state.add_listener(self._on_state_change)
 
         self.pressed_keys: list[list[int]] = []
         self.pressed_media_keys: list[list[int]] = []
@@ -184,6 +186,17 @@ class BleKeyboard(ActionExecutor):
             await websocket.receive_text()
             await websocket.send_text("This endpoint should only be used to receive Bluetooth updates!")
 
+    def _on_state_change(self, change: StateChange) -> None:
+        if not isinstance(change, AvailabilityChanged) or self.hid_service is None:
+            return
+        if not change.available:
+            self._services_lost = True
+        elif self._services_lost:
+            self.logger.warning(
+                "bluetoothd is back, but the Bluetooth services and the pairing agent were lost with the "
+                "restart and aren't registered again. Restart the hub to restore the virtual keyboard."
+            )
+
     def bluetooth_device(self, address: str) -> BleDevice:
         """The current state of the device with this address (a scene's
         bluetooth_address); disconnected and unpaired if BlueZ doesn't know it."""
@@ -249,6 +262,12 @@ class BleKeyboard(ActionExecutor):
         adapter = self.state.adapter
         if adapter is None:
             return ComponentHealth(name=self.name, status=ComponentStatus.DOWN, detail="No Bluetooth adapter")
+        if self._services_lost:
+            return ComponentHealth(
+                name=self.name,
+                status=ComponentStatus.DEGRADED,
+                detail="bluetoothd restarted and the Bluetooth services were lost, restart the hub",
+            )
         if not adapter.powered:
             return ComponentHealth(
                 name=self.name, status=ComponentStatus.DEGRADED, detail="Bluetooth adapter is powered off"

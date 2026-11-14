@@ -572,6 +572,61 @@ async def test_health_follows_the_state_as_it_changes(no_bluez_queries):
     assert (await keyboard.health()).status == ComponentStatus.OK
 
 
+def _restart_bluetoothd(keyboard: BleKeyboard) -> None:
+    keyboard.state.bluez_lost()
+    keyboard.state.load({ADAPTER_PATH: {"org.bluez.Adapter1": {"Powered": True}}})
+
+
+async def test_health_degraded_after_bluetoothd_restarted_because_the_services_are_lost(no_bluez_queries):
+    keyboard = _monitored_keyboard()
+    keyboard.hid_service = FakeHidService()  # type: ignore[assignment]  # duck-typed test double
+
+    _restart_bluetoothd(keyboard)
+
+    health = await keyboard.health()
+    assert health.status == ComponentStatus.DEGRADED
+    assert health.detail == "bluetoothd restarted and the Bluetooth services were lost, restart the hub"
+
+
+async def test_health_stays_degraded_whatever_the_adapter_does_afterwards(no_bluez_queries):
+    keyboard = _monitored_keyboard()
+    keyboard.hid_service = FakeHidService()  # type: ignore[assignment]  # duck-typed test double
+    _restart_bluetoothd(keyboard)
+
+    keyboard.state.properties_changed(ADAPTER_PATH, "org.bluez.Adapter1", {"Powered": False})
+    keyboard.state.properties_changed(ADAPTER_PATH, "org.bluez.Adapter1", {"Powered": True})
+
+    assert "restart the hub" in (await keyboard.health()).detail  # type: ignore[operator]
+
+
+async def test_health_is_down_while_bluetoothd_is_gone_even_with_the_services_lost(no_bluez_queries):
+    keyboard = _monitored_keyboard()
+    keyboard.hid_service = FakeHidService()  # type: ignore[assignment]  # duck-typed test double
+
+    keyboard.state.bluez_lost()
+
+    assert (await keyboard.health()).detail == "bluetoothd isn't available"
+
+
+async def test_a_restart_before_the_services_were_registered_loses_nothing(no_bluez_queries):
+    keyboard = _monitored_keyboard()
+
+    _restart_bluetoothd(keyboard)
+
+    assert (await keyboard.health()).status == ComponentStatus.OK
+
+
+def test_bluetoothd_coming_back_logs_that_a_restart_is_needed(caplog):
+    keyboard = _keyboard()
+    keyboard.state.load({})
+
+    keyboard.state.bluez_lost()
+    assert "Restart the hub" not in caplog.text
+    keyboard.state.load({})
+
+    assert "Restart the hub to restore the virtual keyboard" in caplog.text
+
+
 async def test_health_down_when_the_bus_connection_was_lost_even_though_the_state_looks_fine(no_bluez_queries):
     keyboard = _monitored_keyboard()
     keyboard.bus = FakeBus(connected=False)

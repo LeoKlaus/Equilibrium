@@ -190,6 +190,7 @@ class Hub:
         ha_url: str | None = None,
         ha_token: str | None = None,
         scripts_dir: str | None = None,
+        ble_auto_pair: bool = True,
         dev: bool = False,
         config_dir: str = "config",
     ) -> "Hub":
@@ -208,7 +209,7 @@ class Hub:
 
         if not dev:
             hub.register_source(RfInput(addresses=rf_addresses or [], config_dir=config_dir))
-            hub.register_executor(await BleKeyboard.create())
+            hub.register_executor(await BleKeyboard.create(auto_pair=ble_auto_pair))
             hub.register_executor(IrManager())
 
         if ha_url is not None and ha_token is not None:

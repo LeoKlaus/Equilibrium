@@ -66,7 +66,8 @@ class BleKeyboard(ActionExecutor):
     # How long after advertise() a new, unpaired connection is paired automatically
     PAIRING_WINDOW = ADVERTISEMENT_TIMEOUT + 10
 
-    def __init__(self) -> None:
+    def __init__(self, auto_pair: bool = True) -> None:
+        self.auto_pair = auto_pair
         self.bus = None
         self.battery_service: BatteryService | None = None
         self.device_info_service: DeviceInformationService | None = None
@@ -213,7 +214,7 @@ class BleKeyboard(ActionExecutor):
         devices that connect right after advertise(), and only then: this is
         what keeps anything else that connects from being paired."""
         device = change.device
-        if device is None or not device.connected or device.paired:
+        if not self.auto_pair or device is None or not device.connected or device.paired:
             return
         if time.monotonic() > self._pairing_window_until:
             return
@@ -251,8 +252,8 @@ class BleKeyboard(ActionExecutor):
         return device_for_address(self.state.device(address), address)
 
     @classmethod
-    async def create(cls):
-        self = cls()
+    async def create(cls, auto_pair: bool = True):
+        self = cls(auto_pair=auto_pair)
         self.bus = await get_message_bus()
         await self.register_services()
         await self._start_monitor()

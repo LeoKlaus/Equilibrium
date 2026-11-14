@@ -829,6 +829,36 @@ async def test_a_device_connecting_after_advertise_is_paired_automatically():
     assert keyboard.requested_paths == [DEVICE_PATH]  # type: ignore[attr-defined]
 
 
+async def test_a_device_connecting_is_left_alone_when_auto_pairing_is_off():
+    interface = FakeDeviceInterface()
+    keyboard = _keyboard_with_unpaired_device(interface)
+    keyboard.auto_pair = False
+
+    _connect(keyboard)
+
+    assert not keyboard._pairing_tasks
+    assert interface.pair_calls == 0
+
+
+async def test_manual_pairing_still_works_when_auto_pairing_is_off():
+    interface = FakeDeviceInterface()
+    keyboard = _keyboard_with_unpaired_device(interface)
+    keyboard.auto_pair = False
+
+    await keyboard._pair_device(DEVICE_PATH, "AA:BB:CC:DD:EE:FF")
+
+    assert interface.pair_calls == 1
+
+
+def test_auto_pairing_is_on_by_default():
+    assert BleKeyboard().auto_pair is True
+
+
+async def test_create_passes_auto_pair_on(fake_create_deps):
+    assert (await BleKeyboard.create(auto_pair=False)).auto_pair is False
+    assert (await BleKeyboard.create()).auto_pair is True
+
+
 async def test_a_device_connecting_outside_the_pairing_window_is_left_alone():
     interface = FakeDeviceInterface()
     keyboard = _keyboard_with_unpaired_device(interface, window_open=False)

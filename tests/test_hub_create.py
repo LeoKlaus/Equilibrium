@@ -24,12 +24,12 @@ class FakeBleKeyboard:
     router = None
     capabilities: ClassVar[list[str]] = []
 
-    def __init__(self):
-        pass
+    def __init__(self, auto_pair: bool = True):
+        self.auto_pair = auto_pair
 
     @classmethod
-    async def create(cls):
-        return cls()
+    async def create(cls, auto_pair: bool = True):
+        return cls(auto_pair=auto_pair)
 
     async def execute(self, directive, command) -> None:
         pass
@@ -121,6 +121,14 @@ async def test_create_registers_hardware_modules_by_default(patched_modules, emp
     assert isinstance(hub.sources[0], FakeRfInput)
     assert "bluetooth" in hub.executors
     assert "ir" in hub.executors
+
+
+async def test_create_passes_ble_auto_pair_to_the_keyboard(patched_modules, empty_config_dir):
+    default = await Hub.create(config_dir=empty_config_dir)
+    disabled = await Hub.create(ble_auto_pair=False, config_dir=empty_config_dir)
+
+    assert default.executors["bluetooth"].auto_pair is True  # type: ignore[attr-defined]
+    assert disabled.executors["bluetooth"].auto_pair is False  # type: ignore[attr-defined]
 
 
 async def test_create_dev_skips_hardware_modules(patched_modules, empty_config_dir):

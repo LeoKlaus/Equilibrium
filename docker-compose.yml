@@ -13,6 +13,12 @@ services:
       # same network needs a different one. Set via setup_host.sh or
       # by hand in .env.
       - INSTANCE_NAME=${INSTANCE_NAME:-Equilibrium}
+      # Pair by itself with hosts connecting via Bluetooth.
+      # This automates pairing with Apple TVs, but might
+      # interfere with other devices (it didn't in my testing).
+      # Set to false to pair manually via
+      # POST /bluetooth/start_pairing instead.
+      - BLUETOOTH_AUTO_PAIR=${BLUETOOTH_AUTO_PAIR:-true}
     # Only marked unhealthy when a critical failure is reported.
     healthcheck:
       test:

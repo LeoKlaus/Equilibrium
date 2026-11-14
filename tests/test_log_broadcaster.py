@@ -84,3 +84,28 @@ async def test_emit_does_not_raise_when_the_loop_is_already_closed():
     broadcaster.emit(_make_record("after loop closed"))  # must not raise
 
     assert broadcaster.backlog[-1].message == "after loop closed"
+
+
+async def test_a_dead_client_does_not_make_the_broadcaster_log_forever(caplog):
+    """A send failing on a closed socket used to be logged as an error, which
+    was broadcast to the same dead socket, which failed and was logged again:
+    a loop that kept the hub at full CPU and filled the disk."""
+
+    class DeadConnection:
+        async def send_json(self, message):
+            raise RuntimeError('Cannot call "send" once a close message has been sent.')
+
+    broadcaster = LogBroadcaster(asyncio.get_running_loop())
+    broadcaster.manager.active_connections.append(DeadConnection())  # type: ignore[arg-type]  # duck-typed test double
+    root = logging.getLogger()
+    root.addHandler(broadcaster)
+    try:
+        with caplog.at_level(logging.DEBUG, logger="api"):
+            logging.getLogger("some.module").warning("the one log line")
+            for _ in range(20):
+                await asyncio.sleep(0)
+    finally:
+        root.removeHandler(broadcaster)
+
+    assert broadcaster.manager.active_connections == []
+    assert len(broadcaster.backlog) <= 3  # the line itself and the note about dropping the connection

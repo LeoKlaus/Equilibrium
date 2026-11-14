@@ -36,6 +36,13 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    # Docker keeps container logs forever by default, which can fill the
+    # SD card (especially at LOG_LEVEL=DEBUG). Keep the last ~30 MB.
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     # Host networking so mDNS advertising (zeroconf) works without extra plumbing
     network_mode: host
     # Privileged + /dev mounted in: pyrf24 needs direct SPI/GPIO access

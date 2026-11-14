@@ -3,6 +3,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocket, WebSocketDisconnected
 
 from api.dependencies import get_log_broadcaster_ws, get_status_store_ws
 from api.log_broadcaster import LogBroadcaster
@@ -141,3 +142,57 @@ def test_logs_removes_the_connection_once_it_disconnects():
 
     assert during == before + 1
     assert after == before
+
+
+def _patch_send_json(monkeypatch, before_send):
+    """Runs `before_send(call_number)` before every send_json of every websocket."""
+    original = WebSocket.send_json
+    calls = {"count": 0}
+
+    async def send_json(self, data, mode="text"):
+        calls["count"] += 1
+        before_send(calls["count"])
+        await original(self, data, mode)
+
+    monkeypatch.setattr(WebSocket, "send_json", send_json)
+
+
+async def test_logs_replays_the_whole_backlog_even_when_sending_logs_something(monkeypatch):
+    # With DEBUG logging every send is itself logged, so the backlog grows while it is replayed
+    broadcaster = LogBroadcaster(asyncio.get_running_loop())
+    for index in range(5):
+        broadcaster.backlog.append(_line(f"line {index}"))
+    _patch_send_json(monkeypatch, lambda call: broadcaster.backlog.append(_line("logged by the send")))
+    client = _client_for_logs(broadcaster)
+
+    with client.websocket_connect("/ws/logs") as websocket:
+        messages = [websocket.receive_json()["message"] for _ in range(5)]
+
+    assert messages == [f"line {index}" for index in range(5)]
+
+
+def _raise_disconnected(call):
+    raise WebSocketDisconnected("Cannot call \"send\" once a close message has been sent.")
+
+
+async def test_logs_removes_the_connection_when_replaying_fails(monkeypatch):
+    broadcaster = LogBroadcaster(asyncio.get_running_loop())
+    broadcaster.backlog.append(_line("a line"))
+    _patch_send_json(monkeypatch, _raise_disconnected)
+    client = _client_for_logs(broadcaster)
+
+    with client.websocket_connect("/ws/logs"):
+        pass
+
+    assert broadcaster.manager.active_connections == []
+
+
+async def test_status_removes_the_connection_when_the_first_send_fails(monkeypatch):
+    before = len(websockets.manager.active_connections)
+    _patch_send_json(monkeypatch, _raise_disconnected)
+    client = _client_for(StatusStore())
+
+    with client.websocket_connect("/ws/status"):
+        pass
+
+    assert len(websockets.manager.active_connections) == before

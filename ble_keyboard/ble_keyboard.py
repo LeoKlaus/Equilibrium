@@ -18,6 +18,8 @@ from api.models.websocket_responses import (
     WebsocketBleSuccessResponse,
 )
 from ble_keyboard.battery_service import BatteryService
+from ble_keyboard.bluetooth_events import BluetoothEventBroadcaster, Subscription, change_message, snapshot_message
+from ble_keyboard.bluetooth_state import BluetoothState
 from ble_keyboard.bluez_monitor import BluezMonitor
 from ble_keyboard.device_information_service import DeviceInformationService
 from ble_keyboard.hid_service import HidService
@@ -61,6 +63,8 @@ class BleKeyboard(ActionExecutor):
         self.hid_service: HidService | None = None
         self.agent: NoIoAgent | None = None
         self.monitor: BluezMonitor | None = None
+        self.state = BluetoothState()
+        self.events = BluetoothEventBroadcaster(self.state)
 
         self.pressed_keys: list[list[int]] = []
         self.pressed_media_keys: list[list[int]] = []
@@ -138,6 +142,42 @@ class BleKeyboard(ActionExecutor):
             except WebSocketDisconnect:
                 self.logger.debug("Client disconnected from bt_pairing websocket")
 
+        # The state of the adapter and devices: a snapshot on connect, then every change
+        @router.websocket("/ws/bluetooth")
+        async def websocket_bluetooth(websocket: WebSocket):
+            await websocket.accept()
+
+            with self.events.subscribe() as subscription:
+                await websocket.send_json(snapshot_message(self.state.snapshot).model_dump())
+
+                sender = asyncio.create_task(self._send_changes(websocket, subscription))
+                receiver = asyncio.create_task(self._reject_inbound(websocket))
+                try:
+                    done, _ = await asyncio.wait({sender, receiver}, return_when=asyncio.FIRST_COMPLETED)
+                    for task in done:
+                        task.result()
+                except WebSocketDisconnect:
+                    self.logger.debug("Client disconnected from bluetooth websocket")
+                finally:
+                    sender.cancel()
+                    receiver.cancel()
+
+    @staticmethod
+    async def _send_changes(websocket: WebSocket, subscription: Subscription) -> None:
+        while True:
+            change = await subscription.queue.get()
+            if change is None:
+                # Too far behind; reconnecting gets a fresh snapshot
+                await websocket.close(code=1013)
+                return
+            await websocket.send_json(change_message(change).model_dump())
+
+    @staticmethod
+    async def _reject_inbound(websocket: WebSocket) -> None:
+        while True:
+            await websocket.receive_text()
+            await websocket.send_text("This endpoint should only be used to receive Bluetooth updates!")
+
     @classmethod
     async def create(cls):
         self = cls()
@@ -150,7 +190,7 @@ class BleKeyboard(ActionExecutor):
         """Starts logging BlueZ's state changes. Purely diagnostic, so a
         failure here must not keep the keyboard itself from starting."""
         assert self.bus is not None
-        monitor = BluezMonitor(self.bus)
+        monitor = BluezMonitor(self.bus, self.state)
         try:
             await monitor.start()
         except Exception:

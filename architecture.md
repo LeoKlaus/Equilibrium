@@ -234,6 +234,9 @@ alone:
 - `api/routers/commands.py`, `api/routers/macros.py` → `CommandDispatcher`
 - `api/routers/bluetooth.py` and the `/ws/bt_pairing` websocket → `BleKeyboard`
   directly (its pairing methods were pure passthroughs; no wrapper needed)
+- `/ws/bluetooth` → `BleKeyboard`'s own router: a snapshot of the cached
+  `BluetoothState` on connect, then every change (`BluetoothEventBroadcaster`
+  queues them per client, as the state notifies from inside the D-Bus reader)
 - `/ws/commands` (IR recording) → moves into `IrManager`'s own router,
   removed from `api/routers/websockets.py`
 - `/ws/status` → `StatusStore` (registers `manager.broadcast_json` as its

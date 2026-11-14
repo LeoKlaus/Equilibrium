@@ -1,8 +1,10 @@
+import asyncio
 from typing import Any, ClassVar
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from api.models.command import Command
 from api.models.command_group_type import CommandGroupType
@@ -10,6 +12,7 @@ from api.models.command_type import CommandType
 from api.models.health import ComponentStatus
 from api.models.remote_button import RemoteButton
 from ble_keyboard.ble_keyboard import BleKeyboard
+from ble_keyboard.bluetooth_events import MAX_QUEUED_CHANGES
 from hub.event_bus import Directive
 
 
@@ -166,6 +169,7 @@ def test_router_has_the_expected_routes():
         "/bluetooth/connect/{mac_address}",
         "/bluetooth/disconnect",
         "/ws/bt_pairing",
+        "/ws/bluetooth",
     }
 
 
@@ -322,6 +326,104 @@ def test_ws_bt_pairing_disconnect():
 
 
 # --- health() ----------------------------------------------------------------
+
+ADAPTER_PATH = "/org/bluez/hci0"
+DEVICE_PATH = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
+
+
+def _load_bluez(keyboard: BleKeyboard) -> None:
+    keyboard.state.load(
+        {
+            ADAPTER_PATH: {"org.bluez.Adapter1": {"Powered": True}},
+            DEVICE_PATH: {"org.bluez.Device1": {"Alias": "Apple TV", "Connected": False, "Paired": True}},
+        }
+    )
+
+
+def test_ws_bluetooth_sends_the_snapshot_on_connect():
+    keyboard = _keyboard()
+    _load_bluez(keyboard)
+
+    with _client_for(keyboard) as client, client.websocket_connect("/ws/bluetooth") as websocket:
+        message = websocket.receive_json()
+
+    assert message["type"] == "snapshot"
+    assert message["bluez_available"] is True
+    assert message["adapter"]["powered"] is True
+    assert message["devices"] == [{"name": "Apple TV", "address": "AA:BB:CC:DD:EE:FF", "connected": False, "paired": True}]
+
+
+def test_ws_bluetooth_snapshot_without_bluez():
+    with _client_for(_keyboard()) as client, client.websocket_connect("/ws/bluetooth") as websocket:
+        message = websocket.receive_json()
+
+    assert message == {"type": "snapshot", "bluez_available": False, "adapter": None, "devices": []}
+
+
+def test_ws_bluetooth_sends_changes_after_the_snapshot():
+    keyboard = _keyboard()
+    _load_bluez(keyboard)
+
+    with _client_for(keyboard) as client, client.websocket_connect("/ws/bluetooth") as websocket:
+        websocket.receive_json()  # snapshot
+
+        client.portal.call(  # type: ignore[union-attr]
+            lambda: keyboard.state.properties_changed(DEVICE_PATH, "org.bluez.Device1", {"Connected": True})
+        )
+        device_message = websocket.receive_json()
+        client.portal.call(keyboard.state.bluez_lost)  # type: ignore[union-attr]
+        messages = [websocket.receive_json() for _ in range(3)]
+
+    assert device_message == {
+        "type": "device",
+        "address": "AA:BB:CC:DD:EE:FF",
+        "device": {"name": "Apple TV", "address": "AA:BB:CC:DD:EE:FF", "connected": True, "paired": True},
+    }
+    assert [message["type"] for message in messages] == ["device", "adapter", "availability"]
+    assert messages[-1]["available"] is False
+
+
+def test_ws_bluetooth_rejects_inbound_text():
+    with _client_for(_keyboard()) as client, client.websocket_connect("/ws/bluetooth") as websocket:
+        websocket.receive_json()
+
+        websocket.send_text("hello")
+
+        assert websocket.receive_text() == "This endpoint should only be used to receive Bluetooth updates!"
+
+
+def test_ws_bluetooth_unsubscribes_when_the_client_disconnects():
+    keyboard = _keyboard()
+
+    with _client_for(keyboard) as client:
+        with client.websocket_connect("/ws/bluetooth") as websocket:
+            websocket.receive_json()
+            assert len(keyboard.events._subscriptions) == 1
+
+        client.portal.call(asyncio.sleep, 0.05)  # type: ignore[union-attr]
+
+        assert len(keyboard.events._subscriptions) == 0
+
+
+def test_ws_bluetooth_closes_a_client_that_fell_behind():
+    keyboard = _keyboard()
+    _load_bluez(keyboard)
+
+    with _client_for(keyboard) as client, client.websocket_connect("/ws/bluetooth") as websocket:
+        websocket.receive_json()
+
+        def flood() -> None:
+            for index in range(MAX_QUEUED_CHANGES + 1):
+                keyboard.state.properties_changed(ADAPTER_PATH, "org.bluez.Adapter1", {"Powered": bool(index % 2)})
+
+        client.portal.call(flood)  # type: ignore[union-attr]
+
+        with pytest.raises(WebSocketDisconnect) as closed:
+            while True:
+                websocket.receive_json()
+
+    assert closed.value.code == 1013
+
 
 class FakeBus:
     def __init__(self, connected: bool = True):
@@ -488,8 +590,9 @@ class FakeMonitor:
     instances: ClassVar[list["FakeMonitor"]] = []
     fail_start = False
 
-    def __init__(self, bus):
+    def __init__(self, bus, state=None):
         self.bus = bus
+        self.state = state
         self.started = False
         FakeMonitor.instances.append(self)
 
@@ -523,6 +626,12 @@ async def test_create_starts_the_bluetooth_monitor_on_the_keyboards_bus(fake_cre
     assert keyboard.monitor is FakeMonitor.instances[0]
     assert keyboard.monitor.started  # type: ignore[attr-defined]
     assert FakeMonitor.instances[0].bus is fake_create_deps
+
+
+async def test_create_gives_the_monitor_the_keyboards_state(fake_create_deps):
+    keyboard = await BleKeyboard.create()
+
+    assert FakeMonitor.instances[0].state is keyboard.state
 
 
 async def test_create_still_succeeds_when_the_monitor_cannot_start(fake_create_deps, caplog):

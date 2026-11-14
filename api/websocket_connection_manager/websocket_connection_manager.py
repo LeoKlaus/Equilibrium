@@ -4,6 +4,8 @@ from typing import Any
 from sqlmodel import SQLModel
 from starlette.websockets import WebSocket
 
+from api import logger
+
 AsyncJsonCallback = Callable[[Any], Awaitable[None]]
 
 class WebsocketConnectionManager:
@@ -15,8 +17,14 @@ class WebsocketConnectionManager:
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
 
     async def broadcast_json(self, message: SQLModel):
-        for connection in self.active_connections:
-            await connection.send_json(message.model_dump())
+        payload = message.model_dump()
+        for connection in list(self.active_connections):
+            try:
+                await connection.send_json(payload)
+            except Exception as error:
+                self.disconnect(connection)
+                logger.debug(f"Dropped a websocket connection that couldn't be reached: {type(error).__name__}")

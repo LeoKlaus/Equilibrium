@@ -511,6 +511,74 @@ async def test_health_ok_with_a_powered_adapter(monkeypatch):
     assert (await keyboard.health()).status == ComponentStatus.OK
 
 
+def _monitored_keyboard(adapter_powered: bool | None = True) -> BleKeyboard:
+    keyboard = BleKeyboard()
+    keyboard.bus = FakeBus()  # type: ignore[assignment]  # duck-typed test double
+    keyboard.monitor = FakeMonitor(keyboard.bus)  # type: ignore[assignment]  # duck-typed test double
+    managed_objects: dict = {}
+    if adapter_powered is not None:
+        managed_objects[ADAPTER_PATH] = {"org.bluez.Adapter1": {"Powered": adapter_powered}}
+    keyboard.state.load(managed_objects)
+    return keyboard
+
+
+@pytest.fixture
+def no_bluez_queries(monkeypatch):
+    class FailingAdapter:
+        @staticmethod
+        async def get_first(bus):
+            raise AssertionError("health should come from the cached state")
+
+    monkeypatch.setattr("ble_keyboard.ble_keyboard.Adapter", FailingAdapter)
+
+
+async def test_health_ok_from_the_state_with_a_powered_adapter(no_bluez_queries):
+    health = await _monitored_keyboard(adapter_powered=True).health()
+
+    assert health.status == ComponentStatus.OK
+
+
+async def test_health_degraded_from_the_state_when_the_adapter_is_powered_off(no_bluez_queries):
+    health = await _monitored_keyboard(adapter_powered=False).health()
+
+    assert health.status == ComponentStatus.DEGRADED
+    assert health.detail == "Bluetooth adapter is powered off"
+
+
+async def test_health_down_from_the_state_when_there_is_no_adapter(no_bluez_queries):
+    health = await _monitored_keyboard(adapter_powered=None).health()
+
+    assert health.status == ComponentStatus.DOWN
+    assert health.detail == "No Bluetooth adapter"
+
+
+async def test_health_down_from_the_state_when_bluetoothd_is_gone(no_bluez_queries):
+    keyboard = _monitored_keyboard()
+    keyboard.state.bluez_lost()
+
+    health = await keyboard.health()
+
+    assert health.status == ComponentStatus.DOWN
+    assert health.detail == "bluetoothd isn't available"
+
+
+async def test_health_follows_the_state_as_it_changes(no_bluez_queries):
+    keyboard = _monitored_keyboard(adapter_powered=True)
+
+    keyboard.state.properties_changed(ADAPTER_PATH, "org.bluez.Adapter1", {"Powered": False})
+    assert (await keyboard.health()).status == ComponentStatus.DEGRADED
+
+    keyboard.state.properties_changed(ADAPTER_PATH, "org.bluez.Adapter1", {"Powered": True})
+    assert (await keyboard.health()).status == ComponentStatus.OK
+
+
+async def test_health_down_when_the_bus_connection_was_lost_even_though_the_state_looks_fine(no_bluez_queries):
+    keyboard = _monitored_keyboard()
+    keyboard.bus = FakeBus(connected=False)
+
+    assert (await keyboard.health()).status == ComponentStatus.DOWN
+
+
 async def test_health_never_touches_devices_because_listing_them_triggers_pairing(monkeypatch):
     monkeypatch.setattr("ble_keyboard.ble_keyboard.Adapter", _fake_adapter_class())
     monkeypatch.setattr(

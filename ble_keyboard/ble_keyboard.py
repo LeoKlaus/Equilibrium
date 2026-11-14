@@ -227,11 +227,30 @@ class BleKeyboard(ActionExecutor):
 
     async def health(self) -> ComponentHealth:
         """Whether the D-Bus connection is alive and a Bluetooth adapter is
-        present and powered."""
+        present and powered, from the monitor's cached state."""
         if self.bus is None or not self.bus.connected:
             return ComponentHealth(
                 name=self.name, status=ComponentStatus.DOWN, detail="Not connected to the system D-Bus"
             )
+        if self.monitor is None:
+            return await self._probe_health()
+        return self._cached_health()
+
+    def _cached_health(self) -> ComponentHealth:
+        if not self.state.bluez_available:
+            return ComponentHealth(
+                name=self.name, status=ComponentStatus.DOWN, detail="bluetoothd isn't available"
+            )
+        adapter = self.state.adapter
+        if adapter is None:
+            return ComponentHealth(name=self.name, status=ComponentStatus.DOWN, detail="No Bluetooth adapter")
+        if not adapter.powered:
+            return ComponentHealth(
+                name=self.name, status=ComponentStatus.DEGRADED, detail="Bluetooth adapter is powered off"
+            )
+        return ComponentHealth(name=self.name, status=ComponentStatus.OK)
+
+    async def _probe_health(self) -> ComponentHealth:
         try:
             adapter = await Adapter.get_first(self.bus)
             powered = await adapter.get_powered()

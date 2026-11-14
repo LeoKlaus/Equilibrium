@@ -1,8 +1,11 @@
+import asyncio
+import time
 from typing import Any, ClassVar
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from api.models.command import Command
 from api.models.command_group_type import CommandGroupType
@@ -10,6 +13,7 @@ from api.models.command_type import CommandType
 from api.models.health import ComponentStatus
 from api.models.remote_button import RemoteButton
 from ble_keyboard.ble_keyboard import BleKeyboard
+from ble_keyboard.bluetooth_events import MAX_QUEUED_CHANGES
 from hub.event_bus import Directive
 
 
@@ -166,6 +170,7 @@ def test_router_has_the_expected_routes():
         "/bluetooth/connect/{mac_address}",
         "/bluetooth/disconnect",
         "/ws/bt_pairing",
+        "/ws/bluetooth",
     }
 
 
@@ -323,6 +328,119 @@ def test_ws_bt_pairing_disconnect():
 
 # --- health() ----------------------------------------------------------------
 
+ADAPTER_PATH = "/org/bluez/hci0"
+DEVICE_PATH = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF"
+
+
+def _load_bluez(keyboard: BleKeyboard) -> None:
+    keyboard.state.load(
+        {
+            ADAPTER_PATH: {"org.bluez.Adapter1": {"Powered": True}},
+            DEVICE_PATH: {"org.bluez.Device1": {"Alias": "Apple TV", "Connected": False, "Paired": True}},
+        }
+    )
+
+
+def test_bluetooth_device_describes_a_known_device_by_any_spelling_of_its_address():
+    keyboard = _keyboard()
+    _load_bluez(keyboard)
+
+    device = keyboard.bluetooth_device("aa-bb-cc-dd-ee-ff")
+
+    assert device.model_dump() == {"name": "Apple TV", "address": "AA:BB:CC:DD:EE:FF", "connected": False, "paired": True}
+
+
+def test_bluetooth_device_reports_an_unknown_device_as_disconnected():
+    device = _keyboard().bluetooth_device("11:22:33:44:55:66")
+
+    assert device.model_dump() == {"name": "", "address": "11:22:33:44:55:66", "connected": False, "paired": False}
+
+
+def test_ws_bluetooth_sends_the_snapshot_on_connect():
+    keyboard = _keyboard()
+    _load_bluez(keyboard)
+
+    with _client_for(keyboard) as client, client.websocket_connect("/ws/bluetooth") as websocket:
+        message = websocket.receive_json()
+
+    assert message["type"] == "snapshot"
+    assert message["bluez_available"] is True
+    assert message["adapter"]["powered"] is True
+    assert message["devices"] == [{"name": "Apple TV", "address": "AA:BB:CC:DD:EE:FF", "connected": False, "paired": True}]
+
+
+def test_ws_bluetooth_snapshot_without_bluez():
+    with _client_for(_keyboard()) as client, client.websocket_connect("/ws/bluetooth") as websocket:
+        message = websocket.receive_json()
+
+    assert message == {"type": "snapshot", "bluez_available": False, "adapter": None, "devices": []}
+
+
+def test_ws_bluetooth_sends_changes_after_the_snapshot():
+    keyboard = _keyboard()
+    _load_bluez(keyboard)
+
+    with _client_for(keyboard) as client, client.websocket_connect("/ws/bluetooth") as websocket:
+        websocket.receive_json()  # snapshot
+
+        client.portal.call(  # type: ignore[union-attr]
+            lambda: keyboard.state.properties_changed(DEVICE_PATH, "org.bluez.Device1", {"Connected": True})
+        )
+        device_message = websocket.receive_json()
+        client.portal.call(keyboard.state.bluez_lost)  # type: ignore[union-attr]
+        messages = [websocket.receive_json() for _ in range(3)]
+
+    assert device_message == {
+        "type": "device",
+        "address": "AA:BB:CC:DD:EE:FF",
+        "device": {"name": "Apple TV", "address": "AA:BB:CC:DD:EE:FF", "connected": True, "paired": True},
+    }
+    assert [message["type"] for message in messages] == ["device", "adapter", "availability"]
+    assert messages[-1]["available"] is False
+
+
+def test_ws_bluetooth_rejects_inbound_text():
+    with _client_for(_keyboard()) as client, client.websocket_connect("/ws/bluetooth") as websocket:
+        websocket.receive_json()
+
+        websocket.send_text("hello")
+
+        assert websocket.receive_text() == "This endpoint should only be used to receive Bluetooth updates!"
+
+
+def test_ws_bluetooth_unsubscribes_when_the_client_disconnects():
+    keyboard = _keyboard()
+
+    with _client_for(keyboard) as client:
+        with client.websocket_connect("/ws/bluetooth") as websocket:
+            websocket.receive_json()
+            assert len(keyboard.events._subscriptions) == 1
+
+        client.portal.call(asyncio.sleep, 0.05)  # type: ignore[union-attr]
+
+        assert len(keyboard.events._subscriptions) == 0
+
+
+def test_ws_bluetooth_closes_a_client_that_fell_behind():
+    keyboard = _keyboard()
+    _load_bluez(keyboard)
+
+    with _client_for(keyboard) as client, client.websocket_connect("/ws/bluetooth") as websocket:
+        websocket.receive_json()
+
+        def flood() -> None:
+            for index in range(MAX_QUEUED_CHANGES + 1):
+                keyboard.state.properties_changed(ADAPTER_PATH, "org.bluez.Adapter1", {"Powered": bool(index % 2)})
+
+        client.portal.call(flood)  # type: ignore[union-attr]
+
+        with pytest.raises(WebSocketDisconnect) as closed:
+            while True:
+                websocket.receive_json()
+
+    assert closed.value.code == 1013
+
+
 class FakeBus:
     def __init__(self, connected: bool = True):
         self.connected = connected
@@ -392,6 +510,129 @@ async def test_health_ok_with_a_powered_adapter(monkeypatch):
     keyboard.bus = FakeBus()
 
     assert (await keyboard.health()).status == ComponentStatus.OK
+
+
+def _monitored_keyboard(adapter_powered: bool | None = True) -> BleKeyboard:
+    keyboard = BleKeyboard()
+    keyboard.bus = FakeBus()  # type: ignore[assignment]  # duck-typed test double
+    keyboard.monitor = FakeMonitor(keyboard.bus)  # type: ignore[assignment]  # duck-typed test double
+    managed_objects: dict = {}
+    if adapter_powered is not None:
+        managed_objects[ADAPTER_PATH] = {"org.bluez.Adapter1": {"Powered": adapter_powered}}
+    keyboard.state.load(managed_objects)
+    return keyboard
+
+
+@pytest.fixture
+def no_bluez_queries(monkeypatch):
+    class FailingAdapter:
+        @staticmethod
+        async def get_first(bus):
+            raise AssertionError("health should come from the cached state")
+
+    monkeypatch.setattr("ble_keyboard.ble_keyboard.Adapter", FailingAdapter)
+
+
+async def test_health_ok_from_the_state_with_a_powered_adapter(no_bluez_queries):
+    health = await _monitored_keyboard(adapter_powered=True).health()
+
+    assert health.status == ComponentStatus.OK
+
+
+async def test_health_degraded_from_the_state_when_the_adapter_is_powered_off(no_bluez_queries):
+    health = await _monitored_keyboard(adapter_powered=False).health()
+
+    assert health.status == ComponentStatus.DEGRADED
+    assert health.detail == "Bluetooth adapter is powered off"
+
+
+async def test_health_down_from_the_state_when_there_is_no_adapter(no_bluez_queries):
+    health = await _monitored_keyboard(adapter_powered=None).health()
+
+    assert health.status == ComponentStatus.DOWN
+    assert health.detail == "No Bluetooth adapter"
+
+
+async def test_health_down_from_the_state_when_bluetoothd_is_gone(no_bluez_queries):
+    keyboard = _monitored_keyboard()
+    keyboard.state.bluez_lost()
+
+    health = await keyboard.health()
+
+    assert health.status == ComponentStatus.DOWN
+    assert health.detail == "bluetoothd isn't available"
+
+
+async def test_health_follows_the_state_as_it_changes(no_bluez_queries):
+    keyboard = _monitored_keyboard(adapter_powered=True)
+
+    keyboard.state.properties_changed(ADAPTER_PATH, "org.bluez.Adapter1", {"Powered": False})
+    assert (await keyboard.health()).status == ComponentStatus.DEGRADED
+
+    keyboard.state.properties_changed(ADAPTER_PATH, "org.bluez.Adapter1", {"Powered": True})
+    assert (await keyboard.health()).status == ComponentStatus.OK
+
+
+def _restart_bluetoothd(keyboard: BleKeyboard) -> None:
+    keyboard.state.bluez_lost()
+    keyboard.state.load({ADAPTER_PATH: {"org.bluez.Adapter1": {"Powered": True}}})
+
+
+async def test_health_degraded_after_bluetoothd_restarted_because_the_services_are_lost(no_bluez_queries):
+    keyboard = _monitored_keyboard()
+    keyboard.hid_service = FakeHidService()  # type: ignore[assignment]  # duck-typed test double
+
+    _restart_bluetoothd(keyboard)
+
+    health = await keyboard.health()
+    assert health.status == ComponentStatus.DEGRADED
+    assert health.detail == "bluetoothd restarted and the Bluetooth services were lost, restart the hub"
+
+
+async def test_health_stays_degraded_whatever_the_adapter_does_afterwards(no_bluez_queries):
+    keyboard = _monitored_keyboard()
+    keyboard.hid_service = FakeHidService()  # type: ignore[assignment]  # duck-typed test double
+    _restart_bluetoothd(keyboard)
+
+    keyboard.state.properties_changed(ADAPTER_PATH, "org.bluez.Adapter1", {"Powered": False})
+    keyboard.state.properties_changed(ADAPTER_PATH, "org.bluez.Adapter1", {"Powered": True})
+
+    assert "restart the hub" in (await keyboard.health()).detail  # type: ignore[operator]
+
+
+async def test_health_is_down_while_bluetoothd_is_gone_even_with_the_services_lost(no_bluez_queries):
+    keyboard = _monitored_keyboard()
+    keyboard.hid_service = FakeHidService()  # type: ignore[assignment]  # duck-typed test double
+
+    keyboard.state.bluez_lost()
+
+    assert (await keyboard.health()).detail == "bluetoothd isn't available"
+
+
+async def test_a_restart_before_the_services_were_registered_loses_nothing(no_bluez_queries):
+    keyboard = _monitored_keyboard()
+
+    _restart_bluetoothd(keyboard)
+
+    assert (await keyboard.health()).status == ComponentStatus.OK
+
+
+def test_bluetoothd_coming_back_logs_that_a_restart_is_needed(caplog):
+    keyboard = _keyboard()
+    keyboard.state.load({})
+
+    keyboard.state.bluez_lost()
+    assert "Restart the hub" not in caplog.text
+    keyboard.state.load({})
+
+    assert "Restart the hub to restore the virtual keyboard" in caplog.text
+
+
+async def test_health_down_when_the_bus_connection_was_lost_even_though_the_state_looks_fine(no_bluez_queries):
+    keyboard = _monitored_keyboard()
+    keyboard.bus = FakeBus(connected=False)
+
+    assert (await keyboard.health()).status == ComponentStatus.DOWN
 
 
 async def test_health_never_touches_devices_because_listing_them_triggers_pairing(monkeypatch):
@@ -482,3 +723,282 @@ async def test_advertise_can_retry_after_the_agent_registration_failed(fake_blue
     await keyboard.advertise()
 
     assert keyboard.agent is FakeAgent.instances[1]
+
+
+class FakeMonitor:
+    instances: ClassVar[list["FakeMonitor"]] = []
+    fail_start = False
+
+    def __init__(self, bus, state=None):
+        self.bus = bus
+        self.state = state
+        self.started = False
+        self.stop_calls = 0
+        FakeMonitor.instances.append(self)
+
+    async def stop(self):
+        self.stop_calls += 1
+
+    async def start(self):
+        if FakeMonitor.fail_start:
+            raise RuntimeError("no D-Bus match for you")
+        self.started = True
+
+
+@pytest.fixture
+def fake_create_deps(monkeypatch):
+    bus = object()
+
+    async def get_message_bus():
+        return bus
+
+    async def register_services(self):
+        pass
+
+    FakeMonitor.instances = []
+    FakeMonitor.fail_start = False
+    monkeypatch.setattr("ble_keyboard.ble_keyboard.get_message_bus", get_message_bus)
+    monkeypatch.setattr("ble_keyboard.ble_keyboard.BluezMonitor", FakeMonitor)
+    monkeypatch.setattr(BleKeyboard, "register_services", register_services)
+    return bus
+
+
+async def test_create_starts_the_bluetooth_monitor_on_the_keyboards_bus(fake_create_deps):
+    keyboard = await BleKeyboard.create()
+
+    assert keyboard.monitor is FakeMonitor.instances[0]
+    assert keyboard.monitor.started  # type: ignore[attr-defined]
+    assert FakeMonitor.instances[0].bus is fake_create_deps
+
+
+class FakeDeviceInterface:
+    """Stands in for a device's org.bluez.Device1, as returned by _get_device_interface."""
+
+    def __init__(self, error: Exception | None = None, gate: asyncio.Event | None = None):
+        self.pair_calls = 0
+        self._error = error
+        self._gate = gate
+
+    async def call_pair(self):
+        self.pair_calls += 1
+        if self._gate is not None:
+            await self._gate.wait()
+        if self._error is not None:
+            raise self._error
+
+
+def _keyboard_with_unpaired_device(interface: FakeDeviceInterface, paired: bool = False, window_open: bool = True):
+    """A keyboard that knows an unpaired, disconnected device, and whose
+    pairing window is open (as it is just after advertise())."""
+    keyboard = _keyboard()
+    keyboard.state.load(
+        {
+            ADAPTER_PATH: {"org.bluez.Adapter1": {"Powered": True}},
+            DEVICE_PATH: {"org.bluez.Device1": {"Alias": "Apple TV", "Connected": False, "Paired": paired}},
+        }
+    )
+    requested_paths: list[str] = []
+
+    async def get_device_interface(path):
+        requested_paths.append(path)
+        return interface
+
+    keyboard._get_device_interface = get_device_interface  # type: ignore[method-assign]
+    keyboard.requested_paths = requested_paths  # type: ignore[attr-defined]
+    if window_open:
+        keyboard._pairing_window_until = time.monotonic() + 60
+    return keyboard
+
+
+def _connect(keyboard: BleKeyboard) -> None:
+    keyboard.state.properties_changed(DEVICE_PATH, "org.bluez.Device1", {"Connected": True})
+
+
+async def _settle(keyboard: BleKeyboard) -> None:
+    await asyncio.gather(*keyboard._pairing_tasks)
+
+
+async def test_a_device_connecting_after_advertise_is_paired_automatically():
+    interface = FakeDeviceInterface()
+    keyboard = _keyboard_with_unpaired_device(interface)
+
+    _connect(keyboard)
+    await _settle(keyboard)
+
+    assert interface.pair_calls == 1
+    assert keyboard.requested_paths == [DEVICE_PATH]  # type: ignore[attr-defined]
+
+
+async def test_a_device_connecting_is_left_alone_when_auto_pairing_is_off():
+    interface = FakeDeviceInterface()
+    keyboard = _keyboard_with_unpaired_device(interface)
+    keyboard.auto_pair = False
+
+    _connect(keyboard)
+
+    assert not keyboard._pairing_tasks
+    assert interface.pair_calls == 0
+
+
+async def test_manual_pairing_still_works_when_auto_pairing_is_off():
+    interface = FakeDeviceInterface()
+    keyboard = _keyboard_with_unpaired_device(interface)
+    keyboard.auto_pair = False
+
+    await keyboard._pair_device(DEVICE_PATH, "AA:BB:CC:DD:EE:FF")
+
+    assert interface.pair_calls == 1
+
+
+def test_auto_pairing_is_on_by_default():
+    assert BleKeyboard().auto_pair is True
+
+
+async def test_create_passes_auto_pair_on(fake_create_deps):
+    assert (await BleKeyboard.create(auto_pair=False)).auto_pair is False
+    assert (await BleKeyboard.create()).auto_pair is True
+
+
+async def test_a_device_connecting_outside_the_pairing_window_is_left_alone():
+    interface = FakeDeviceInterface()
+    keyboard = _keyboard_with_unpaired_device(interface, window_open=False)
+
+    _connect(keyboard)
+
+    assert not keyboard._pairing_tasks
+    assert interface.pair_calls == 0
+
+
+async def test_an_already_paired_device_connecting_is_not_paired_again():
+    interface = FakeDeviceInterface()
+    keyboard = _keyboard_with_unpaired_device(interface, paired=True)
+
+    _connect(keyboard)
+
+    assert not keyboard._pairing_tasks
+
+
+async def test_a_device_that_isnt_connected_is_not_paired():
+    interface = FakeDeviceInterface()
+    keyboard = _keyboard_with_unpaired_device(interface)
+
+    keyboard.state.properties_changed(DEVICE_PATH, "org.bluez.Device1", {"Alias": "Living Room"})
+
+    assert not keyboard._pairing_tasks
+
+
+async def test_further_changes_while_pairing_dont_pair_a_second_time():
+    gate = asyncio.Event()
+    interface = FakeDeviceInterface(gate=gate)
+    keyboard = _keyboard_with_unpaired_device(interface)
+
+    _connect(keyboard)
+    await asyncio.sleep(0)
+    keyboard.state.properties_changed(DEVICE_PATH, "org.bluez.Device1", {"Alias": "Living Room"})
+    await asyncio.sleep(0)
+    gate.set()
+    await _settle(keyboard)
+
+    assert interface.pair_calls == 1
+
+
+async def test_a_failed_automatic_pairing_is_logged_and_can_be_tried_again(caplog):
+    interface = FakeDeviceInterface(error=RuntimeError("Authentication Canceled"))
+    keyboard = _keyboard_with_unpaired_device(interface)
+
+    _connect(keyboard)
+    await _settle(keyboard)
+    assert "Couldn't pair with AA:BB:CC:DD:EE:FF" in caplog.text
+
+    keyboard.state.properties_changed(DEVICE_PATH, "org.bluez.Device1", {"Alias": "Living Room"})
+    await _settle(keyboard)
+
+    assert interface.pair_calls == 2
+
+
+async def test_pairing_manually_while_pairing_automatically_does_nothing():
+    gate = asyncio.Event()
+    interface = FakeDeviceInterface(gate=gate)
+    keyboard = _keyboard_with_unpaired_device(interface)
+    _connect(keyboard)
+    await asyncio.sleep(0)
+
+    await keyboard._pair_device(DEVICE_PATH, "AA:BB:CC:DD:EE:FF")
+    gate.set()
+    await _settle(keyboard)
+
+    assert interface.pair_calls == 1
+
+
+async def test_a_failure_of_a_manual_pairing_still_reaches_the_caller():
+    interface = FakeDeviceInterface(error=RuntimeError("Authentication Canceled"))
+    keyboard = _keyboard_with_unpaired_device(interface)
+
+    with pytest.raises(RuntimeError):
+        await keyboard._pair_device(DEVICE_PATH, "AA:BB:CC:DD:EE:FF")
+
+    with pytest.raises(RuntimeError):  # not stuck as "in progress": it really tries again
+        await keyboard._pair_device(DEVICE_PATH, "AA:BB:CC:DD:EE:FF")
+    assert interface.pair_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_advertise_opens_the_pairing_window(fake_bluez):
+    keyboard = BleKeyboard()
+    assert keyboard._pairing_window_until == 0.0
+
+    await keyboard.advertise()
+
+    assert keyboard._pairing_window_until > time.monotonic() + BleKeyboard.ADVERTISEMENT_TIMEOUT
+
+
+async def test_stop_cancels_a_pairing_in_progress():
+    interface = FakeDeviceInterface(gate=asyncio.Event())
+    keyboard = _keyboard_with_unpaired_device(interface)
+    _connect(keyboard)
+    await asyncio.sleep(0)
+    task = next(iter(keyboard._pairing_tasks))
+
+    await keyboard.stop()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert task.cancelled()
+
+
+async def test_stop_stops_the_monitor(fake_create_deps):
+    keyboard = await BleKeyboard.create()
+    monitor = keyboard.monitor
+
+    await keyboard.stop()
+
+    assert monitor.stop_calls == 1  # type: ignore[union-attr]
+    assert keyboard.monitor is None
+
+
+async def test_stop_twice_only_stops_the_monitor_once(fake_create_deps):
+    keyboard = await BleKeyboard.create()
+    monitor = keyboard.monitor
+
+    await keyboard.stop()
+    await keyboard.stop()
+
+    assert monitor.stop_calls == 1  # type: ignore[union-attr]
+
+
+async def test_stop_without_a_monitor_does_nothing():
+    await BleKeyboard().stop()
+
+
+async def test_create_gives_the_monitor_the_keyboards_state(fake_create_deps):
+    keyboard = await BleKeyboard.create()
+
+    assert FakeMonitor.instances[0].state is keyboard.state
+
+
+async def test_create_still_succeeds_when_the_monitor_cannot_start(fake_create_deps, caplog):
+    FakeMonitor.fail_start = True
+
+    keyboard = await BleKeyboard.create()
+
+    assert keyboard.monitor is None
+    assert "Couldn't start the Bluetooth state monitor" in caplog.text

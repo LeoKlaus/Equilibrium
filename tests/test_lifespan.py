@@ -2,11 +2,18 @@ import json
 import logging
 from typing import ClassVar
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.health import HealthChecker
-from api.lifespan import _lifespan, _load_ha_credentials, _load_rf_addresses, _scripts_dir_from_env
+from api.lifespan import (
+    _ble_auto_pair_from_env,
+    _lifespan,
+    _load_ha_credentials,
+    _load_rf_addresses,
+    _scripts_dir_from_env,
+)
 from api.log_broadcaster import LogBroadcaster
 
 
@@ -66,6 +73,43 @@ def test_load_ha_credentials_missing_key_returns_none_pair(tmp_path, monkeypatch
 def test_scripts_dir_from_env_missing_var_is_disabled(monkeypatch):
     monkeypatch.delenv("ENABLE_SCRIPTS", raising=False)
     assert _scripts_dir_from_env() is None
+
+
+def test_ble_auto_pair_is_on_by_default(monkeypatch):
+    monkeypatch.delenv("BLUETOOTH_AUTO_PAIR", raising=False)
+    assert _ble_auto_pair_from_env() is True
+
+
+@pytest.mark.parametrize("value", ["", "  ", "true", "1", "yes", "something else"])
+def test_ble_auto_pair_stays_on_for_anything_but_an_explicit_off(monkeypatch, value):
+    monkeypatch.setenv("BLUETOOTH_AUTO_PAIR", value)
+    assert _ble_auto_pair_from_env() is True
+
+
+@pytest.mark.parametrize("value", ["false", "FALSE", " no ", "0", "off"])
+def test_ble_auto_pair_can_be_turned_off(monkeypatch, value):
+    monkeypatch.setenv("BLUETOOTH_AUTO_PAIR", value)
+    assert _ble_auto_pair_from_env() is False
+
+
+async def test_lifespan_passes_the_ble_auto_pair_setting_to_the_hub(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir()
+    monkeypatch.setattr("api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("api.lifespan.run_migrations", lambda: None)
+    monkeypatch.setenv("BLUETOOTH_AUTO_PAIR", "false")
+    received: dict = {}
+
+    async def fake_create(cls, **kwargs):
+        received.update(kwargs)
+        return cls()
+
+    monkeypatch.setattr("api.lifespan.Hub.create", classmethod(fake_create))
+
+    async with _lifespan(FastAPI(), dev=True):
+        pass
+
+    assert received["ble_auto_pair"] is False
 
 
 def test_scripts_dir_from_env_false_is_disabled(monkeypatch):

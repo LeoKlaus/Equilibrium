@@ -10,6 +10,8 @@ from api.models.command import Command
 from api.models.command_group_type import CommandGroupType
 from api.models.command_type import CommandType
 from api.models.remote_button import RemoteButton
+from api.models.websocket_responses import BleDevice
+from ble_keyboard.bluetooth_state import BluetoothState
 from hub.event_bus import Event
 from hub.hub import Hub
 
@@ -191,6 +193,89 @@ async def test_shutdown_leaves_no_tasks_running():
     assert hub._bus_task.done()
 
 
+class FakeStoppableExecutor(FakeExecutor):
+    def __init__(self, name: str, fail: bool = False):
+        super().__init__(name)
+        self.stopped = False
+        self._fail = fail
+
+    async def stop(self) -> None:
+        self.stopped = True
+        if self._fail:
+            raise RuntimeError("won't stop")
+
+
+class FakeSyncStopExecutor(FakeExecutor):
+    stopped = False
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
+async def test_shutdown_calls_a_sync_stop_on_executors_too():
+    hub = Hub()
+    executor = FakeSyncStopExecutor("sync")
+    hub.register_executor(executor)
+
+    await hub.shutdown()
+
+    assert executor.stopped is True
+
+
+async def test_shutdown_stops_executors_that_have_a_stop():
+    hub = Hub()
+    stoppable = FakeStoppableExecutor("stoppable")
+    hub.register_executor(stoppable)
+    hub.register_executor(FakeExecutor("plain"))
+    await hub.start()
+
+    await hub.shutdown()
+
+    assert stoppable.stopped is True
+
+
+async def test_shutdown_without_start_still_stops_executors():
+    hub = Hub()
+    stoppable = FakeStoppableExecutor("stoppable")
+    hub.register_executor(stoppable)
+
+    await hub.shutdown()
+
+    assert stoppable.stopped is True
+
+
+async def test_shutdown_goes_on_when_an_executor_fails_to_stop(caplog):
+    hub = Hub()
+    failing = FakeStoppableExecutor("failing", fail=True)
+    other = FakeStoppableExecutor("other")
+    hub.register_executor(failing)
+    hub.register_executor(other)
+
+    await hub.shutdown()
+
+    assert failing.stopped and other.stopped
+    assert "Couldn't stop failing" in caplog.text
+
+
+async def test_shutdown_goes_on_when_a_source_fails_to_stop(caplog):
+    hub = Hub()
+
+    class FailingSource(FakeInputSource):
+        def stop(self) -> None:
+            raise RuntimeError("won't stop")
+
+    other = FakeInputSource("other")
+    hub.register_source(FailingSource("failing"))
+    hub.register_source(other)
+    await hub.start()
+    await asyncio.sleep(0)
+
+    await asyncio.wait_for(hub.shutdown(), timeout=1)
+
+    assert other.stopped is True
+    assert "Couldn't stop failing" in caplog.text
+
+
 async def test_shutdown_without_start_does_not_raise():
     hub = Hub()
     hub.register_source(FakeInputSource())
@@ -242,6 +327,38 @@ def test_assemble_pulls_ble_and_ir_from_the_registry():
     assert hub.scene_manager._ble_keyboard is ble
     assert hub.input_router._ble_keyboard is ble
     assert hub.input_router._ir_manager is ir
+
+
+class FakeBluetoothStatusExecutor(FakeBleExecutor):
+    def __init__(self):
+        super().__init__()
+        self.state = BluetoothState()
+
+    def bluetooth_device(self, address):
+        return BleDevice(address=address)
+
+
+def test_assemble_forwards_the_bluetooth_state_into_the_status_store():
+    hub = Hub()
+    ble = FakeBluetoothStatusExecutor()
+    hub.register_executor(ble)
+
+    hub.assemble()
+
+    assert hub.bluetooth_status_forwarder is not None
+    assert hub.status_store._resolve_bluetooth_device == ble.bluetooth_device
+    assert hub.bluetooth_status_forwarder._status_store is hub.status_store
+    assert len(ble.state._listeners) == 1
+
+
+def test_assemble_without_a_bluetooth_status_source_has_no_forwarder():
+    hub = Hub()
+    hub.register_executor(FakeBleExecutor())
+
+    hub.assemble()
+
+    assert hub.bluetooth_status_forwarder is None
+    assert hub.status_store._resolve_bluetooth_device is None
 
 
 def test_assemble_works_with_no_ble_or_ir_registered():

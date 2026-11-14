@@ -3,8 +3,10 @@ from collections.abc import Awaitable, Callable
 from api.models.scene import SceneWithRelationships
 from api.models.scene_status import SceneStatus
 from api.models.status import StatusReport
+from api.models.websocket_responses import BleDevice
 
 StatusCallback = Callable[[StatusReport], Awaitable[None]]
+BluetoothDeviceResolver = Callable[[str], BleDevice]
 
 
 class StatusStore:
@@ -14,9 +16,12 @@ class StatusStore:
     to notify after changing state.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, bluetooth_device_resolver: BluetoothDeviceResolver | None = None) -> None:
+        """`bluetooth_device_resolver` looks up the current state of a
+        bluetooth address; without one the status never has a bluetooth device."""
         self._status = StatusReport()
         self._callback: StatusCallback | None = None
+        self._resolve_bluetooth_device = bluetooth_device_resolver
 
     @property
     def status(self) -> StatusReport:
@@ -49,11 +54,25 @@ class StatusStore:
         """Replace the active scene and its status in a single update."""
         self._status.current_scene = scene
         self._status.scene_status = status
+        self._update_bluetooth_device()
         await self._notify()
 
     async def set_scene_status(self, status: SceneStatus | None) -> None:
         self._status.scene_status = status
         await self._notify()
+
+    async def refresh_bluetooth_device(self) -> None:
+        """Re-reads the current scene's bluetooth device, after it changed."""
+        self._update_bluetooth_device()
+        await self._notify()
+
+    def _update_bluetooth_device(self) -> None:
+        scene = self._status.current_scene
+        address = scene.bluetooth_address if scene is not None else None
+        if address and self._resolve_bluetooth_device is not None:
+            self._status.bluetooth_device = self._resolve_bluetooth_device(address)
+        else:
+            self._status.bluetooth_device = None
 
     async def _notify(self) -> None:
         if self._callback is not None:

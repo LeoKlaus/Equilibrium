@@ -62,6 +62,13 @@ The name Equilibrium advertises over mDNS/Bonjour is set via the
 `INSTANCE_NAME` environment variable (defaults to `Equilibrium`).
 If you run more than one hub on the same network, each one has to have its own name.
 
+Some hosts (notably Apple TVs) only show their pairing prompt once the hub
+initiates pairing. By default, the hub does that by itself when a new,
+unpaired device connects within about a minute of starting the advertisement
+(`POST /bluetooth/start_advertisement`). Set `BLUETOOTH_AUTO_PAIR=false`
+(e.g. in `.env`) to turn that off; pairing can then still be manually started with
+`POST /bluetooth/start_pairing`.
+
 ## Pictures
 
 ### The Hub

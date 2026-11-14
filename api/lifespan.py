@@ -64,6 +64,14 @@ def _scripts_dir_from_env() -> str | None:
     return "config/scripts" if enabled else None
 
 
+def _ble_auto_pair_from_env() -> bool:
+    """BLUETOOTH_AUTO_PAIR switches off pairing with a host that connects
+    right after advertising (see BleKeyboard). On unless explicitly
+    disabled."""
+    value = os.environ.get("BLUETOOTH_AUTO_PAIR", "").strip().lower()
+    return value not in ("0", "false", "no", "off")
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI, dev: bool):
     started_at = time.monotonic()
@@ -80,7 +88,12 @@ async def _lifespan(app: FastAPI, dev: bool):
     scripts_dir = _scripts_dir_from_env()
 
     hub = await Hub.create(
-        rf_addresses=addresses, ha_url=ha_url, ha_token=ha_token, scripts_dir=scripts_dir, dev=dev
+        rf_addresses=addresses,
+        ha_url=ha_url,
+        ha_token=ha_token,
+        scripts_dir=scripts_dir,
+        ble_auto_pair=_ble_auto_pair_from_env(),
+        dev=dev,
     )
     await hub.start()
     hub.mount_routers(app)

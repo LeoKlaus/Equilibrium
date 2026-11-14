@@ -25,6 +25,7 @@ from api.models.command import Command, CommandWithRelationships
 from api.models.device import Device, DeviceWithRelationships
 from api.models.macro import Macro, MacroWithCommands, MacroWithRelationships
 from api.models.scene import Scene, ScenePost, SceneWithRelationships, SceneWithRelationshipsAndFullDevices
+from api.models.webhook import Webhook
 
 __all__ = [
     "Command",
@@ -38,6 +39,7 @@ __all__ = [
     "ScenePost",
     "SceneWithRelationships",
     "SceneWithRelationshipsAndFullDevices",
+    "Webhook",
 ]
 
 Command.model_rebuild()

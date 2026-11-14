@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any
 
@@ -85,6 +86,10 @@ def debug_logging(caplog):
     caplog.set_level(logging.DEBUG, logger="ble_keyboard")
 
 
+async def _finish_tasks(monitor: BluezMonitor) -> None:
+    await asyncio.gather(*monitor._tasks)
+
+
 def _records(caplog) -> list[tuple[str, str]]:
     return [(record.levelname, record.getMessage()) for record in caplog.records]
 
@@ -147,6 +152,7 @@ def test_the_device_name_comes_from_the_alias_it_was_added_with(caplog):
 
 def test_an_alias_change_updates_the_name_used_afterwards(caplog):
     monitor = _monitor()
+    monitor._on_message(_interfaces_added(DEVICE, {"org.bluez.Device1": {"Alias": "Apple TV"}}))
     monitor._on_message(_properties_changed(DEVICE, "org.bluez.Device1", {"Alias": "Living room"}))
     caplog.clear()
 
@@ -216,15 +222,16 @@ def test_bluetoothd_disappearing_is_a_warning_and_forgets_device_names(caplog):
 
     assert [level for level, _ in _records(caplog)] == ["WARNING"]
     assert "bluetoothd went away" in caplog.records[0].getMessage()
-    assert monitor._aliases == {}
+    assert monitor.state.snapshot.devices == {}
 
 
-def test_bluetoothd_coming_back_is_logged_at_info(caplog):
+async def test_bluetoothd_coming_back_is_logged_at_info(caplog):
     monitor = _monitor()
 
     monitor._on_message(_name_owner_changed("org.bluez", "", ":1.57"))
 
-    assert _records(caplog) == [("INFO", "bluetoothd is available again")]
+    assert ("INFO", "bluetoothd is available again") in _records(caplog)
+    await _finish_tasks(monitor)
 
 
 def test_other_bus_names_changing_owner_are_ignored(caplog):
@@ -348,3 +355,128 @@ async def test_stop_tolerates_a_bus_that_is_already_gone():
     await monitor.start()
 
     await monitor.stop()  # must not raise
+
+
+# --- keeping the state up to date ---
+
+def test_signals_update_the_state():
+    monitor = _monitor()
+    monitor._on_message(_interfaces_added(ADAPTER, {"org.bluez.Adapter1": {"Powered": True}}))
+    monitor._on_message(_interfaces_added(DEVICE, {"org.bluez.Device1": {"Alias": "Apple TV"}}))
+
+    monitor._on_message(_properties_changed(DEVICE, "org.bluez.Device1", {"Connected": True, "Paired": True}))
+    monitor._on_message(_properties_changed(ADAPTER, "org.bluez.LEAdvertisingManager1", {"ActiveInstances": 1}))
+
+    snapshot = monitor.state.snapshot
+    assert snapshot.devices["AA:BB:CC:DD:EE:FF"].connected is True
+    assert snapshot.devices["AA:BB:CC:DD:EE:FF"].paired is True
+    assert snapshot.devices["AA:BB:CC:DD:EE:FF"].name == "Apple TV"
+    assert snapshot.adapter is not None and snapshot.adapter.advertising is True
+
+
+def test_a_removed_device_leaves_the_state():
+    monitor = _monitor()
+    monitor._on_message(_interfaces_added(DEVICE, {"org.bluez.Device1": {"Alias": "Apple TV"}}))
+
+    monitor._on_message(_interfaces_removed(DEVICE, ["org.bluez.Device1"]))
+
+    assert monitor.state.snapshot.devices == {}
+
+
+def test_bluetoothd_disappearing_marks_bluez_unavailable_in_the_state():
+    monitor = _monitor()
+    monitor.state.load({ADAPTER: {"org.bluez.Adapter1": {"Powered": True}}})
+
+    monitor._on_message(_name_owner_changed("org.bluez", ":1.42", ""))
+
+    assert monitor.state.bluez_available is False
+    assert monitor.state.adapter is None
+
+
+async def test_start_loads_the_current_state():
+    bus = FakeBus(
+        managed_objects={
+            ADAPTER: {"org.bluez.Adapter1": {"Powered": Variant("b", True), "Pairable": Variant("b", True)}},
+            DEVICE: {
+                "org.bluez.Device1": {
+                    "Alias": Variant("s", "Apple TV"),
+                    "Connected": Variant("b", True),
+                    "Paired": Variant("b", True),
+                }
+            },
+        }
+    )
+    monitor = BluezMonitor(bus)  # type: ignore[arg-type]
+
+    await monitor.start()
+
+    snapshot = monitor.state.snapshot
+    assert snapshot.bluez_available is True
+    assert snapshot.adapter is not None and snapshot.adapter.powered and snapshot.adapter.pairable
+    assert snapshot.devices["AA:BB:CC:DD:EE:FF"].connected is True
+
+
+async def test_start_without_bluez_running_leaves_the_state_unavailable():
+    bus = FakeBus(fail_on="GetManagedObjects")
+    monitor = BluezMonitor(bus)  # type: ignore[arg-type]
+
+    await monitor.start()
+
+    assert monitor.state.bluez_available is False
+
+
+async def test_the_state_is_reloaded_when_bluetoothd_comes_back():
+    bus = FakeBus(
+        managed_objects={
+            ADAPTER: {"org.bluez.Adapter1": {"Powered": Variant("b", True)}},
+            DEVICE: {"org.bluez.Device1": {"Alias": Variant("s", "Apple TV"), "Paired": Variant("b", True)}},
+        }
+    )
+    monitor = BluezMonitor(bus)  # type: ignore[arg-type]
+    await monitor.start()
+    monitor._on_message(_name_owner_changed("org.bluez", ":1.42", ""))
+    assert monitor.state.snapshot.devices == {}
+
+    monitor._on_message(_name_owner_changed("org.bluez", "", ":1.57"))
+    await _finish_tasks(monitor)
+
+    assert monitor.state.bluez_available is True
+    assert monitor.state.snapshot.devices["AA:BB:CC:DD:EE:FF"].paired is True
+
+
+async def test_a_failing_reload_is_logged_and_does_not_raise(caplog):
+    bus = FakeBus()
+    monitor = BluezMonitor(bus)  # type: ignore[arg-type]
+    await monitor.start()
+
+    async def broken_call(message):
+        raise ConnectionError("bus gone")
+
+    bus.call = broken_call  # type: ignore[method-assign]
+    monitor._on_message(_name_owner_changed("org.bluez", "", ":1.57"))
+    await _finish_tasks(monitor)
+
+    assert "Couldn't reload the Bluetooth state" in caplog.text
+
+
+async def test_stop_cancels_a_pending_reload():
+    bus = FakeBus()
+    monitor = BluezMonitor(bus)  # type: ignore[arg-type]
+    await monitor.start()
+    monitor._on_message(_name_owner_changed("org.bluez", "", ":1.57"))
+    (task,) = monitor._tasks
+
+    await monitor.stop()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert task.cancelled()
+
+
+def test_the_monitor_uses_the_state_it_is_given():
+    from ble_keyboard.bluetooth_state import BluetoothState
+
+    state = BluetoothState()
+
+    monitor = BluezMonitor(FakeBus(), state)  # type: ignore[arg-type]
+
+    assert monitor.state is state

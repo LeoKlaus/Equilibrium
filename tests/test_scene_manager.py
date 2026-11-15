@@ -257,3 +257,95 @@ async def test_stop_current_scene_only_dispatches_unskipped_power_commands(db_en
     assert status_store.status.current_scene is None
     assert status_store.status.scene_status is None
     assert keymap_resolver.loaded == ["default"]
+
+
+class RecordingBus:
+    def __init__(self):
+        self.events = []
+
+    async def publish(self, event):
+        self.events.append((event.type, event.payload))
+
+
+async def test_start_scene_publishes_starting_then_started(db_engine, deps):
+    status_store, keymap_resolver, command_dispatcher, ble_keyboard = deps
+    scene_id = _create_scene(db_engine)
+    bus = RecordingBus()
+    manager = SceneManager(status_store, keymap_resolver, command_dispatcher, ble_keyboard, bus)
+
+    await manager.start_scene(scene_id)
+
+    payload = {"scene_id": scene_id, "scene_name": "Movie Night"}
+    assert bus.events == [("scene.starting", payload), ("scene.started", payload)]
+
+
+async def test_start_scene_that_does_not_exist_publishes_nothing(deps):
+    status_store, keymap_resolver, command_dispatcher, ble_keyboard = deps
+    bus = RecordingBus()
+    manager = SceneManager(status_store, keymap_resolver, command_dispatcher, ble_keyboard, bus)
+
+    with pytest.raises(SceneNotFoundError):
+        await manager.start_scene(999)
+
+    assert bus.events == []
+
+
+async def test_stop_current_scene_publishes_stopping_then_stopped(db_engine, deps):
+    status_store, keymap_resolver, command_dispatcher, ble_keyboard = deps
+    scene_id = _create_scene(db_engine)
+    with Session(db_engine) as session:
+        await status_store.set_scene(session.get(Scene, scene_id), SceneStatus.ACTIVE)
+    bus = RecordingBus()
+    manager = SceneManager(status_store, keymap_resolver, command_dispatcher, ble_keyboard, bus)
+
+    await manager.stop_current_scene()
+
+    payload = {"scene_id": scene_id, "scene_name": "Movie Night"}
+    assert bus.events == [("scene.stopping", payload), ("scene.stopped", payload)]
+
+
+async def test_stop_current_scene_without_active_scene_publishes_nothing(deps):
+    status_store, keymap_resolver, command_dispatcher, ble_keyboard = deps
+    bus = RecordingBus()
+    manager = SceneManager(status_store, keymap_resolver, command_dispatcher, ble_keyboard, bus)
+
+    with pytest.raises(NoActiveSceneError):
+        await manager.stop_current_scene()
+
+    assert bus.events == []
+
+
+async def test_switching_scenes_publishes_stopped_for_the_old_one_before_started_for_the_new(db_engine, deps):
+    status_store, keymap_resolver, command_dispatcher, ble_keyboard = deps
+    tv_on = Command(
+        name="TV On", button=RemoteButton.POWER_ON, type=CommandType.IR,
+        command_group=CommandGroupType.POWER, ir_action="ff", device_id=1,
+    )
+    new_id = _create_scene(db_engine, name="Second", start_macro_commands=[tv_on])
+    old_id = _create_scene(db_engine, name="First")
+    with Session(db_engine) as session:
+        await status_store.set_scene(session.get(Scene, old_id), SceneStatus.ACTIVE)
+    bus = RecordingBus()
+    manager = SceneManager(status_store, keymap_resolver, command_dispatcher, ble_keyboard, bus)
+
+    await manager.start_scene(new_id)
+
+    old = {"scene_id": old_id, "scene_name": "First"}
+    new = {"scene_id": new_id, "scene_name": "Second"}
+    assert bus.events == [
+        ("scene.stopping", old),
+        ("scene.stopped", old),
+        ("scene.starting", new),
+        ("scene.started", new),
+    ]
+
+
+async def test_set_current_scene_publishes_nothing(db_engine, deps):
+    status_store, keymap_resolver, command_dispatcher, ble_keyboard = deps
+    scene_id = _create_scene(db_engine)
+    bus = RecordingBus()
+    manager = SceneManager(status_store, keymap_resolver, command_dispatcher, ble_keyboard, bus)
+
+    await manager.set_current_scene(scene_id)
+
+    assert bus.events == []

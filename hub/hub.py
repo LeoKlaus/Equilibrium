@@ -29,6 +29,7 @@ from ir_manager.ir_manager import IrManager
 from network_executor.network_executor import NetworkExecutor
 from rf_manager.rf_manager import RfInput
 from script_executor.script_executor import ScriptExecutor
+from webhooks.dispatcher import WebhookDispatcher
 
 
 class Hub:
@@ -42,8 +43,9 @@ class Hub:
 
     logger = logging.getLogger(__package__)
 
-    def __init__(self, config_dir: str = "config") -> None:
+    def __init__(self, config_dir: str = "config", webhook_dispatcher: WebhookDispatcher | None = None) -> None:
         self._config_dir = config_dir
+        self.webhook_dispatcher = webhook_dispatcher
 
         self.bus = EventBus()
         self._sources: list[InputSource] = []
@@ -174,12 +176,14 @@ class Hub:
         assert ir_manager is None or isinstance(ir_manager, IrManagerProtocol)
 
         self.scene_manager = SceneManager(
-            self.status_store, self.keymap_resolver, self.command_dispatcher, ble_keyboard
+            self.status_store, self.keymap_resolver, self.command_dispatcher, ble_keyboard, self.bus
         )
         self.input_router = InputRouter(
             self.keymap_resolver, self.scene_manager, self.command_dispatcher, ble_keyboard, ir_manager
         )
         self.input_router.subscribe(self.bus)
+        if self.webhook_dispatcher is not None:
+            self.webhook_dispatcher.subscribe(self.bus)
 
         self._assembled = True
 
@@ -191,6 +195,7 @@ class Hub:
         ha_token: str | None = None,
         scripts_dir: str | None = None,
         ble_auto_pair: bool = True,
+        webhook_dispatcher: WebhookDispatcher | None = None,
         dev: bool = False,
         config_dir: str = "config",
     ) -> "Hub":
@@ -204,8 +209,12 @@ class Hub:
         script_path) are created through the HTTP API, enabling this
         lets anything with API access run arbitrary executables from
         that directory - only set it if you trust every API client.
+
+        webhook_dispatcher is the explicit opt-in for webhooks: leave it
+        None to keep them disabled. Webhooks are created through the HTTP
+        API
         """
-        hub = cls(config_dir=config_dir)
+        hub = cls(config_dir=config_dir, webhook_dispatcher=webhook_dispatcher)
 
         if not dev:
             hub.register_source(RfInput(addresses=rf_addresses or [], config_dir=config_dir))
@@ -216,6 +225,13 @@ class Hub:
             hub.register_executor(HaManager(ha_url, ha_token))
 
         hub.register_executor(NetworkExecutor())
+
+        if webhook_dispatcher is not None:
+            hub.logger.warning(
+                "Webhooks are ENABLED. Anything with access to the HTTP API can make this hub send "
+                "HTTP requests to any host it can reach - only enable this if you trust everything "
+                " with access to the HTTP API."
+            )
 
         if scripts_dir is not None:
             hub.logger.warning(
@@ -264,10 +280,13 @@ class Hub:
                 # traceback gets logged at all.
                 self.logger.exception("A hub task had crashed before shutdown")
 
+        if self.webhook_dispatcher is not None:
+            await self._stop(self.webhook_dispatcher)
+
         for executor in self._executors.values():
             await self._stop(executor)
 
-    async def _stop(self, module: InputSource | ActionExecutor) -> None:
+    async def _stop(self, module: InputSource | ActionExecutor | WebhookDispatcher) -> None:
         """Calls the module's optional stop()."""
         stop = getattr(module, "stop", None)
         if stop is None:

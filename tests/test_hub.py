@@ -519,3 +519,52 @@ def test_build_modules_manifest_covers_sources_and_executors():
     manifest = hub.build_modules_manifest()
 
     assert {module["name"] for module in manifest} == {"rf", "ir"}
+
+
+class FakeWebhookDispatcher:
+    name = "webhooks"
+
+    def __init__(self):
+        self.subscribed_to = None
+        self.stopped = False
+
+    def subscribe(self, bus) -> None:
+        self.subscribed_to = bus
+
+    async def stop(self) -> None:
+        self.stopped = True
+
+
+def test_assemble_subscribes_the_webhook_dispatcher_to_the_bus():
+    dispatcher = FakeWebhookDispatcher()
+    hub = Hub(webhook_dispatcher=dispatcher)
+
+    hub.assemble()
+
+    assert dispatcher.subscribed_to is hub.bus
+
+
+def test_assemble_without_webhooks_has_no_dispatcher():
+    hub = Hub()
+
+    hub.assemble()
+
+    assert hub.webhook_dispatcher is None
+
+
+async def test_shutdown_stops_the_webhook_dispatcher():
+    dispatcher = FakeWebhookDispatcher()
+    hub = Hub(webhook_dispatcher=dispatcher)
+    await hub.start()
+
+    await hub.shutdown()
+
+    assert dispatcher.stopped is True
+
+
+async def test_scene_events_reach_the_webhook_dispatcher_through_the_hub_bus():
+    hub = Hub(webhook_dispatcher=FakeWebhookDispatcher())
+    hub.assemble()
+
+    assert hub.scene_manager is not None
+    assert hub.scene_manager._bus is hub.bus

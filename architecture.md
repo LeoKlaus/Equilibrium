@@ -222,6 +222,20 @@ database) and is served as HTTP 503; anything else impaired is `degraded` and
 still 200, so a simple monitor only alerts on a real outage and the body says
 what to look at.
 
+## Webhooks
+
+Opt-in (`ENABLE_WEBHOOKS`), off by default. When on, `Hub` owns a
+`WebhookDispatcher` that `api/lifespan.py` builds and injects (like
+`scripts_dir` for `ScriptExecutor`), and lifespan mounts
+`api/routers/webhooks.py`. When off there is no dispatcher and no `/webhooks`
+router.
+
+- `SceneManager` publishes `scene.starting`, `scene.started`, `scene.stopping`
+  and `scene.stopped` on the `EventBus` (`hub/scene_events.py`).
+- `WebhookDispatcher` (`webhooks/dispatcher.py`) subscribes to those events,
+  loads the enabled `Webhook` rows matching the event and scene, renders the
+  body and header values (`webhooks/template.py`) and sends them.
+
 ## API layer: direct dependency injection
 
 Routers depend on the specific component(s) they need instead of a single

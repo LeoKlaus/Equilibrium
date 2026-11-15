@@ -13,6 +13,7 @@ from api.lifespan import (
     _load_ha_credentials,
     _load_rf_addresses,
     _scripts_dir_from_env,
+    _webhooks_enabled_from_env,
 )
 from api.log_broadcaster import LogBroadcaster
 
@@ -345,3 +346,71 @@ async def test_lifespan_defaults_to_port_8000_when_app_state_has_none(tmp_path, 
         pass
 
     assert FakeZeroconfManager.instances[-1].registered_port == 8000
+
+
+def test_webhooks_are_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("ENABLE_WEBHOOKS", raising=False)
+    assert _webhooks_enabled_from_env() is False
+
+
+@pytest.mark.parametrize("value", ["", "false", "0", "no", "off", "maybe"])
+def test_webhooks_stay_disabled_for_anything_but_an_explicit_on(monkeypatch, value):
+    monkeypatch.setenv("ENABLE_WEBHOOKS", value)
+    assert _webhooks_enabled_from_env() is False
+
+
+@pytest.mark.parametrize("value", ["true", "TRUE", "1", " yes "])
+def test_webhooks_can_be_enabled(monkeypatch, value):
+    monkeypatch.setenv("ENABLE_WEBHOOKS", value)
+    assert _webhooks_enabled_from_env() is True
+
+
+def _webhooks_mounted(app: FastAPI) -> bool:
+    # /webhooks/placeholders needs neither the database nor the hub
+    return TestClient(app).get("/webhooks/placeholders").status_code == 200
+
+
+async def test_lifespan_without_webhooks_has_no_dispatcher_and_no_endpoints(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir()
+    monkeypatch.delenv("ENABLE_WEBHOOKS", raising=False)
+    monkeypatch.setattr("api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("api.lifespan.run_migrations", lambda: None)
+    received: dict = {}
+
+    async def fake_create(cls, **kwargs):
+        received.update(kwargs)
+        return cls()
+
+    monkeypatch.setattr("api.lifespan.Hub.create", classmethod(fake_create))
+
+    app = FastAPI()
+    async with _lifespan(app, dev=True):
+        assert _webhooks_mounted(app) is False
+
+    assert received["webhook_dispatcher"] is None
+
+
+async def test_lifespan_with_webhooks_gives_the_hub_a_dispatcher_and_mounts_the_endpoints(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config").mkdir()
+    monkeypatch.setenv("ENABLE_WEBHOOKS", "true")
+    monkeypatch.setenv("INSTANCE_NAME", "LivingRoomHub")
+    monkeypatch.setattr("api.lifespan.ZeroconfManager", FakeZeroconfManager)
+    monkeypatch.setattr("api.lifespan.run_migrations", lambda: None)
+    received: dict = {}
+
+    async def fake_create(cls, **kwargs):
+        received.update(kwargs)
+        return cls()
+
+    monkeypatch.setattr("api.lifespan.Hub.create", classmethod(fake_create))
+
+    app = FastAPI()
+    async with _lifespan(app, dev=False):
+        assert _webhooks_mounted(app) is True
+
+    dispatcher = received["webhook_dispatcher"]
+    assert dispatcher is not None
+    # What {{ INSTANCE_NAME }} is replaced with: the name the hub advertises
+    assert dispatcher._instance_name == "LivingRoomHub"

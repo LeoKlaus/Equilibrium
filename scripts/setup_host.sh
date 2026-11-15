@@ -243,6 +243,26 @@ else
 fi
 
 echo
+echo "=== Webhooks ==="
+echo "  The hub can send an HTTP request when a scene starts or stops."
+echo "  WARNING: Webhooks are created through the HTTP API, so enabling"
+echo "  this lets anything with API access make your hub send requests"
+echo "  to any host it can reach, including other devices on your"
+echo "  network. Only enable this if you trust every client that can"
+echo "  reach the API."
+read -rp "  Enable webhooks? [y/N] " enable_webhooks
+
+if [[ "${enable_webhooks:-}" =~ ^[Yy]$ ]]; then
+    _write_env_var ENABLE_WEBHOOKS true
+    _do "Enabled webhooks (ENABLE_WEBHOOKS=true in .env). Manage them via /webhooks in the HTTP API."
+elif [ -f .env ] && grep -q '^ENABLE_WEBHOOKS=true' .env 2>/dev/null; then
+    _write_env_var ENABLE_WEBHOOKS false
+    _do "Disabled webhooks (ENABLE_WEBHOOKS=false in .env)."
+else
+    _ok "Webhooks stay disabled."
+fi
+
+echo
 echo "=== Instance name ==="
 echo "  This is the name Equilibrium advertises on the network (mDNS/Bonjour)"
 echo "  so clients can find it. If you run more than one hub on the same"

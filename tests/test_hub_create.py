@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import ClassVar
 
 import pytest
@@ -203,3 +204,22 @@ async def test_create_assembles_the_pipeline(patched_modules, empty_config_dir):
 
     assert hub.status_store is not None
     assert hub.input_router is not None
+
+
+async def test_create_is_without_webhooks_by_default(patched_modules, empty_config_dir, caplog):
+    hub = await Hub.create(dev=True, config_dir=empty_config_dir)
+
+    assert hub.webhook_dispatcher is None
+    assert "Webhooks are ENABLED" not in caplog.text
+
+
+async def test_create_uses_the_given_webhook_dispatcher_and_warns(patched_modules, empty_config_dir, caplog):
+    from webhooks.dispatcher import WebhookDispatcher
+
+    dispatcher = WebhookDispatcher("Hub")
+
+    with caplog.at_level(logging.WARNING):
+        hub = await Hub.create(dev=True, webhook_dispatcher=dispatcher, config_dir=empty_config_dir)
+
+    assert hub.webhook_dispatcher is dispatcher
+    assert "Webhooks are ENABLED" in caplog.text

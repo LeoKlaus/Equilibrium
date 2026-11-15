@@ -30,6 +30,8 @@ class WebhookDispatcher:
     timeout, so only MAX_IN_FLIGHT deliveries run at once.
     """
 
+    name = "webhooks"
+
     logger = logging.getLogger(__package__)
 
     MAX_IN_FLIGHT = 10

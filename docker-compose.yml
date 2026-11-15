@@ -9,6 +9,10 @@ services:
       # config/scripts - only enable if you trust everything with
       # access to the HTTP API. Set via setup_host.sh or .env.
       - ENABLE_SCRIPTS=${ENABLE_SCRIPTS:-false}
+      # Sends HTTP requests (webhooks) when scenes start or stop, managed
+      # through /webhooks in the HTTP API - only enable if you trust everything with
+      # access to the HTTP API. Set via setup_host.sh or .env.
+      - ENABLE_WEBHOOKS=${ENABLE_WEBHOOKS:-false}
       # Name this hub advertises over mDNS/Bonjour. Every hub on the
       # same network needs a different one. Set via setup_host.sh or
       # by hand in .env.
